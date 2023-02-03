@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 from motion.transform import Transform
+from motion.data import JSONMemoryStore
+from motion.execute import PipelineExecutor
 
 
 @dataclass
@@ -11,16 +13,12 @@ class FeatureType:
 
 @dataclass
 class LabelType:
-    indicator: bool
+    indicator: int
 
 
 class ScratchModel(Transform):
     featureType = FeatureType
     labelType = LabelType
-
-    def __init__(self):
-        self.state = {"model": None, "train_acc": None}
-        super().__init__()
 
     def fit(self, features, labels):
         prices = [f.unit_price for f in features]
@@ -33,3 +31,17 @@ class ScratchModel(Transform):
 
     def infer(self, features):
         return self.state["model"](features)
+
+
+if __name__ == "__main__":
+    # Create a store
+    store = JSONMemoryStore("fake_data.json")
+    pe = PipelineExecutor(store)
+    pe.addTransform(ScratchModel)
+
+    # Execute
+    preds = pe.execute(["079", "080", "081"])
+    print(preds)
+
+    # Print state
+    print(pe.transforms["ScratchModel"].state_history)

@@ -8,8 +8,10 @@ TODO(shreyashankar):
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from sklearn import datasets
 
 import json
+import pandas as pd
 
 
 class Store(ABC):
@@ -28,6 +30,42 @@ class Store(ABC):
     @abstractmethod
     def mset(self, id, key_values):
         pass
+
+
+class SklearnStore(Store):
+    def __init__(self, name: str = "iris"):
+        if name == "iris":
+            data = datasets.load_iris()
+            df = pd.DataFrame(data=data.data, columns=data.feature_names)
+            df["target"] = data["target"]
+            df.columns = df.columns.str.replace("(cm)", "", regex=False)
+            df.columns = df.columns.str.strip()
+            df.columns = df.columns.str.replace(" ", "_")
+            self.store = (
+                df.sample(frac=1).reset_index(drop=True).to_dict("index")
+            )
+        else:
+            raise ValueError(f"Unknown dataset {name}")
+
+    def get(self, id, key):
+        return self.store[id][key]
+
+    def mget(self, id, keys):
+        return {key: self.store[id][key] for key in keys}
+
+    def set(self, id, key, value):
+        if id not in self.store:
+            self.store[id] = {}
+        self.store[id][key] = value
+
+    def mset(self, id, key_values):
+        if id not in self.store:
+            self.store[id] = {}
+        self.store[id].update(key_values)
+
+    def idsBefore(self, id):
+        key_list = list(self.store.keys())
+        return key_list[: key_list.index(id)]
 
 
 class JSONMemoryStore(Store):
@@ -54,4 +92,4 @@ class JSONMemoryStore(Store):
 
     def idsBefore(self, id):
         key_list = list(self.store.keys())
-        return key_list[: key_list.indexof(id)]
+        return key_list[: key_list.index(id)]

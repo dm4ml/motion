@@ -5,32 +5,29 @@ from abc import ABC, abstractmethod
 
 
 class Transform(ABC):
-    def __init__(self):
-        self.buffer = []
-        self.state_history = {}
-        self.step = (
-            None  # TODO(shreyashankar): figure out how to update the step
-        )
+    def __init__(self, executor):
+        self.executor = executor
+        self.state = {}
 
-    def _check_type(self, features, labels):
-        if not isinstance(features[0], self.feature_type):
-            raise TypeError(f"Features must be of type {self.feature_type}")
-        if not isinstance(labels[0], self.label_type):
-            raise TypeError(f"Labels must be of type {self.label_type}")
+    def _check_type(self, features, labels=None):
+        if not isinstance(features[0], self.featureType):
+            raise TypeError(f"Features must be of type {self.featureType}")
+        if labels and not isinstance(labels[0], self.labelType):
+            raise TypeError(f"Labels must be of type {self.labelType}")
 
     def updateState(self, state):
         self.state.update(state)
-        self.state_history[self.step] = copy.deepcopy(self.state)
+        self.executor.versionState(state)
 
     @abstractmethod
-    def fit(self, features, labels):
+    def fit(self, features, labels) -> None:
         pass
 
-    def inc(self, features, labels):  # Optional
+    def inc(self, features, labels) -> None:  # Optional
         pass
 
     @abstractmethod
-    def infer(self, features):
+    def infer(self, features) -> typing.Any:
         pass
 
     def __call__(self, *args, **kwargs):
