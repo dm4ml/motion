@@ -90,6 +90,9 @@ if __name__ == "__main__":
     pe = PipelineExecutor(store)
     pe.addTransform(SVM)
 
+    # Print pipeline
+    pe.printPipeline()
+
     # Execute
     preds = pe.executemany(test_ids)
 

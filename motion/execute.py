@@ -7,6 +7,10 @@ Things we need to do:
 """
 from graphlib import TopologicalSorter
 from rich.progress import track
+from rich.tree import Tree
+from rich import print as rprint
+from rich.panel import Panel
+from rich.console import Group
 
 import copy
 import dataclasses
@@ -130,24 +134,51 @@ class PipelineExecutor(object):
             dep.__name__ for dep in dependencies
         }
 
+    def printPipeline(self):
+        ts = TopologicalSorter(self.transform_dag)
+        ts.prepare()
+
+        while ts.is_active():
+            for node in ts.get_ready():
+                node_tree = Tree(
+                    Panel.fit(
+                        f"{node}",
+                        style="bold bright_blue",
+                    ),
+                    guide_style="bold bright_blue",
+                )
+                features_tree = node_tree.add("[bold yellow]Features")
+                for field in dataclasses.fields(
+                    self.transforms[node].transform.featureType
+                ):
+                    features_tree.add(field.name)
+                labels_tree = node_tree.add("[bold yellow]Labels")
+                for field in dataclasses.fields(
+                    self.transforms[node].transform.labelType
+                ):
+                    labels_tree.add(field.name)
+                ts.done(node)
+
+                rprint(node_tree)
+
     def executemany(self, ids):
         # TODO(shreyashankar): figure out how to handle dependent models
         # TODO(shreyashankar): figure out how to handle caching (after parallelization)
 
         # Run topological sort
-        self.ts = TopologicalSorter(self.transform_dag)
-        self.ts.prepare()
+        ts = TopologicalSorter(self.transform_dag)
+        ts.prepare()
         results = {}
 
-        while self.ts.is_active():
-            for node in self.ts.get_ready():
+        while ts.is_active():
+            for node in ts.get_ready():
                 # Retrieve transform and do work for the ids
                 te = self.transforms[node]
 
                 for id in track(ids, description="Running the pipeline..."):
                     results[id] = te.infer(id)
 
-                self.ts.done(node)
+                ts.done(node)
 
         return results
 
