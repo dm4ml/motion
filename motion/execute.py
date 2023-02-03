@@ -11,6 +11,7 @@ from rich.tree import Tree
 from rich import print as rprint
 from rich.panel import Panel
 from rich.console import Group
+from rich.layout import Layout
 
 import copy
 import dataclasses
@@ -137,29 +138,44 @@ class PipelineExecutor(object):
     def printPipeline(self):
         ts = TopologicalSorter(self.transform_dag)
         ts.prepare()
+        panels = []
 
         while ts.is_active():
             for node in ts.get_ready():
-                node_tree = Tree(
-                    Panel.fit(
-                        f"{node}",
-                        style="bold bright_blue",
-                    ),
+                # node_tree = Tree(
+                #     f"[bold yellow]{node}",
+                #     guide_style="bold bright_blue",
+                # )
+                features_tree = Tree(
+                    "[underline yellow]Features",
                     guide_style="bold bright_blue",
                 )
-                features_tree = node_tree.add("[bold yellow]Features")
                 for field in dataclasses.fields(
                     self.transforms[node].transform.featureType
                 ):
                     features_tree.add(field.name)
-                labels_tree = node_tree.add("[bold yellow]Labels")
+                labels_tree = Tree(
+                    "[underline yellow]Labels", guide_style="bold bright_blue"
+                )
                 for field in dataclasses.fields(
                     self.transforms[node].transform.labelType
                 ):
                     labels_tree.add(field.name)
+
+                panels.append(
+                    Panel(
+                        Group(features_tree, labels_tree),
+                        border_style="bold bright_blue",
+                        title=f"[bold yellow]{node}",
+                        expand=False,
+                    )
+                )
                 ts.done(node)
 
-                rprint(node_tree)
+        layout = Layout()
+        layout.size = None
+        layout.split_row(*[p for p in panels])
+        rprint(layout)
 
     def executemany(self, ids):
         # TODO(shreyashankar): figure out how to handle dependent models
