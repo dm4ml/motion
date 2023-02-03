@@ -11,31 +11,55 @@ import numpy as np
 
 
 @dataclass
-class IrisFeature:
-    sepal_length: float
-    sepal_width: float
-    petal_length: float
-    petal_width: float
+class BreastFeature:
+    mean_radius: float
+    mean_texture: float
+    mean_perimeter: float
+    mean_area: float
+    mean_smoothness: float
+    mean_compactness: float
+    mean_concavity: float
+    mean_concave_points: float
+    mean_symmetry: float
+    mean_fractal_dimension: float
+    radius_error: float
+    texture_error: float
+    perimeter_error: float
+    area_error: float
+    smoothness_error: float
+    compactness_error: float
+    concavity_error: float
+    concave_points_error: float
+    symmetry_error: float
+    fractal_dimension_error: float
+    worst_radius: float
+    worst_texture: float
+    worst_perimeter: float
+    worst_area: float
+    worst_smoothness: float
+    worst_compactness: float
+    worst_concavity: float
+    worst_concave_points: float
+    worst_symmetry: float
+    worst_fractal_dimension: float
 
     def __array__(self) -> np.ndarray:
         return np.array(
-            [
-                self.sepal_length,
-                self.sepal_width,
-                self.petal_length,
-                self.petal_width,
-            ]
+            [getattr(self, field) for field in self.__dataclass_fields__]
         )
 
 
 @dataclass
-class IrisLabel:
+class BreastLabel:
     target: int
 
 
 class SVM(Transform):
-    featureType = IrisFeature
-    labelType = IrisLabel
+    featureType = BreastFeature
+    labelType = BreastLabel
+
+    def setUp(self):
+        self.max_staleness = 15
 
     def fit(self, features, labels):
         model = svm.SVC(kernel="linear", probability=True)
@@ -57,7 +81,7 @@ if __name__ == "__main__":
     pretty.install()
 
     # Create a store
-    store = SklearnStore("iris")
+    store = SklearnStore("breast_cancer")
     test_ids = [
         int(elem)
         for elem in np.arange(0.8 * len(store.store), len(store.store))

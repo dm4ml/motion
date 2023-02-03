@@ -13,14 +13,18 @@ import dataclasses
 
 
 class TransformExecutor(object):
-    def __init__(self, transform, store, max_staleness: int = 0):
+    def __init__(self, transform, store):
         # TODO(shreyashankar): Add to the buffer when inference is performed
         self.buffer = []
         self.state_history = {}
         self.step = None
         self.transform = transform(self)
         self.store = store
-        self.max_staleness = max_staleness
+        self.max_staleness = (
+            self.transform.max_staleness
+            if hasattr(self.transform, "max_staleness")
+            else 0
+        )
 
     def versionState(self, state):
         if self.step is None:
@@ -127,7 +131,6 @@ class PipelineExecutor(object):
         }
 
     def executemany(self, ids):
-        # TODO(shreyashankar): figure out how to handle retraining with epsilon
         # TODO(shreyashankar): figure out how to handle dependent models
         # TODO(shreyashankar): figure out how to handle caching (after parallelization)
 

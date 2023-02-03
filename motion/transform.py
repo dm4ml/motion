@@ -8,6 +8,10 @@ class Transform(ABC):
     def __init__(self, executor):
         self.executor = executor
         self.state = {}
+        self.setUp()
+
+    def setUp(self):
+        pass
 
     def _check_type(self, features, labels=None):
         if not isinstance(features[0], self.featureType):
@@ -23,7 +27,9 @@ class Transform(ABC):
     def fit(self, features, labels) -> None:
         pass
 
-    def inc(self, features, labels) -> None:  # Optional
+    def inc(
+        self, features, labels
+    ) -> None:  # Optional (TODO shreyashankar: implement this when we implement the buffer)
         pass
 
     @abstractmethod

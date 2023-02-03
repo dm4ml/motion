@@ -39,13 +39,16 @@ class SklearnStore(Store):
             df = pd.DataFrame(data=data.data, columns=data.feature_names)
             df["target"] = data["target"]
             df.columns = df.columns.str.replace("(cm)", "", regex=False)
-            df.columns = df.columns.str.strip()
-            df.columns = df.columns.str.replace(" ", "_")
-            self.store = (
-                df.sample(frac=1).reset_index(drop=True).to_dict("index")
-            )
+        elif name == "breast_cancer":
+            data = datasets.load_breast_cancer()
+            df = pd.DataFrame(data=data.data, columns=data.feature_names)
+            df["target"] = data["target"]
         else:
             raise ValueError(f"Unknown dataset {name}")
+
+        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.replace(" ", "_")
+        self.store = df.sample(frac=1).reset_index(drop=True).to_dict("index")
 
     def get(self, id, key):
         return self.store[id][key]
