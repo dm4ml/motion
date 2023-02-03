@@ -5,6 +5,20 @@ from abc import ABC, abstractmethod
 
 
 class Transform(ABC):
+    featureType = NotImplemented
+    labelType = NotImplemented
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.featureType is NotImplemented:
+            raise NotImplementedError(
+                "Transforms must define a featureType class attribute."
+            )
+        if cls.labelType is NotImplemented:
+            raise NotImplementedError(
+                "Transforms must define a labelType class attribute."
+            )
+
     def __init__(self, executor):
         self.executor = executor
         self.state = {}
@@ -33,7 +47,7 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def infer(self, features) -> typing.Any:
+    def infer(self, feature) -> typing.Any:
         pass
 
     def __call__(self, *args, **kwargs):

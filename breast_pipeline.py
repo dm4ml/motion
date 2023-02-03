@@ -8,6 +8,7 @@ from rich import print, pretty
 from sklearn import svm
 
 import numpy as np
+import typing
 
 
 @dataclass
@@ -61,7 +62,11 @@ class SVM(Transform):
     def setUp(self):
         self.max_staleness = 15
 
-    def fit(self, features, labels):
+    def fit(
+        self,
+        features: typing.List[featureType],
+        labels: typing.List[labelType],
+    ):
         model = svm.SVC(kernel="linear", probability=True)
 
         train_set = np.array([np.array(f) for f in features])
@@ -71,10 +76,8 @@ class SVM(Transform):
         train_acc = model.score(train_set, train_target)
         self.updateState({"model": model, "train_acc": train_acc})
 
-    def infer(self, features):
-        return self.state["model"].predict(np.array(features).reshape(1, -1))[
-            0
-        ]
+    def infer(self, feature: featureType):
+        return self.state["model"].predict(np.array(feature).reshape(1, -1))[0]
 
 
 if __name__ == "__main__":
