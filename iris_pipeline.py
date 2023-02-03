@@ -4,13 +4,14 @@ from motion.transform import Transform
 from motion.data import SklearnStore
 from motion.execute import PipelineExecutor
 
+from rich import print, pretty
 from sklearn import svm
 
 import numpy as np
 
 
 @dataclass
-class IrisFeatureType:
+class IrisFeature:
     sepal_length: float
     sepal_width: float
     petal_length: float
@@ -28,16 +29,16 @@ class IrisFeatureType:
 
 
 @dataclass
-class IrisLabelType:
+class IrisLabel:
     target: int
 
 
 class SVM(Transform):
-    featureType = IrisFeatureType
-    labelType = IrisLabelType
+    featureType = IrisFeature
+    labelType = IrisLabel
 
     def fit(self, features, labels):
-        model = svm.SVC(kernel="rbf", probability=True)
+        model = svm.SVC(kernel="linear", probability=True)
 
         train_set = np.array([np.array(f) for f in features])
         train_target = np.array([l.target for l in labels])
@@ -53,6 +54,8 @@ class SVM(Transform):
 
 
 if __name__ == "__main__":
+    pretty.install()
+
     # Create a store
     store = SklearnStore("iris")
     test_ids = [
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     print("Accuracy: {0:.4f}".format(float(numerator / denominator)))
 
     # Try to execute some old id
-    old_id = 5
+    old_id = 15
     old_pred = pe.executeone(old_id)
     print(
         "Old prediction and label for id {0}: {1}, {2}".format(

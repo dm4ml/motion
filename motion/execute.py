@@ -6,20 +6,21 @@ Things we need to do:
 * Handle dependent models
 """
 from graphlib import TopologicalSorter
-from motion.data import JSONMemoryStore
+from rich.progress import track
 
 import copy
 import dataclasses
 
 
 class TransformExecutor(object):
-    def __init__(self, transform, store):
+    def __init__(self, transform, store, max_staleness: int = 0):
         # TODO(shreyashankar): Add to the buffer when inference is performed
         self.buffer = []
         self.state_history = {}
         self.step = None
         self.transform = transform(self)
         self.store = store
+        self.max_staleness = max_staleness
 
     def versionState(self, state):
         if self.step is None:
@@ -32,6 +33,8 @@ class TransformExecutor(object):
         train_ids = self.store.idsBefore(id)
         features = []
         labels = []
+
+        assert id not in train_ids
 
         for train_id in train_ids:
             feature_values = self.store.mget(
@@ -86,7 +89,12 @@ class TransformExecutor(object):
 
         # Find most recent state <= id
         version = max(
-            [v for v in self.state_history.keys() if v <= id] or [None]
+            [
+                v
+                for v in self.state_history.keys()
+                if v <= id and v >= id - self.max_staleness
+            ]
+            or [None]
         )
 
         if not version:
@@ -97,7 +105,7 @@ class TransformExecutor(object):
         # Infer using the correct state
         old_state = self.transform.state
         self.transform.state = self.state_history[version]
-        print("Using version {0} for tuple {1}".format(version, id))
+        # print("Using version {0} for tuple {1}".format(version, id))
         result = self.transform.infer(features)
         self.transform.state = old_state
         return result
@@ -133,7 +141,7 @@ class PipelineExecutor(object):
                 # Retrieve transform and do work for the ids
                 te = self.transforms[node]
 
-                for id in ids:
+                for id in track(ids, description="Running the pipeline..."):
                     results[id] = te.infer(id)
 
                 self.ts.done(node)
