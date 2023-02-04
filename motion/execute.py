@@ -66,15 +66,19 @@ class TransformExecutor(object):
                 for field in _get_fields_from_type(
                     upstream.transform.returnType
                 )
-                if field.name
-                in _get_fields_from_type(self.transform.featureType)
+                if field in _get_fields_from_type(self.transform.featureType)
             ]
             for name in upstream_feature_names:
-                feature_values[name] = upstream.infer(id, version=version)
+                feature_values[name] = upstream.infer(
+                    id, version=version
+                )  # BUG IS HERE
 
         features = self.transform.featureType(
             **{k: v for k, v in feature_values.items() if v is not None}
         )
+
+        if self.upstream_executors:
+            rprint(features)
 
         return features
 
