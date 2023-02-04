@@ -18,14 +18,21 @@ import inspect
 import dataclasses
 
 
+def _get_fields_from_type(t):
+    if not t:
+        raise ValueError("Cannot get fields from None type.")
+    return dataclasses.fields(t)
+
+
 class TransformExecutor(object):
-    def __init__(self, transform, store):
+    def __init__(self, transform, store, upstream_executors=[]):
         # TODO(shreyashankar): Add to the buffer when inference is performed
         self.buffer = []
         self.state_history = {}
         self.step = None
         self.transform = transform(self)
         self.store = store
+        self.upstream_executors = upstream_executors
         self.max_staleness = (
             self.transform.max_staleness
             if hasattr(self.transform, "max_staleness")
@@ -39,41 +46,57 @@ class TransformExecutor(object):
             )
         self.state_history[self.step] = copy.deepcopy(state)
 
+    def fetchFeatures(self, id, version):
+        if self.transform.featureType is None:
+            return None
+
+        # Get from datastore
+        feature_values = self.store.mget(
+            id,
+            [
+                field.name
+                for field in _get_fields_from_type(self.transform.featureType)
+            ],
+        )
+
+        # Replace from upstream if necessary (TODO: shreyashankar)
+        for upstream in self.upstream_executors:
+            upstream_feature_names = [
+                field.name
+                for field in _get_fields_from_type(
+                    upstream.transform.returnType
+                )
+                if field.name
+                in _get_fields_from_type(self.transform.featureType)
+            ]
+            for name in upstream_feature_names:
+                feature_values[name] = upstream.infer(id, version=version)
+
+        features = self.transform.featureType(
+            **{k: v for k, v in feature_values.items() if v is not None}
+        )
+
+        return features
+
     def fit(self, id):
         train_ids = self.store.idsBefore(id)
-        features = []
-        labels = []
+        features = None
+        labels = None
 
         assert id not in train_ids
 
-        for train_id in train_ids:
-            if self.transform.featureType is not None:
-                feature_values = self.store.mget(
-                    train_id,
-                    [
-                        field.name
-                        for field in dataclasses.fields(
-                            self.transform.featureType
-                        )
-                    ],
-                )
-                features.append(
-                    self.transform.featureType(
-                        **{
-                            k: v
-                            for k, v in feature_values.items()
-                            if v is not None
-                        }
-                    )
-                )
-            else:
-                features = None
-            if self.transform.labelType is not None:
+        if self.transform.featureType is not None:
+            features = []
+            for train_id in train_ids:
+                features.append(self.fetchFeatures(train_id, version=id))
+        if self.transform.labelType is not None:
+            labels = []
+            for train_id in train_ids:
                 label_values = self.store.mget(
                     train_id,
                     [
                         field.name
-                        for field in dataclasses.fields(
+                        for field in _get_fields_from_type(
                             self.transform.labelType
                         )
                     ],
@@ -87,47 +110,34 @@ class TransformExecutor(object):
                         }
                     )
                 )
-            else:
-                labels = None
 
         # Fit transform to training set
         self.transform._check_type(features=features, labels=labels)
         self.step = id
         self.transform.fit(features=features, labels=labels)
 
-    def infer(self, id):
+    def infer(self, id, version=None):
         # Retrieve features
-        if self.transform.featureType is None:
-            features = None
-        else:
-            feature_values = self.store.mget(
-                id,
-                [
-                    field.name
-                    for field in dataclasses.fields(self.transform.featureType)
-                ],
-            )
-            features = self.transform.featureType(
-                **{k: v for k, v in feature_values.items() if v is not None}
-            )
+        features = self.fetchFeatures(id, version=id)
 
         # Type check features
         self.transform._check_type(features=[features])
 
-        # Find most recent state <= id
-        version = max(
-            [
-                v
-                for v in self.state_history.keys()
-                if v <= id and v >= id - self.max_staleness
-            ]
-            or [None]
-        )
-
+        # Find most recent state <= id if explicit version wasn't passed in
         if not version:
-            # Train on all data up to this point
-            self.fit(id)
-            version = id
+            version = max(
+                [
+                    v
+                    for v in self.state_history.keys()
+                    if v <= id and v >= id - self.max_staleness
+                ]
+                or [None]
+            )
+
+            if not version:
+                # Train on all data up to not including this point
+                self.fit(id)
+                version = id
 
         # Infer using the correct state
         old_state = self.transform.state
@@ -145,13 +155,18 @@ class PipelineExecutor(object):
         self.transform_dag = {}
         self.ts = None
 
-    def addTransform(self, transform, dependencies=[]):
-        self.transforms[transform.__name__] = TransformExecutor(
-            transform, self.store
-        )
+    def addTransform(self, transform, upstream=[]):
         self.transform_dag[transform.__name__] = {
-            dep.__name__ for dep in dependencies
+            dep.__name__ for dep in upstream
         }
+        self.transforms[transform.__name__] = TransformExecutor(
+            transform,
+            self.store,
+            [
+                self.transforms[dep]
+                for dep in self.transform_dag[transform.__name__]
+            ],
+        )
 
     def printPipeline(self):
         ts = TopologicalSorter(self.transform_dag)
@@ -194,7 +209,7 @@ class PipelineExecutor(object):
 
         layout = Layout()
         layout.size = None
-        layout.split_row(*[p for p in panels])
+        layout.split_row(*[Layout(p) for p in panels])
         rprint(layout)
 
     def executemany(self, ids):
@@ -214,7 +229,7 @@ class PipelineExecutor(object):
                 # Retrieve transform and do work for the ids
                 te = self.transforms[node]
 
-                for id in track(ids, description="Running the pipeline..."):
+                for id in track(ids, description=f"Executing {node}..."):
                     results[node][id] = te.infer(id)
 
                 ts.done(node)

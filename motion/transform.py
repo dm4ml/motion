@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 class Transform(ABC):
     featureType = NotImplemented
     labelType = NotImplemented
+    returnType = NotImplemented
 
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
@@ -17,6 +18,10 @@ class Transform(ABC):
         if cls.labelType is NotImplemented:
             raise NotImplementedError(
                 "Transforms must define a labelType class attribute."
+            )
+        if cls.returnType is NotImplemented:
+            raise NotImplementedError(
+                "Transforms must define a returnType class attribute."
             )
 
     def __init__(self, executor):

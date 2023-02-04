@@ -51,10 +51,12 @@ class SklearnStore(Store):
         self.store = df.sample(frac=1).reset_index(drop=True).to_dict("index")
 
     def get(self, id, key):
-        return self.store[id][key]
+        return self.store[id][key] if key in self.store[id] else None
 
     def mget(self, id, keys):
-        return {key: self.store[id][key] for key in keys}
+        return {
+            key: self.store[id][key] for key in keys if key in self.store[id]
+        }
 
     def set(self, id, key, value):
         if id not in self.store:
