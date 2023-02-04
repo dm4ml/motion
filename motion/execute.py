@@ -14,6 +14,7 @@ from rich.console import Group
 from rich.layout import Layout
 
 import copy
+import inspect
 import dataclasses
 
 
@@ -46,55 +47,72 @@ class TransformExecutor(object):
         assert id not in train_ids
 
         for train_id in train_ids:
+            if self.transform.featureType is not None:
+                feature_values = self.store.mget(
+                    train_id,
+                    [
+                        field.name
+                        for field in dataclasses.fields(
+                            self.transform.featureType
+                        )
+                    ],
+                )
+                features.append(
+                    self.transform.featureType(
+                        **{
+                            k: v
+                            for k, v in feature_values.items()
+                            if v is not None
+                        }
+                    )
+                )
+            else:
+                features = None
+            if self.transform.labelType is not None:
+                label_values = self.store.mget(
+                    train_id,
+                    [
+                        field.name
+                        for field in dataclasses.fields(
+                            self.transform.labelType
+                        )
+                    ],
+                )
+                labels.append(
+                    self.transform.labelType(
+                        **{
+                            k: v
+                            for k, v in label_values.items()
+                            if v is not None
+                        }
+                    )
+                )
+            else:
+                labels = None
+
+        # Fit transform to training set
+        self.transform._check_type(features=features, labels=labels)
+        self.step = id
+        self.transform.fit(features=features, labels=labels)
+
+    def infer(self, id):
+        # Retrieve features
+        if self.transform.featureType is None:
+            features = None
+        else:
             feature_values = self.store.mget(
-                train_id,
+                id,
                 [
                     field.name
                     for field in dataclasses.fields(self.transform.featureType)
                 ],
             )
-            features.append(
-                self.transform.featureType(
-                    **{
-                        k: v
-                        for k, v in feature_values.items()
-                        if v is not None
-                    }
-                )
+            features = self.transform.featureType(
+                **{k: v for k, v in feature_values.items() if v is not None}
             )
-            label_values = self.store.mget(
-                train_id,
-                [
-                    field.name
-                    for field in dataclasses.fields(self.transform.labelType)
-                ],
-            )
-            labels.append(
-                self.transform.labelType(
-                    **{k: v for k, v in label_values.items() if v is not None}
-                )
-            )
-
-        # Fit transform to training set
-        self.transform._check_type(features, labels)
-        self.step = id
-        self.transform.fit(features, labels)
-
-    def infer(self, id):
-        # Retrieve features
-        feature_values = self.store.mget(
-            id,
-            [
-                field.name
-                for field in dataclasses.fields(self.transform.featureType)
-            ],
-        )
-        features = self.transform.featureType(
-            **{k: v for k, v in feature_values.items() if v is not None}
-        )
 
         # Type check features
-        self.transform._check_type([features])
+        self.transform._check_type(features=[features])
 
         # Find most recent state <= id
         version = max(
@@ -150,17 +168,19 @@ class PipelineExecutor(object):
                     "[underline yellow]Features",
                     guide_style="bold bright_blue",
                 )
-                for field in dataclasses.fields(
-                    self.transforms[node].transform.featureType
-                ):
-                    features_tree.add(field.name)
+                if self.transforms[node].transform.featureType is not None:
+                    for field in dataclasses.fields(
+                        self.transforms[node].transform.featureType
+                    ):
+                        features_tree.add(field.name)
                 labels_tree = Tree(
                     "[underline yellow]Labels", guide_style="bold bright_blue"
                 )
-                for field in dataclasses.fields(
-                    self.transforms[node].transform.labelType
-                ):
-                    labels_tree.add(field.name)
+                if self.transforms[node].transform.labelType is not None:
+                    for field in dataclasses.fields(
+                        self.transforms[node].transform.labelType
+                    ):
+                        labels_tree.add(field.name)
 
                 panels.append(
                     Panel(
@@ -185,18 +205,22 @@ class PipelineExecutor(object):
         ts = TopologicalSorter(self.transform_dag)
         ts.prepare()
         results = {}
+        last_node = None
 
         while ts.is_active():
             for node in ts.get_ready():
+                results[node] = {}
+
                 # Retrieve transform and do work for the ids
                 te = self.transforms[node]
 
                 for id in track(ids, description="Running the pipeline..."):
-                    results[id] = te.infer(id)
+                    results[node][id] = te.infer(id)
 
                 ts.done(node)
+                last_node = node
 
-        return results
+        return results[last_node]
 
     def executeone(self, id):
         return self.executemany([id])[id]

@@ -6,6 +6,7 @@ from motion.execute import PipelineExecutor
 
 from rich import print, pretty
 from sklearn import svm
+from sklearn.preprocessing import MinMaxScaler
 
 import numpy as np
 import typing
@@ -55,6 +56,32 @@ class BreastLabel:
     target: int
 
 
+class Preprocess(Transform):
+    featureType = BreastFeature
+    labelType = None
+
+    def setUp(self):
+        self.max_staleness = 15
+
+    # TODO(shreyashankar): get rid of labels if user doesn't want them
+    def fit(
+        self,
+        features: typing.List[featureType],
+        labels: typing.List[labelType],
+    ):
+        train_set = np.array([np.array(f) for f in features])
+        scaler = MinMaxScaler()
+        scaler.fit(train_set)
+        self.updateState({"scaler": scaler})
+
+    def infer(self, feature: featureType):
+        return BreastFeature(
+            *self.state["scaler"].transform(np.array(feature).reshape(1, -1))[
+                0
+            ]
+        )
+
+
 class SVM(Transform):
     featureType = BreastFeature
     labelType = BreastLabel
@@ -91,50 +118,52 @@ if __name__ == "__main__":
     ]
 
     pe = PipelineExecutor(store)
-    pe.addTransform(SVM)
+    # pe.addTransform(SVM)
+    pe.addTransform(Preprocess)
 
     # Print pipeline
     pe.printPipeline()
 
     # Execute
     preds = pe.executemany(test_ids)
+    print(preds)
 
     # Compute accuracy
-    numerator = 0
-    denominator = 0
-    for test_id in test_ids:
-        true = store.get(test_id, "target")
-        if true == preds[test_id]:
-            numerator += 1
-        denominator += 1
-    print("Accuracy: {0:.4f}".format(float(numerator / denominator)))
+    # numerator = 0
+    # denominator = 0
+    # for test_id in test_ids:
+    #     true = store.get(test_id, "target")
+    #     if true == preds[test_id]:
+    #         numerator += 1
+    #     denominator += 1
+    # print("Accuracy: {0:.4f}".format(float(numerator / denominator)))
 
-    # Try to execute some old id
-    old_id = 15
-    old_pred = pe.executeone(old_id)
-    print(
-        "Old prediction and label for id {0}: {1}, {2}".format(
-            old_id, old_pred, store.get(old_id, "target")
-        )
-    )
+    # # Try to execute some old id
+    # old_id = 15
+    # old_pred = pe.executeone(old_id)
+    # print(
+    #     "Old prediction and label for id {0}: {1}, {2}".format(
+    #         old_id, old_pred, store.get(old_id, "target")
+    #     )
+    # )
 
-    # Try to execute some newer id we've already executed
-    id2 = 125
-    pred2 = pe.executeone(id2)
-    print(
-        "Prediction and label for id {0}: {1}, {2}".format(
-            id2, pred2, store.get(id2, "target")
-        )
-    )
+    # # Try to execute some newer id we've already executed
+    # id2 = 125
+    # pred2 = pe.executeone(id2)
+    # print(
+    #     "Prediction and label for id {0}: {1}, {2}".format(
+    #         id2, pred2, store.get(id2, "target")
+    #     )
+    # )
 
-    # Try to execute some middle id
-    id3 = 70
-    pred3 = pe.executeone(id3)
-    print(
-        "Prediction and label for id {0}: {1}, {2}".format(
-            id3, pred3, store.get(id3, "target")
-        )
-    )
+    # # Try to execute some middle id
+    # id3 = 70
+    # pred3 = pe.executeone(id3)
+    # print(
+    #     "Prediction and label for id {0}: {1}, {2}".format(
+    #         id3, pred3, store.get(id3, "target")
+    #     )
+    # )
 
     # Print state
-    print(pe.transforms["SVM"].state_history)
+    print(pe.transforms["Preprocess"].state_history)

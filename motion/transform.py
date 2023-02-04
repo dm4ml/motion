@@ -27,8 +27,10 @@ class Transform(ABC):
     def setUp(self):
         pass
 
-    def _check_type(self, features, labels=None):
-        if not isinstance(features[0], self.featureType):
+    def _check_type(self, **kwargs):
+        features = kwargs.get("features", None)
+        labels = kwargs.get("labels", None)
+        if features and not isinstance(features[0], self.featureType):
             raise TypeError(f"Features must be of type {self.featureType}")
         if labels and not isinstance(labels[0], self.labelType):
             raise TypeError(f"Labels must be of type {self.labelType}")
@@ -38,7 +40,7 @@ class Transform(ABC):
         self.executor.versionState(state)
 
     @abstractmethod
-    def fit(self, features, labels) -> None:
+    def fit(self, **kwargs) -> None:
         pass
 
     def inc(
