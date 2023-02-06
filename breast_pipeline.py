@@ -62,7 +62,7 @@ class Preprocess(Transform):
     returnType = BreastFeature
 
     def setUp(self):
-        self.max_staleness = 25
+        self.max_staleness = 50
 
     # TODO(shreyashankar): get rid of labels if user doesn't want them
     def fit(
@@ -89,7 +89,6 @@ class SVM(Transform):
     returnType = int
 
     def setUp(self):
-        # TODO(shreyashankar): debug why this works
         self.max_staleness = 15
 
     def fit(

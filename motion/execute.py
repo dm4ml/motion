@@ -59,7 +59,7 @@ class TransformExecutor(object):
             ],
         )
 
-        # Replace from upstream if necessary (TODO: shreyashankar)
+        # Replace from upstream if necessary
         for upstream in self.upstream_executors:
             upstream_feature_names = [
                 field.name
@@ -68,17 +68,23 @@ class TransformExecutor(object):
                 )
                 if field in _get_fields_from_type(self.transform.featureType)
             ]
-            for name in upstream_feature_names:
-                feature_values[name] = upstream.infer(
-                    id, version=version
-                )  # BUG IS HERE
+            upstream_features = dataclasses.asdict(
+                upstream.infer(id, version=version)
+            )
+            feature_values.update(
+                {
+                    k: v
+                    for k, v in upstream_features.items()
+                    if k in upstream_feature_names
+                }
+            )
 
         features = self.transform.featureType(
             **{k: v for k, v in feature_values.items() if v is not None}
         )
 
-        if self.upstream_executors:
-            rprint(features)
+        # if self.upstream_executors:
+        #     rprint(features)
 
         return features
 
@@ -127,13 +133,29 @@ class TransformExecutor(object):
         # Type check features
         self.transform._check_type(features=[features])
 
+        # If version is specified, find the closest version <= version
+        if version:
+            closest_version = max(
+                [
+                    v
+                    for v in self.state_history.keys()
+                    if v <= version and v > version - self.max_staleness
+                ]
+                or [None]
+            )
+            if closest_version:
+                version = closest_version
+            else:
+                # Train on all data up to not including the version
+                self.fit(version)
+
         # Find most recent state <= id if explicit version wasn't passed in
         if not version:
             version = max(
                 [
                     v
                     for v in self.state_history.keys()
-                    if v <= id and v >= id - self.max_staleness
+                    if v <= id and v > id - self.max_staleness
                 ]
                 or [None]
             )
@@ -142,6 +164,8 @@ class TransformExecutor(object):
                 # Train on all data up to not including this point
                 self.fit(id)
                 version = id
+
+            assert version <= id
 
         # Infer using the correct state
         old_state = self.transform.state
@@ -217,7 +241,6 @@ class PipelineExecutor(object):
         rprint(layout)
 
     def executemany(self, ids):
-        # TODO(shreyashankar): figure out how to handle dependent models
         # TODO(shreyashankar): figure out how to handle caching (after parallelization)
 
         # Run topological sort
