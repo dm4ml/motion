@@ -43,6 +43,10 @@ class SklearnStore(Store):
             data = datasets.load_breast_cancer()
             df = pd.DataFrame(data=data.data, columns=data.feature_names)
             df["target"] = data["target"]
+        elif name == "covertype":
+            data = datasets.fetch_covtype()
+            df = pd.DataFrame(data=data.data, columns=data.feature_names)
+            df["target"] = data["target"]
         else:
             raise ValueError(f"Unknown dataset {name}")
 

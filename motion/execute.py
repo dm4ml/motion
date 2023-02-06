@@ -46,18 +46,18 @@ class TransformExecutor(object):
             )
         self.state_history[self.step] = copy.deepcopy(state)
 
-    def fetchFeatures(self, id, version):
+    def fetchFeatures(self, ids, version):
         if self.transform.featureType is None:
             return None
 
         # Get from datastore
-        feature_values = self.store.mget(
-            id,
-            [
-                field.name
-                for field in _get_fields_from_type(self.transform.featureType)
-            ],
-        )
+        feature_fields = _get_fields_from_type(self.transform.featureType)
+        feature_values = {}
+        for id in ids:
+            feature_values[id] = self.store.mget(
+                id,
+                [field.name for field in feature_fields],
+            )
 
         # Replace from upstream if necessary
         for upstream in self.upstream_executors:
@@ -66,22 +66,30 @@ class TransformExecutor(object):
                 for field in _get_fields_from_type(
                     upstream.transform.returnType
                 )
-                if field in _get_fields_from_type(self.transform.featureType)
+                if field in feature_fields
             ]
-            upstream_features = dataclasses.asdict(
-                upstream.infer(id, version=version)
-            )
-            feature_values.update(
-                {
+            for id in ids:
+                upstream_features = upstream.infer(
+                    id, version=version
+                ).__dict__
+                feature_values[id].update(
+                    {
+                        k: v
+                        for k, v in upstream_features.items()
+                        if k in upstream_feature_names
+                    }
+                )
+
+        features = [
+            self.transform.featureType(
+                **{
                     k: v
-                    for k, v in upstream_features.items()
-                    if k in upstream_feature_names
+                    for k, v in feature_values[id].items()
+                    if v is not None
                 }
             )
-
-        features = self.transform.featureType(
-            **{k: v for k, v in feature_values.items() if v is not None}
-        )
+            for id in ids
+        ]
 
         # if self.upstream_executors:
         #     rprint(features)
@@ -96,9 +104,13 @@ class TransformExecutor(object):
         assert id not in train_ids
 
         if self.transform.featureType is not None:
-            features = []
-            for train_id in train_ids:
-                features.append(self.fetchFeatures(train_id, version=id))
+            # features = []
+
+            # Run fetchFeatures for all train_ids
+            features = self.fetchFeatures(train_ids, version=id)
+
+            # for train_id in train_ids:
+            #     features.append(self.fetchFeatures(train_id, version=id))
         if self.transform.labelType is not None:
             labels = []
             for train_id in train_ids:
@@ -128,7 +140,7 @@ class TransformExecutor(object):
 
     def infer(self, id, version=None):
         # Retrieve features
-        features = self.fetchFeatures(id, version=id)
+        features = self.fetchFeatures([id], version=id)[0]
 
         # Type check features
         self.transform._check_type(features=[features])
