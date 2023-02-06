@@ -40,12 +40,12 @@ class Transform(ABC):
         if labels and not isinstance(labels[0], self.labelType):
             raise TypeError(f"Labels must be of type {self.labelType}")
 
-    def updateState(self, state):
-        self.state.update(state)
-        self.executor.versionState(state)
+    # def updateState(self, state):
+    #     self.state.update(state)
+    #     self.executor.versionState(state)
 
     @abstractmethod
-    def fit(self, **kwargs) -> None:
+    def fit(self, **kwargs) -> typing.Dict:
         pass
 
     def inc(

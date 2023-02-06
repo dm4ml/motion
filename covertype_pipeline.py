@@ -97,13 +97,11 @@ class Preprocess(Transform):
         scaler = StandardScaler()
         train_set = np.array([np.array(f) for f in features])
         scaler.fit(train_set)
-        self.updateState({"scaler": scaler})
+        return {"scaler": scaler}
 
-    def infer(self, feature: featureType) -> typing.Any:
+    def infer(self, state, feature: featureType) -> typing.Any:
         return CovertypeFeature(
-            *self.state["scaler"].transform(np.array(feature).reshape(1, -1))[
-                0
-            ]
+            *state["scaler"].transform(np.array(feature).reshape(1, -1))[0]
         )
 
 
@@ -127,10 +125,10 @@ class Model(Transform):
         model.fit(train_set, train_target)
 
         train_acc = model.score(train_set, train_target)
-        self.updateState({"model": model, "train_acc": train_acc})
+        return {"model": model, "train_acc": train_acc}
 
-    def infer(self, feature: featureType):
-        return self.state["model"].predict(np.array(feature).reshape(1, -1))[0]
+    def infer(self, state, feature: featureType):
+        return state["model"].predict(np.array(feature).reshape(1, -1))[0]
 
 
 if __name__ == "__main__":
@@ -152,9 +150,9 @@ if __name__ == "__main__":
     pe.printPipeline()
 
     # Execute
-    # test_ids = [1000, 1001, 1002, 1003, 1004, 1005]
-    # preds = None
-    cProfile.run("preds = pe.executemany(test_ids)")
+    test_ids = [int(elem) for elem in range(1000, 2000)]
+    preds = None
+    cProfile.run("preds = pe.executemany(test_ids, max_workers=1)")
 
     # Compute accuracy
     numerator = 0
@@ -194,5 +192,5 @@ if __name__ == "__main__":
     # )
 
     # Print state
-    # print(pe.transforms["Preprocess"].state_history)
-    print(pe.transforms["Model"].state_history)
+    for t in pe.transforms.keys():
+        print(pe.transforms[t].state_history)
