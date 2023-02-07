@@ -4,7 +4,7 @@ To dos:
 
 - [x] Handle dependent models
 - [x] Profile code for performance
-- [ ] Parallelize inference
+- [x] Parallelize inference (only done via multithreading though, which is kind of useless)
 - [ ] Create abstract batch inference method in the transform class
 - [ ] Create custom feature type dataclass with dict methods and cheap serialization methods
 - [ ] Cache features when we have dependent models

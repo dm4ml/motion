@@ -195,10 +195,6 @@ class TransformExecutor(object):
             # print(f"Acquired lock for inference on id {id}")
             correct_state = self.state_history[version]
 
-        # TODO(shreyashankar): make this multiprocessed?
-        def infer_helper(queue):
-            return self.transform.infer(correct_state, features)
-
         result = self.transform.infer(correct_state, features)
         return result
 
