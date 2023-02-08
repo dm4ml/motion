@@ -110,8 +110,8 @@ class TransformExecutor(object):
         # print(f"Requesting lock for id {id}")
         with self.state_history_lock:
             # print(f"Got lock for id {id}")
+            rprint(f"Training {self.transform.__class__.__name__} on {id}")
             train_ids = self.store.idsBefore(id)
-            features = None
             labels = None
 
             assert id not in train_ids
@@ -145,6 +145,10 @@ class TransformExecutor(object):
             self.transform.state = new_state
             self.versionState(id, new_state)
             # print(f"Releasing lock for id {id}")
+
+    def submit_infer(self, id, version=None):
+        # TODO(shreyashankar): add to a queue of requests to be processed depending on the model version. instead of calling infer
+        pass
 
     def infer(self, id, version=None):
         # Retrieve features
@@ -268,39 +272,60 @@ class PipelineExecutor(object):
 
         # Run topological sort
         ts = TopologicalSorter(self.transform_dag)
-        ts.prepare()
+        final_node = list(ts.static_order())[-1]
+        te = self.transforms[final_node]
         results = {}
-        last_node = None
 
-        while ts.is_active():
-            for node in ts.get_ready():
-                results[node] = {}
+        with futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            curr_results = {executor.submit(te.infer, id): id for id in ids}
 
-                # Retrieve transform and do work for the ids
-                te = self.transforms[node]
+            # for id in track(ids, description=f"Executing {node}..."):
+            #     curr_results[id] = executor.submit(te.infer, id)
 
-                with futures.ThreadPoolExecutor(
-                    max_workers=max_workers
-                ) as executor:
-                    curr_results = {
-                        executor.submit(te.infer, id): id for id in ids
-                    }
+            for future in futures.as_completed(curr_results):
+                id = curr_results[future]
+                try:
+                    results[id] = future.result()
+                    # rprint(results[id])
+                except Exception as e:
+                    print(e)
+                    raise e
 
-                    # for id in track(ids, description=f"Executing {node}..."):
-                    #     curr_results[id] = executor.submit(te.infer, id)
+        return results
 
-                    for future in futures.as_completed(curr_results):
-                        id = curr_results[future]
-                        try:
-                            results[node][id] = future.result()
-                        except Exception as e:
-                            print(e)
-                            raise e
+        # ts.prepare()
+        # results = {}
+        # last_node = None
 
-                    ts.done(node)
-                    last_node = node
+        # while ts.is_active():
+        #     for node in ts.get_ready():
+        #         results[node] = {}
 
-        return results[last_node]
+        #         # Retrieve transform and do work for the ids
+        #         te = self.transforms[node]
+
+        #         with futures.ThreadPoolExecutor(
+        #             max_workers=max_workers
+        #         ) as executor:
+        #             curr_results = {
+        #                 executor.submit(te.infer, id): id for id in ids
+        #             }
+
+        #             # for id in track(ids, description=f"Executing {node}..."):
+        #             #     curr_results[id] = executor.submit(te.infer, id)
+
+        #             for future in futures.as_completed(curr_results):
+        #                 id = curr_results[future]
+        #                 try:
+        #                     results[node][id] = future.result()
+        #                 except Exception as e:
+        #                     print(e)
+        #                     raise e
+
+        #             ts.done(node)
+        #             last_node = node
+
+        # return results[last_node]
 
     def executeone(self, id):
         return self.executemany([id])[id]

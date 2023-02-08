@@ -6,7 +6,7 @@ from motion.execute import PipelineExecutor
 
 from rich import print, pretty
 from sklearn import ensemble
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 import cProfile
 import numpy as np
@@ -94,7 +94,7 @@ class Preprocess(Transform):
         features: typing.List[featureType],
         labels: typing.List[labelType],
     ):
-        scaler = StandardScaler()
+        scaler = MinMaxScaler()
         train_set = np.array([np.array(f) for f in features])
         scaler.fit(train_set)
         return {"scaler": scaler}
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     pe.printPipeline()
 
     # Execute
-    test_ids = [int(elem) for elem in range(1000, 2000)]
+    # test_ids = [int(elem) for elem in range(1000, 2000)]
     preds = None
     cProfile.run("preds = pe.executemany(test_ids, max_workers=1)")
 
