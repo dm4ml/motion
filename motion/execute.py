@@ -40,6 +40,11 @@ class TransformExecutor(object):
             if hasattr(self.transform, "max_staleness")
             else 0
         )
+        self.min_train_size = (
+            self.transform.min_train_size
+            if hasattr(self.transform, "min_train_size")
+            else 0
+        )
 
         # Set types
         self.feature_fields = [
@@ -112,6 +117,10 @@ class TransformExecutor(object):
             # print(f"Got lock for id {id}")
             rprint(f"Training {self.transform.__class__.__name__} on {id}")
             train_ids = self.store.idsBefore(id)
+            if len(train_ids) < self.min_train_size:
+                raise ValueError(
+                    f"Insufficient data to train {id}. Need at least {self.min_train_size} datapoints."
+                )
             labels = None
 
             assert id not in train_ids

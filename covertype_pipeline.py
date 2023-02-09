@@ -88,6 +88,7 @@ class Preprocess(Transform):
 
     def setUp(self):
         self.max_staleness = 1e6
+        self.min_train_size = 100
 
     def fit(
         self,
@@ -112,6 +113,7 @@ class Model(Transform):
 
     def setUp(self):
         self.max_staleness = 1e6
+        self.min_train_size = 100
 
     def fit(
         self,
@@ -119,6 +121,7 @@ class Model(Transform):
         labels: typing.List[labelType],
     ):
         model = ensemble.RandomForestClassifier()
+        print(labels[0])
 
         train_set = np.array([np.array(f) for f in features])
         train_target = np.array([l.target for l in labels])
@@ -150,7 +153,7 @@ if __name__ == "__main__":
     pe.printPipeline()
 
     # Execute
-    # test_ids = [int(elem) for elem in range(1000, 2000)]
+    test_ids = [int(elem) for elem in range(1000, 2000)]
     preds = None
     cProfile.run("preds = pe.executemany(test_ids, max_workers=1)")
 
