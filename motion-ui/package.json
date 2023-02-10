@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@nextui-org/react": "*",
+    "@react-aria/ssr": "^3.3.0",
+    "@tabler/icons-react": "^2.2.0",
+    "clsx": "^1.2.1",
+    "next": "latest",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  }
+}

@@ -44,7 +44,7 @@ class Transform(ABC):
     #     self.state.update(state)
     #     self.executor.versionState(state)
 
-    @abstractmethod
+    # @abstractmethod
     def fit(self, **kwargs) -> typing.Dict:
         pass
 

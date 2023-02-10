@@ -109,7 +109,7 @@ class Preprocess(Transform):
 class Model(Transform):
     featureType = CovertypeFeature
     labelType = CovertypeLabel
-    returnType = int
+    returnType = CovertypeLabel
 
     def setUp(self):
         self.max_staleness = 1e6
@@ -121,7 +121,6 @@ class Model(Transform):
         labels: typing.List[labelType],
     ):
         model = ensemble.RandomForestClassifier()
-        print(labels[0])
 
         train_set = np.array([np.array(f) for f in features])
         train_target = np.array([l.target for l in labels])
@@ -131,7 +130,23 @@ class Model(Transform):
         return {"model": model, "train_acc": train_acc}
 
     def infer(self, state, feature: featureType):
-        return state["model"].predict(np.array(feature).reshape(1, -1))[0]
+        return CovertypeLabel(
+            target=int(
+                state["model"].predict(np.array(feature).reshape(1, -1))[0]
+            )
+        )
+
+
+class Identity(Transform):
+    featureType = CovertypeLabel
+    labelType = None
+    returnType = int
+
+    def setUp(self):
+        self.ignore_fit = True
+
+    def infer(self, state, feature):
+        return feature.target * 1
 
 
 if __name__ == "__main__":
@@ -148,6 +163,7 @@ if __name__ == "__main__":
     # pe.addTransform(Model)
     pe.addTransform(Preprocess)
     pe.addTransform(Model, [Preprocess])
+    pe.addTransform(Identity, [Model])
 
     # Print pipeline
     pe.printPipeline()
@@ -196,4 +212,5 @@ if __name__ == "__main__":
 
     # Print state
     for t in pe.transforms.keys():
+        print(t)
         print(pe.transforms[t].state_history)

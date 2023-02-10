@@ -45,6 +45,11 @@ class TransformExecutor(object):
             if hasattr(self.transform, "min_train_size")
             else 0
         )
+        self.ignore_fit = (
+            self.transform.ignore_fit
+            if hasattr(self.transform, "ignore_fit")
+            else False
+        )
 
         # Set types
         self.feature_fields = [
@@ -112,6 +117,9 @@ class TransformExecutor(object):
         return features
 
     def fit(self, id):
+        if self.ignore_fit:
+            raise SystemError("Cannot fit a transform that ignores fit.")
+
         # print(f"Requesting lock for id {id}")
         with self.state_history_lock:
             # print(f"Got lock for id {id}")
@@ -166,6 +174,8 @@ class TransformExecutor(object):
         # Type check features
         self.transform._check_type(features=[features])
 
+        if self.ignore_fit:
+            return self.transform.infer(None, features)
         # If version is specified, find the closest version <= version
         if version:
             with self.state_history_lock:
