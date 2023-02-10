@@ -2,6 +2,7 @@
 
 // 1. import `NextUIProvider` component
 import { createTheme, NextUIProvider } from "@nextui-org/react"
+// import 'codemirror/lib/codemirror.css';
 import { SSRProvider } from '@react-aria/ssr';
 
 // 2. Call `createTheme` and pass your custom theme values
@@ -14,6 +15,9 @@ const theme = createTheme({
             darkColor: '#003E54',
             linkColor: '#5369FC',
             greyColor: '#D9D9D9',
+
+            typeColorAlpha: 'rgba(255, 223, 189, 0.4)',
+            transformColorAlpha: 'rgba(148, 226, 255, 0.4)',
 
             primary100: '#DCE2FE',
             primary200: '#BAC6FE',
@@ -51,5 +55,5 @@ const theme = createTheme({
 
 
 export default function App({ Component, pageProps }) {
-    return <SSRProvider> <NextUIProvider theme={theme}>< Component {...pageProps} /></NextUIProvider > </SSRProvider>;
+    return <NextUIProvider>< Component {...pageProps} /></NextUIProvider >;
 }

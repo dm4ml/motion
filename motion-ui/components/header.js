@@ -1,9 +1,12 @@
 import { Navbar, Button, Link, enableCursorHighlight, Dropdown, Text, Card, Radio } from "@nextui-org/react";
 import { IconPlayerPlayFilled, IconPlus, IconChevronDown, IconPackage } from '@tabler/icons-react';
+import { useRouter } from 'next/router';
 import React from "react";
 
-export function Header() {
+export function Header({ onNewClick }) {
     const [selected, setSelected] = React.useState(new Set(["type"]));
+    const { asPath } = useRouter();
+
 
     const selectedValue = React.useMemo(
         () => Array.from(selected).join(", ").replaceAll("_", " "),
@@ -11,7 +14,7 @@ export function Header() {
     );
 
     return (
-        <Navbar isCompact isBordered variant="static" maxWidth="fluid" borderWeight="light">
+        <Navbar isBordered variant="floating" maxWidth="fluid" borderWeight="bold">
             <Navbar.Content hideIn="xs">
                 <Dropdown>
                     <Navbar.Item>
@@ -20,6 +23,7 @@ export function Header() {
                                 light
                                 auto
                                 icon={<IconPlus />}
+                                onPress={() => onNewClick(selectedValue)}
                             />
                             <Dropdown.Button
                                 light
@@ -58,9 +62,9 @@ export function Header() {
                     </Dropdown.Menu>
                 </Dropdown>
             </Navbar.Content>
-            <Navbar.Content enableCursorHighlight hideIn="xs" variant="underline">
-                <Navbar.Link isActive href="#">Explore</Navbar.Link>
-                <Navbar.Link href="#">Test</Navbar.Link>
+            <Navbar.Content enableCursorHighlight hideIn="xs" variant="underline" >
+                <Navbar.Link isActive={asPath === "/"} href="/">Explore</Navbar.Link>
+                <Navbar.Link isActive={asPath === "/test"} href="/test">Test</Navbar.Link>
             </Navbar.Content>
             <Navbar.Content>
                 <Navbar.Item>

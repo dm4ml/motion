@@ -1,16 +1,43 @@
 import { styled } from "@nextui-org/react"
+import { Header } from './header';
+import { Cell } from './notebook';
+import { useState } from 'react';
+import { Container } from "@nextui-org/react";
 
 const Box = styled("div", {
     boxSizing: "border-box",
 });
 
 
-export const Layout = ({ children }) => (
-    <Box
-        css={{
-            maxW: "100%"
-        }}
-    >
-        {children}
-    </Box>
-);
+export function Layout({ children }) {
+
+
+    const [cells, setCells] = useState([]);
+
+    function handleChange() {
+
+    }
+
+    function handleAdd(type) {
+        const newList = cells.concat({ type: type, id: cells.length });
+
+        setCells(newList);
+
+    }
+
+
+    return (
+        <Box
+            css={{
+                maxW: "100%"
+            }}
+        >
+            <Header onNewClick={(type) => handleAdd(type)} />
+            <Container md>
+                {cells.map((item) => (
+                    <Cell key={item.id} cell={item} isActive={item.id === cells.length - 1} />
+                ))}
+            </Container>
+        </Box >
+    );
+}
