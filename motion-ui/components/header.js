@@ -3,7 +3,7 @@ import { IconPlayerPlayFilled, IconPlus, IconChevronDown, IconPackage } from '@t
 import { useRouter } from 'next/router';
 import React from "react";
 
-export function Header({ onNewClick }) {
+export function Header({ onNewClick, }) {
     const [selected, setSelected] = React.useState(new Set(["type"]));
     const { asPath } = useRouter();
 

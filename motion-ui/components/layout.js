@@ -25,6 +25,12 @@ export function Layout({ children }) {
 
     }
 
+    function handleDelete(id) {
+        const newList = cells.filter((item) => item.id !== id);
+
+        setCells(newList);
+    }
+
 
     return (
         <Box
@@ -35,7 +41,7 @@ export function Layout({ children }) {
             <Header onNewClick={(type) => handleAdd(type)} />
             <Container md>
                 {cells.map((item) => (
-                    <Cell key={item.id} cell={item} isActive={item.id === cells.length - 1} />
+                    <Cell key={item.id} cell={item} onDelete={handleDelete} />
                 ))}
             </Container>
         </Box >

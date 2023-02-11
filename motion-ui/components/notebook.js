@@ -1,9 +1,10 @@
-import { Card, Spacer, Container, Row, Text, Textarea, Input, Loading } from "@nextui-org/react";
+import { Card, Spacer, Col, Grid, Container, Row, Button, Text, Textarea, Input, Loading } from "@nextui-org/react";
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '@nextui-org/react';
 import { useCodeMirror } from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
+import { IconTrash, IconX } from '@tabler/icons-react';
 
 
 const templates = {
@@ -12,7 +13,7 @@ const templates = {
     "free": "# Do whatever you'd like (read-only)\nprint('Hello world!')"
 }
 
-export function Cell({ cell, isActive }) {
+export function Cell({ cell, onDelete }) {
     const { theme } = useTheme();
 
 
@@ -28,17 +29,12 @@ export function Cell({ cell, isActive }) {
         colorAlpha = theme.colors.secondaryLight.value;
     }
 
-    let variant = isActive ? "shadow" : "bordered";
-    let opacity = isActive ? 1 : 0.5;
-    let borderColor = isActive ? "$colors$primary" : "$colors$greyColor";
-
     const editor = useRef();
 
     const { setContainer } = useCodeMirror({
         container: editor.current,
         extensions: [python()],
         value: templates[type],
-        readOnly: !isActive,
         theme: bbedit,
         basicSetup: {
             lineWrapping: true,
@@ -75,8 +71,13 @@ export function Cell({ cell, isActive }) {
 
     return (
         <><Spacer y={1} />
-            <Card variant={variant} css={{ $$cardColor: color, borderRadius: '$xs', opacity: opacity, borderColor: borderColor }} borderWeight="light">
+            <Card variant="shadow" css={{ $$cardColor: color, borderRadius: '$xs', }} borderWeight="light">
                 <Card.Body>
+                    <Row align="right" justify="space-between" >
+                        <Col>{ }</Col>
+                        <Button
+                            auto rounded color="error" icon={<IconX size="12px" />} onClick={() => onDelete(cell.id)} />
+                    </Row>
                     <div ref={editor} />
                 </Card.Body>
             </Card>
