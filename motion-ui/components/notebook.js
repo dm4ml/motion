@@ -26,7 +26,7 @@ export default function Cell({ cell, onDelete }) {
     const onFocus = () => setFocused(true);
     const onBlur = () => setFocused(false);
     const [input, setInput] = useState('');
-    const { runPython, stdout, stderr, isLoading, isRunning } = usePython();
+    const { runPython, stdout, stderr, isLoading, isRunning } = usePython({ packages: { official: ['numpy', 'pandas'] } });
 
 
     const type = cell.type;
@@ -120,7 +120,15 @@ export default function Cell({ cell, onDelete }) {
 
     let output = stderr !== "" ? stderr : stdout;
     let outputColor = stderr !== "" ? "$colors$error" : "$colors$black";
-    let outputElement = output !== "" ? <Text blockquote color={outputColor} css={{}}>{output}</Text> : null;
+    let outputElement = output !== "" ? <Text blockquote color={outputColor} css={{ fontFamily: "$mono" }}>{output}</Text> : null;
+
+    let playOrLoading = isRunning ? <Loading size="xs" /> : <span role="button" title="Run cell" >
+        <IconPlayerPlayFilled size={14} onClick={(e) => {
+            e.preventDefault();
+            runPython(code);
+        }} />
+    </span>;
+    let playOrLoadingTooltip = isRunning ? "Running" : "Run cell";
 
     return (
         <><Spacer y={1} />
@@ -129,13 +137,7 @@ export default function Cell({ cell, onDelete }) {
                     <Row align="right" justify="space-between" css={{}} >
                         <Col>{ }</Col>
                         <Tooltip content={"Run cell"}>
-                            <span role="button" title="Run cell" >
-                                <IconPlayerPlayFilled size={14} onClick={(e) => {
-                                    e.preventDefault();
-                                    console.log(code);
-                                    runPython(code);
-                                }} />
-                            </span>
+                            {playOrLoading}
                         </Tooltip>
                         <Spacer x={0.5} />
                         <Tooltip content={"Delete cell"}>
