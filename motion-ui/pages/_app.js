@@ -5,6 +5,15 @@ import { createTheme, NextUIProvider } from "@nextui-org/react"
 // import 'codemirror/lib/codemirror.css';
 import { SSRProvider } from '@react-aria/ssr';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
+import { AppProps } from 'next/app';
+import dynamic from 'next/dynamic';
+
+const PythonProvider = dynamic(
+    () => import('react-py').then((module) => module.PythonProvider),
+    {
+        ssr: false
+    }
+)
 
 // 2. Call `createTheme` and pass your custom theme values
 const theme = createTheme({
@@ -71,11 +80,14 @@ const darkTheme = createTheme({
 
 
 export default function App({ Component, pageProps }) {
-    return (<NextThemesProvider defaultTheme="system" attribute="class" value={{
-        light: lightTheme.className,
-        dark: darkTheme.className
-    }}>
-        <NextUIProvider>< Component {...pageProps} />
-        </NextUIProvider >
-    </NextThemesProvider >);
+    return (
+        <SSRProvider>
+            <PythonProvider>
+                <NextThemesProvider defaultTheme="system" attribute="class" value={{
+                    light: lightTheme.className,
+                    dark: darkTheme.className
+                }}>
+                    <NextUIProvider>< Component {...pageProps} />
+                    </NextUIProvider >
+                </NextThemesProvider ></PythonProvider></SSRProvider>);
 }

@@ -11,6 +11,7 @@ export default function Home() {
     <Layout>
       <Head>
         <title>Explore View</title>
+        {/* <script src="https://cdn.jsdelivr.net/pyodide/v0.22.1/full/pyodide.js"></script> */}
       </Head>
     </Layout>
   );
