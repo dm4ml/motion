@@ -4,6 +4,7 @@
 import { createTheme, NextUIProvider } from "@nextui-org/react"
 // import 'codemirror/lib/codemirror.css';
 import { SSRProvider } from '@react-aria/ssr';
+import { ThemeProvider as NextThemesProvider } from 'next-themes';
 
 // 2. Call `createTheme` and pass your custom theme values
 const theme = createTheme({
@@ -53,7 +54,28 @@ const theme = createTheme({
     }
 })
 
+// 2. Call `createTheme` and pass your custom values
+const lightTheme = createTheme({
+    type: 'light',
+    theme: {
+        // colors: { ...}, // optional
+    }
+})
+
+const darkTheme = createTheme({
+    type: 'dark',
+    theme: {
+        // colors: { ...}, // optional
+    }
+})
+
 
 export default function App({ Component, pageProps }) {
-    return <NextUIProvider>< Component {...pageProps} /></NextUIProvider >;
+    return (<NextThemesProvider defaultTheme="system" attribute="class" value={{
+        light: lightTheme.className,
+        dark: darkTheme.className
+    }}>
+        <NextUIProvider>< Component {...pageProps} />
+        </NextUIProvider >
+    </NextThemesProvider >);
 }

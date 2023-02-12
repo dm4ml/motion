@@ -2,6 +2,8 @@ import { Navbar, Button, Link, enableCursorHighlight, Dropdown, Text, Card, Radi
 import { IconPlayerPlayFilled, IconPlus, IconChevronDown, IconPackage } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
 import React from "react";
+import { useTheme as useNextTheme } from 'next-themes'
+import { Switch, useTheme } from '@nextui-org/react'
 
 export function Header({ onNewClick, }) {
     const [selected, setSelected] = React.useState(new Set(["type"]));
@@ -12,6 +14,9 @@ export function Header({ onNewClick, }) {
         () => Array.from(selected).join(", ").replaceAll("_", " "),
         [selected]
     );
+
+    const { setTheme } = useNextTheme();
+    const { isDark, type } = useTheme();
 
     return (
         <Navbar isBordered variant="floating" maxWidth="fluid" borderWeight="bold">
@@ -30,7 +35,8 @@ export function Header({ onNewClick, }) {
                                 css={{
                                     // px: 0,
                                     dflex: "left",
-                                    tt: "capitalize", minWidth: "150px"
+                                    tt: "capitalize", minWidth: "150px",
+                                    fontWeight: "$semibold",
                                 }}
                             // iconRight={<IconChevronDown />}
                             >
@@ -43,19 +49,36 @@ export function Header({ onNewClick, }) {
                         disallowEmptySelection
                         selectedKeys={selected}
                         onSelectionChange={setSelected}
+                        css={{
+                            $$dropdownMenuWidth: "300px",
+                            $$dropdownItemHeight: "60px",
+                            "& .nextui-dropdown-item": {
+                                py: "$4",
+                                // dropdown item left icon
+                                // svg: {
+                                //     color: "$secondary",
+                                //     mr: "$4",
+                                // },
+                                // dropdown item title
+                                "& .nextui-dropdown-item-content": {
+                                    w: "100%",
+                                    fontWeight: "$semibold",
+                                },
+                            },
+                        }}
                     >
                         <Dropdown.Item
-                            key="type"
+                            key="type" description="Create a new featureType, labelType, or returnType." showFullDescription
                         >
                             Type
                         </Dropdown.Item>
                         <Dropdown.Item
-                            key="transform"
+                            key="transform" description="Create a new, stateful transform for the pipeline." showFullDescription
                         >
                             Transform
                         </Dropdown.Item>
                         <Dropdown.Item
-                            key="free"
+                            key="free" description="Interact with intermediate state (read-only)." showFullDescription
                         >
                             Free
                         </Dropdown.Item>
@@ -67,6 +90,10 @@ export function Header({ onNewClick, }) {
                 <Navbar.Link isActive={asPath === "/test"} href="/test">Test</Navbar.Link>
             </Navbar.Content>
             <Navbar.Content>
+                <Switch
+                    checked={isDark}
+                    onChange={(e) => setTheme(e.target.checked ? 'dark' : 'light')}
+                />
                 <Navbar.Item>
                     <Button
                         icon={<IconPlayerPlayFilled />} ghost auto >

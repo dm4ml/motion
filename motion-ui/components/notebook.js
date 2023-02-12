@@ -1,4 +1,4 @@
-import { Card, Spacer, Col, Grid, Container, Row, Button, Text, Textarea, Input, Loading } from "@nextui-org/react";
+import { Card, Spacer, Col, Grid, Container, Row, Button, Text, Textarea, Input, Loading, Tooltip } from "@nextui-org/react";
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '@nextui-org/react';
 import { useCodeMirror } from '@uiw/react-codemirror';
@@ -14,19 +14,27 @@ const templates = {
 }
 
 export function Cell({ cell, onDelete }) {
+
+    if (!cell.active) {
+        return null;
+    }
+
     const { theme } = useTheme();
+    const [focused, setFocused] = useState(false);
+    const onFocus = () => setFocused(true);
+    const onBlur = () => setFocused(false);
 
 
     const type = cell.type;
 
     let color = "$colors$success";
-    let colorAlpha = "$colors$success";
+    let colorAlpha = "$colors$successLightActive";
     if (type === "type") {
         color = "$colors$primary";
-        colorAlpha = theme.colors.primaryLight.value;
+        colorAlpha = theme.colors.primaryLightActive.value;
     } else if (type === "transform") {
         color = "$colors$secondary";
-        colorAlpha = theme.colors.secondaryLight.value;
+        colorAlpha = theme.colors.secondaryLightActive.value;
     }
 
     const editor = useRef();
@@ -68,15 +76,25 @@ export function Cell({ cell, onDelete }) {
         }
     }, [editor.current]);
 
+    let borderColor = focused ? "$colors$primary" : "grey";
+    let opacity = focused ? 1 : 1;
+
 
     return (
         <><Spacer y={1} />
-            <Card variant="shadow" css={{ $$cardColor: color, borderRadius: '$xs', }} borderWeight="light">
-                <Card.Body>
-                    <Row align="right" justify="space-between" >
+            <Card variant="bordered" css={{ $$cardColor: colorAlpha, borderRadius: '$xs', borderColor: borderColor, opacity: opacity }} borderWeight="normal" onFocus={onFocus} onBlur={onBlur}>
+                <Card.Body css={{ paddingTop: 5 }}>
+                    <Row align="right" justify="space-between" css={{}} >
                         <Col>{ }</Col>
-                        <Button
-                            auto rounded color="error" icon={<IconX size="12px" />} onClick={() => onDelete(cell.id)} />
+                        <Tooltip content={"Delete cell"}>
+                            <span role="button" title="Delete cell" onClick={() => onDelete(cell.id)}>
+                                <IconTrash size={14} />
+                            </span>
+                        </Tooltip>
+                        {/* <Button
+                            auto light color="default"
+                            icon={<IconX size="12px" />}
+                            onClick={() => onDelete(cell.id)} /> */}
                     </Row>
                     <div ref={editor} />
                 </Card.Body>

@@ -19,14 +19,17 @@ export function Layout({ children }) {
     }
 
     function handleAdd(type) {
-        const newList = cells.concat({ type: type, id: cells.length });
+        const newList = cells.concat({ type: type, id: cells.length, active: true });
 
         setCells(newList);
 
     }
 
     function handleDelete(id) {
-        const newList = cells.filter((item) => item.id !== id);
+        // TODO(shreyashankar): fix bug here
+        // const newList = cells.filter((item) => item.id !== id);
+        let newList = [...cells];
+        newList[id].active = false;
 
         setCells(newList);
     }
