@@ -4,7 +4,7 @@ import { useTheme } from '@nextui-org/react';
 import { useCodeMirror } from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
-import { IconTrash, IconX } from '@tabler/icons-react';
+import { IconTrash, IconX, IconPlayerPlayFilled } from '@tabler/icons-react';
 
 
 const templates = {
@@ -86,6 +86,11 @@ export function Cell({ cell, onDelete }) {
                 <Card.Body css={{ paddingTop: 5 }}>
                     <Row align="right" justify="space-between" css={{}} >
                         <Col>{ }</Col>
+                        <Tooltip content={"Run cell"}>
+                            <span role="button" title="Run cell" >
+                                <IconPlayerPlayFilled size={14} />
+                            </span>
+                        </Tooltip>
                         <Tooltip content={"Delete cell"}>
                             <span role="button" title="Delete cell" onClick={() => onDelete(cell.id)}>
                                 <IconTrash size={14} />
