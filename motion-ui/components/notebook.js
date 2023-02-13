@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTheme } from '@nextui-org/react';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
-import { IconTrash, IconX, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { IconTrash, IconX, IconPlayerPlayFilled, IconClearAll } from '@tabler/icons-react';
 import { usePythonConsole } from 'react-py';
 import { ConsoleState } from 'react-py/dist/types/Console'
 import CodeMirror from '@uiw/react-codemirror';
@@ -15,34 +15,26 @@ const templates = {
     "free": "# Do whatever you'd like (read-only)\nprint('Hello world!')"
 }
 
-export default function Cell({ cell, onDelete }) {
+export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isLoading, isRunning, cellOutputs, clearCellOutputs }) {
 
-    if (!cell.active) {
+    if (cell.deleted) {
         return null;
     }
 
     const { theme } = useTheme();
     const [focused, setFocused] = useState(false);
-    const onFocus = () => setFocused(true);
-    const onBlur = () => setFocused(false);
-    const [input, setInput] = useState('');
-    const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
-    const [output, setOutput] = useState([])
+    const onFocus = () => { setFocused(true); setActiveCell(cell.id); }
+    const onBlur = () => { setFocused(false); setActiveCell(-1); }
+    // const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
+    // const [output, setOutput] = useState([])
 
-    useEffect(() => {
-        stdout && setOutput((prev) => [...prev, { "text": stdout, "color": "$colors$default" }])
-    }, [stdout])
-
-    useEffect(() => {
-        stderr && setOutput((prev) => [...prev, { "text": stderr, "color": "$colors$error" }])
-        // setOutput(stderr)
-    }, [stderr])
     // useEffect(() => {
-    //     stderr &&
-    //         setOutput((prev) => [
-    //             ...prev,
-    //             { text: stderr + '\n', className: 'text-red-500' }
-    //         ])
+    //     stdout && setOutput((prev) => [...prev, { "text": stdout, "color": "$colors$default" }])
+    // }, [stdout])
+
+    // useEffect(() => {
+    //     stderr && setOutput((prev) => [...prev, { "text": stderr, "color": "$colors$error" }])
+    //     // setOutput(stderr)
     // }, [stderr])
 
 
@@ -92,14 +84,22 @@ export default function Cell({ cell, onDelete }) {
     }, []);
 
     // let output = stderr !== "" ? stderr : stdout;
-    console.log("output", output)
-    let outputColor = stderr !== "" ? "$colors$error" : "$colors$neutral";
-    let outputElement = output.length > 0 ?
+    // console.log("output", output)
+    // let outputColor = stderr !== "" ? "$colors$error" : "$colors$neutral";
+    console.log("cellOutputs", cellOutputs)
+    let currCellOutputs = cellOutputs.filter((o) => (o.id === cell.id) && (o.show === true));
+    console.log("currCellOutputs", currCellOutputs)
+    let outputElement = currCellOutputs.length > 0 ?
         <>
-            <Card.Divider /> <Card.Footer >
+            <Card.Divider /> <Card.Footer css={{ paddingTop: 5 }} >
                 <Col>
-                    {output.map((line, i) => (<Row>
-                        <Text css={{ fontFamily: "$mono", color: line.color }} className="output" key={i}>
+                    <Row justify="flex-end"> <Tooltip content={'Clear outputs'} >
+                        <span role="button" title="Clear outputs" style={{ "cursor": "pointer" }} >
+                            <IconClearAll size={14} onClick={() => clearCellOutputs(cell.id)} />
+                        </span>
+                    </Tooltip></Row>
+                    {currCellOutputs.map((line, i) => (<Row key={"outputrow_" + i}>
+                        <Text css={{ fontFamily: "$mono", color: line.color }} className="output" key={"outputline_" + i} size="small">
                             {line.text}
                         </Text>
                         {/* <Spacer y={0.5} /> */}
@@ -110,26 +110,31 @@ export default function Cell({ cell, onDelete }) {
             </Card.Footer>
         </> : null;
 
-    let playOrLoading = (isRunning || isLoading) ? <Loading size="xs" /> : <span role="button" title="Run cell" >
-        <IconPlayerPlayFilled size={14} onClick={(e) => {
+    async function run(code) {
+        await runPython(code);
+    }
+
+
+    let playOrLoading = (isRunning || isLoading) ? <Loading type="points" size="xs" /> : <span role="button" title="Run cell" style={{ "cursor": "pointer" }} >
+        <IconPlayerPlayFilled size={16} onClick={(e) => {
             e.preventDefault();
-            runPython(code);
+            run(code);
         }} />
-    </span>;
+    </span >;
     let playOrLoadingTooltip = (isRunning || isLoading) ? "Running" : "Run cell";
 
     return (
         <><Spacer y={1} />
-            <Card variant="bordered" css={{ $$cardColor: colorAlpha, borderRadius: '$xs', borderColor: borderColor, opacity: opacity }} borderWeight="normal" onFocus={onFocus} onBlur={onBlur}>
+            <Card key={"cell" + cell.id} variant="bordered" css={{ $$cardColor: colorAlpha, borderRadius: '$xs', borderColor: borderColor, opacity: opacity }} borderWeight="normal" onFocus={onFocus} onBlur={onBlur}>
                 <Card.Body css={{ paddingTop: 5 }}>
-                    <Row align="right" justify="space-between" css={{}} >
-                        <Col>{ }</Col>
-                        <Tooltip content={playOrLoadingTooltip}>
+                    <Row align="right" justify="flex-end" css={{}} >
+                        {/* <Col>{ }</Col> */}
+                        {/* <Tooltip content={playOrLoadingTooltip}>
                             {playOrLoading}
                         </Tooltip>
-                        <Spacer x={0.5} />
-                        <Tooltip content={"Delete cell"}>
-                            <span role="button" title="Delete cell" onClick={() => onDelete(cell.id)}>
+                        <Spacer x={0.5} /> */}
+                        <Tooltip content={"Delete cell"} >
+                            <span role="button" style={{ "cursor": "pointer" }} title="Delete cell" onClick={() => onDelete(cell.id)}>
                                 <IconTrash size={14} />
                             </span>
                         </Tooltip>
@@ -138,20 +143,64 @@ export default function Cell({ cell, onDelete }) {
                             icon={<IconX size="12px" />}
                             onClick={() => onDelete(cell.id)} /> */}
                     </Row>
-                    {/* <div ref={editor} /> */}
-                    <CodeMirror
-                        value={code}
-                        theme={bbedit}
-                        extensions={[python()]}
-                        basicSetup={basicSetup}
-                        onChange={onCodeChange}
-                    />
+                    <Row justify="center" >
+                        <Col css={{ width: "fit-content", verticalAlign: "middle" }}>
+                            <Tooltip content={playOrLoadingTooltip}>
+                                {playOrLoading}
+                            </Tooltip>
+                        </Col>
+                        <Spacer x={0.5} />
+                        <Col >
+                            <CodeMirror
+                                value={code}
+                                theme={bbedit}
+                                extensions={[python()]}
+                                basicSetup={basicSetup}
+                                onChange={onCodeChange}
+                            />
+                        </Col>
+                    </Row>
                 </Card.Body>
                 {outputElement}
                 {/* <Card.Divider />
                 <Card.Footer> {outputElement} </Card.Footer> */}
             </Card>
             {/* {outputElement} */}
+        </>
+    );
+}
+
+export default function Notebook({ cells, onDelete }) {
+    const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
+    const [cellOutputs, setCellOutputs] = useState([]);
+    const [activeCell, setActiveCell] = useState(-1);
+
+    useEffect(() => {
+        stdout && setCellOutputs((prev) => [...prev, { "id": activeCell, "text": stdout, "color": "$colors$default", "show": true }])
+    }, [stdout])
+
+    useEffect(() => {
+        stderr && setCellOutputs((prev) => [...prev, { "id": activeCell, "text": stderr, "color": "$colors$error", "show": true }])
+        // setOutput(stderr)
+    }, [stderr])
+
+    const clearCellOutputs = (id) => {
+        let newList = [...cells];
+        newList = newList.map((item) => {
+            if (item.id === id) {
+                item.show = false;
+            }
+            return item;
+        }
+        );
+        setCellOutputs(newList);
+    }
+
+    return (
+        <>
+            {cells.map((item) => (
+                <Cell key={"notebookcell" + item.id} cell={item} onDelete={onDelete} activeCell={activeCell} setActiveCell={setActiveCell} runPython={runPython} isLoading={isLoading} isRunning={isRunning} cellOutputs={cellOutputs} clearCellOutputs={clearCellOutputs} />
+            ))}
         </>
     );
 }

@@ -6,7 +6,7 @@ import { Container } from "@nextui-org/react";
 import dynamic from 'next/dynamic';
 
 
-const Cell = dynamic(() => import('./notebook'), {
+const Notebook = dynamic(() => import('./notebook'), {
     ssr: false
 })
 
@@ -42,7 +42,7 @@ export function Layout({ children }) {
     // }, []);
 
     function handleAdd(type) {
-        const newList = cells.concat({ type: type, id: cells.length, active: true });
+        const newList = cells.concat({ type: type, id: cells.length, deleted: false });
 
         setCells(newList);
 
@@ -52,7 +52,7 @@ export function Layout({ children }) {
         // TODO(shreyashankar): fix bug here
         // const newList = cells.filter((item) => item.id !== id);
         let newList = [...cells];
-        newList[id].active = false;
+        newList[id].deleted = true;
 
         setCells(newList);
     }
@@ -66,9 +66,10 @@ export function Layout({ children }) {
         >
             <Header onNewClick={(type) => handleAdd(type)} />
             <Container md>
-                {cells.map((item) => (
+                {/* {cells.map((item) => (
                     <Cell key={item.id} cell={item} onDelete={handleDelete} />
-                ))}
+                ))} */}
+                <Notebook cells={cells} onDelete={handleDelete} />
             </Container>
             {/* <p>{output}</p> */}
         </Box >
