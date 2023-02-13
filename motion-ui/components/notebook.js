@@ -1,11 +1,11 @@
 import { Card, Spacer, Col, Grid, Container, Row, Button, Text, Textarea, Input, Loading, Tooltip } from "@nextui-org/react";
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTheme } from '@nextui-org/react';
-import { useCodeMirror } from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
 import { IconTrash, IconX, IconPlayerPlayFilled } from '@tabler/icons-react';
-import { usePython } from 'react-py';
+import { usePythonConsole } from 'react-py';
+import { ConsoleState } from 'react-py/dist/types/Console'
 import CodeMirror from '@uiw/react-codemirror';
 
 
@@ -26,7 +26,17 @@ export default function Cell({ cell, onDelete }) {
     const onFocus = () => setFocused(true);
     const onBlur = () => setFocused(false);
     const [input, setInput] = useState('');
-    const { runPython, stdout, stderr, isLoading, isRunning } = usePython({ packages: { official: ['numpy', 'pandas'] } });
+    const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
+    const [output, setOutput] = useState('')
+
+    useEffect(() => {
+        setOutput((prev) => [...prev, stdout])
+    }, [stdout])
+
+    useEffect(() => {
+        setOutput((prev) => [...prev, stderr])
+        // setOutput(stderr)
+    }, [stderr])
 
 
     const type = cell.type;
@@ -40,50 +50,6 @@ export default function Cell({ cell, onDelete }) {
         color = "$colors$secondary";
         colorAlpha = theme.colors.secondaryLightActive.value;
     }
-
-    // const editor = useRef();
-
-    // const { setContainer } = useCodeMirror({
-    //     container: editor.current,
-    //     extensions: [python()],
-    //     value: templates[type],
-    //     theme: bbedit,
-    //     basicSetup: {
-    //         lineWrapping: true,
-    //         lineNumbers: true,
-    //         highlightActiveLineGutter: true,
-    //         highlightSelectionMatches: true,
-    //         syntaxHighlighting: true,
-    //         bracketMatching: true,
-    //         highlightActiveLine: true,
-    //         closeBrackets: true,
-    //         autocompletion: true,
-    //         highlightSpecialChars: true,
-    //         history: true,
-    //         closeBracketsKeymap: true,
-    //         defaultKeymap: true,
-    //         searchKeymap: true,
-    //         historyKeymap: true,
-    //         foldKeymap: true,
-    //         completionKeymap: true,
-    //         lintKeymap: true,
-    //         dropCursor: true,
-    //         foldGutter: true,
-    //         rectangularSelection: true,
-    //         crosshairCursor: true,
-    //     },
-    // });
-
-    // useEffect(() => {
-    //     if (editor.current) {
-    //         setContainer(editor.current);
-    //     }
-    //     console.log("editor", editor)
-    // }, [editor.current]);
-
-    // const onUpdate = EditorView.updateListener.of((v) => {
-    //     setCode(v.state.doc.toString());
-    // });
 
     const basicSetup = {
         lineWrapping: true,
@@ -118,17 +84,18 @@ export default function Cell({ cell, onDelete }) {
         setCode(value);
     }, []);
 
-    let output = stderr !== "" ? stderr : stdout;
-    let outputColor = stderr !== "" ? "$colors$error" : "$colors$black";
+    // let output = stderr !== "" ? stderr : stdout;
+    console.log("output", output)
+    let outputColor = stderr !== "" ? "$colors$error" : "$colors$neutral";
     let outputElement = output !== "" ? <Text blockquote color={outputColor} css={{ fontFamily: "$mono" }}>{output}</Text> : null;
 
-    let playOrLoading = isRunning ? <Loading size="xs" /> : <span role="button" title="Run cell" >
+    let playOrLoading = (isRunning || isLoading) ? <Loading size="xs" /> : <span role="button" title="Run cell" >
         <IconPlayerPlayFilled size={14} onClick={(e) => {
             e.preventDefault();
             runPython(code);
         }} />
     </span>;
-    let playOrLoadingTooltip = isRunning ? "Running" : "Run cell";
+    let playOrLoadingTooltip = (isRunning || isLoading) ? "Running" : "Run cell";
 
     return (
         <><Spacer y={1} />
@@ -136,7 +103,7 @@ export default function Cell({ cell, onDelete }) {
                 <Card.Body css={{ paddingTop: 5 }}>
                     <Row align="right" justify="space-between" css={{}} >
                         <Col>{ }</Col>
-                        <Tooltip content={"Run cell"}>
+                        <Tooltip content={playOrLoadingTooltip}>
                             {playOrLoading}
                         </Tooltip>
                         <Spacer x={0.5} />
