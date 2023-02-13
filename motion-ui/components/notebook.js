@@ -27,16 +27,23 @@ export default function Cell({ cell, onDelete }) {
     const onBlur = () => setFocused(false);
     const [input, setInput] = useState('');
     const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
-    const [output, setOutput] = useState('')
+    const [output, setOutput] = useState([])
 
     useEffect(() => {
-        setOutput((prev) => [...prev, stdout])
+        stdout && setOutput((prev) => [...prev, { "text": stdout, "color": "$colors$default" }])
     }, [stdout])
 
     useEffect(() => {
-        setOutput((prev) => [...prev, stderr])
+        stderr && setOutput((prev) => [...prev, { "text": stderr, "color": "$colors$error" }])
         // setOutput(stderr)
     }, [stderr])
+    // useEffect(() => {
+    //     stderr &&
+    //         setOutput((prev) => [
+    //             ...prev,
+    //             { text: stderr + '\n', className: 'text-red-500' }
+    //         ])
+    // }, [stderr])
 
 
     const type = cell.type;
@@ -87,7 +94,21 @@ export default function Cell({ cell, onDelete }) {
     // let output = stderr !== "" ? stderr : stdout;
     console.log("output", output)
     let outputColor = stderr !== "" ? "$colors$error" : "$colors$neutral";
-    let outputElement = output !== "" ? <Text blockquote color={outputColor} css={{ fontFamily: "$mono" }}>{output}</Text> : null;
+    let outputElement = output.length > 0 ?
+        <>
+            <Card.Divider /> <Card.Footer >
+                <Col>
+                    {output.map((line, i) => (<Row>
+                        <Text css={{ fontFamily: "$mono", color: line.color }} className="output" key={i}>
+                            {line.text}
+                        </Text>
+                        {/* <Spacer y={0.5} /> */}
+                    </Row>
+                    ))}
+                </Col>
+                {/* <Text css={{ fontFamily: "$mono" }}>{output}</Text> */}
+            </Card.Footer>
+        </> : null;
 
     let playOrLoading = (isRunning || isLoading) ? <Loading size="xs" /> : <span role="button" title="Run cell" >
         <IconPlayerPlayFilled size={14} onClick={(e) => {
@@ -126,8 +147,11 @@ export default function Cell({ cell, onDelete }) {
                         onChange={onCodeChange}
                     />
                 </Card.Body>
+                {outputElement}
+                {/* <Card.Divider />
+                <Card.Footer> {outputElement} </Card.Footer> */}
             </Card>
-            {outputElement}
+            {/* {outputElement} */}
         </>
     );
 }
