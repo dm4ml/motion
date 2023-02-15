@@ -1,11 +1,11 @@
 import { Navbar, Button, Link, enableCursorHighlight, Dropdown, Text, Card, Radio } from "@nextui-org/react";
-import { IconPlayerPlayFilled, IconPlus, IconChevronDown, IconPackage } from '@tabler/icons-react';
+import { IconPlayerPlayFilled, IconPlus, IconRefresh, IconPackage } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
 import React from "react";
 import { useTheme as useNextTheme } from 'next-themes'
 import { Switch, useTheme } from '@nextui-org/react'
 
-export function Header({ onNewClick, }) {
+export function Header({ onNewClick, explore, onRun }) {
     const [selected, setSelected] = React.useState(new Set(["type"]));
     const { asPath } = useRouter();
 
@@ -17,6 +17,8 @@ export function Header({ onNewClick, }) {
 
     const { setTheme } = useNextTheme();
     const { isDark, type } = useTheme();
+
+    let runButtonText = explore === true ? "Restart pipeline" : "Run pipeline";
 
     return (
         <Navbar isBordered variant="floating" maxWidth="fluid" borderWeight="bold">
@@ -96,8 +98,8 @@ export function Header({ onNewClick, }) {
                 />
                 <Navbar.Item>
                     <Button
-                        icon={<IconPlayerPlayFilled />} ghost auto >
-                        Run pipeline
+                        icon={explore === true ? <IconRefresh /> : <IconPlayerPlayFilled />} ghost auto onPress={onRun}  >
+                        {runButtonText}
                     </Button>
                 </Navbar.Item>
                 <Navbar.Item>

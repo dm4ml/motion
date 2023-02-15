@@ -1,5 +1,5 @@
 import { Card, Spacer, Col, Grid, Container, Row, Button, Text, Textarea, Input, Loading, Tooltip } from "@nextui-org/react";
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, } from 'react';
 import { useTheme } from '@nextui-org/react';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
@@ -7,15 +7,10 @@ import { IconTrash, IconX, IconPlayerPlayFilled, IconClearAll } from '@tabler/ic
 import { usePythonConsole } from 'react-py';
 import { ConsoleState } from 'react-py/dist/types/Console'
 import CodeMirror from '@uiw/react-codemirror';
+import { Header } from './header';
 
 
-const templates = {
-    "type": "@dataclass\nclass UntitledType:\n  attribute1: int\n  attribute2: float\n\n  def __array__(self) -> np.ndarray:\n    return np.array([getattr(self, field) for field in self.__dataclass_fields__])",
-    "transform": "class Transform(motion.Transform):\n    featureType = ...\n    labelType = ...\n    returnType = ...\n\n    def setUp(self):\n        self.max_staleness = 0\n\n    def fit(self, features: typing.List[featureType], labels: typing.List[labelType]) -> dict:\n        # Do something here and return new state\n        state = {\"model\": ...}\n        return state\n\n    def infer(self, state, feature: featureType) -> returnType:\n        # Use state\n        return state[\"model\"]...",
-    "free": "# Do whatever you'd like (read-only)\nprint('Hello world!')"
-}
-
-export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isLoading, isRunning, cellOutputs, clearCellOutputs }) {
+export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoading, isRunning, cellOutputs, clearCellOutputs, handleCodeChange }) {
 
     if (cell.deleted) {
         return null;
@@ -78,17 +73,12 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isL
     let borderColor = focused ? "$colors$primary" : "grey";
     let opacity = focused ? 1 : 1;
 
-    const [code, setCode] = useState(templates[type]);
+    // const [code, setCode] = useState(templates[type]);
     const onCodeChange = useCallback((value, viewUpdate) => {
-        setCode(value);
+        handleCodeChange(cell.id, value);
     }, []);
 
-    // let output = stderr !== "" ? stderr : stdout;
-    // console.log("output", output)
-    // let outputColor = stderr !== "" ? "$colors$error" : "$colors$neutral";
-    console.log("cellOutputs", cellOutputs)
     let currCellOutputs = cellOutputs.filter((o) => (o.id === cell.id) && (o.show === true));
-    console.log("currCellOutputs", currCellOutputs)
     let outputElement = currCellOutputs.length > 0 ?
         <>
             <Card.Divider /> <Card.Footer css={{ paddingTop: 5 }} >
@@ -110,15 +100,11 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isL
             </Card.Footer>
         </> : null;
 
-    async function run(code) {
-        await runPython(code);
-    }
-
 
     let playOrLoading = (isRunning || isLoading) ? <Loading type="points" size="xs" /> : <span role="button" title="Run cell" style={{ "cursor": "pointer" }} >
         <IconPlayerPlayFilled size={16} onClick={(e) => {
             e.preventDefault();
-            run(code);
+            runFn(cell.code);
         }} />
     </span >;
     let playOrLoadingTooltip = (isRunning || isLoading) ? "Running" : "Run cell";
@@ -152,7 +138,7 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isL
                         <Spacer x={0.5} />
                         <Col >
                             <CodeMirror
-                                value={code}
+                                value={cell.code}
                                 theme={bbedit}
                                 extensions={[python()]}
                                 basicSetup={basicSetup}
@@ -170,13 +156,22 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runPython, isL
     );
 }
 
-export default function Notebook({ cells, onDelete }) {
-    const { runPython, stdout, stderr, isLoading, isRunning, banner, consoleState } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
+export default function Notebook({ cells, onDelete, handleCodeChange, onNewClick }) {
+    const { runPython,
+        stdout,
+        stderr,
+        banner,
+        consoleState,
+        isLoading,
+        isReady,
+        isRunning,
+        interruptExecution
+    } = usePythonConsole({ packages: { official: ['numpy', 'pandas'] } });
     const [cellOutputs, setCellOutputs] = useState([]);
     const [activeCell, setActiveCell] = useState(-1);
 
     useEffect(() => {
-        stdout && setCellOutputs((prev) => [...prev, { "id": activeCell, "text": stdout, "color": "$colors$default", "show": true }])
+        stdout && setCellOutputs((prev) => [...prev, { "id": activeCell, "text": stdout, "color": "$colors$default", "show": true }]);
     }, [stdout])
 
     useEffect(() => {
@@ -196,11 +191,25 @@ export default function Notebook({ cells, onDelete }) {
         setCellOutputs(newList);
     }
 
+    const restart = () => {
+        interruptExecution();
+        setCellOutputs([]);
+        setActiveCell(-1);
+    }
+
+
+    async function run(code) {
+        await runPython(code);
+    }
+
     return (
-        <>
-            {cells.map((item) => (
-                <Cell key={"notebookcell" + item.id} cell={item} onDelete={onDelete} activeCell={activeCell} setActiveCell={setActiveCell} runPython={runPython} isLoading={isLoading} isRunning={isRunning} cellOutputs={cellOutputs} clearCellOutputs={clearCellOutputs} />
-            ))}
-        </>
+        <Container >
+            <Header explore onRun={restart} onNewClick={onNewClick} />
+            <Container md>
+                {cells.map((item) => (
+                    <Cell key={"notebookcell" + item.id} cell={item} onDelete={onDelete} activeCell={activeCell} setActiveCell={setActiveCell} runFn={run} isLoading={isLoading} isRunning={isRunning} cellOutputs={cellOutputs} clearCellOutputs={clearCellOutputs} handleCodeChange={handleCodeChange} />
+                ))}
+            </Container>
+        </Container>
     );
 }
