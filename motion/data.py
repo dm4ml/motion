@@ -30,6 +30,10 @@ class Store(ABC):
     @abstractmethod
     def mset(self, id, key_values):
         pass
+    
+    @abstractmethod
+    def idsBefore(self, id):
+        pass
 
 
 class SklearnStore(Store):
