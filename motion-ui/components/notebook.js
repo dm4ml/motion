@@ -3,14 +3,14 @@ import { useState, useEffect, useMemo, useRef, useCallback, } from 'react';
 import { useTheme } from '@nextui-org/react';
 import { python } from '@codemirror/lang-python';
 import { bbedit } from '@uiw/codemirror-theme-bbedit';
-import { IconTrash, IconX, IconPlayerPlayFilled, IconClearAll } from '@tabler/icons-react';
+import { IconTrash, IconCheck, IconPlayerPlayFilled, IconClearAll } from '@tabler/icons-react';
 import { usePythonConsole } from 'react-py';
 import { ConsoleState } from 'react-py/dist/types/Console'
 import CodeMirror from '@uiw/react-codemirror';
 import { Header } from './header';
 
 
-export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoading, isRunning, cellOutputs, clearCellOutputs, handleCodeChange }) {
+export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoading, isRunning, cellOutputs, clearCellOutputs, handleCodeChange, setHasRun }) {
 
     if (cell.deleted) {
         return null;
@@ -79,7 +79,7 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoadi
     }, []);
 
     let currCellOutputs = cellOutputs.filter((o) => (o.id === cell.id) && (o.show === true));
-    let outputElement = currCellOutputs.length > 0 ?
+    let outputElement = cell.hasRun ?
         <>
             <Card.Divider /> <Card.Footer css={{ paddingTop: 5 }} >
                 <Col>
@@ -105,9 +105,17 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoadi
         <IconPlayerPlayFilled size={16} onClick={(e) => {
             e.preventDefault();
             runFn(cell.code);
+            if (cell.hasRun === false) {
+                setHasRun(cell.id);
+            }
         }} />
     </span >;
     let playOrLoadingTooltip = (isRunning || isLoading) ? "Running" : "Run cell";
+    let cellRanComponent = (cell.hasRun === true) ? <Tooltip content="Cell Ran">
+        <span role="button" >
+            <IconCheck size={14} />
+        </span>
+    </Tooltip> : null;
 
     return (
         <><Spacer y={1} />
@@ -115,10 +123,7 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoadi
                 <Card.Body css={{ paddingTop: 5 }}>
                     <Row align="right" justify="flex-end" css={{}} >
                         {/* <Col>{ }</Col> */}
-                        {/* <Tooltip content={playOrLoadingTooltip}>
-                            {playOrLoading}
-                        </Tooltip>
-                        <Spacer x={0.5} /> */}
+                        <Spacer x={0.5} />
                         <Tooltip content={"Delete cell"} >
                             <span role="button" style={{ "cursor": "pointer" }} title="Delete cell" onClick={() => onDelete(cell.id)}>
                                 <IconTrash size={14} />
@@ -134,6 +139,7 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoadi
                             <Tooltip content={playOrLoadingTooltip}>
                                 {playOrLoading}
                             </Tooltip>
+                            {cellRanComponent}
                         </Col>
                         <Spacer x={0.5} />
                         <Col >
@@ -156,7 +162,7 @@ export function Cell({ cell, onDelete, activeCell, setActiveCell, runFn, isLoadi
     );
 }
 
-export default function Notebook({ cells, onDelete, handleCodeChange, onNewClick }) {
+export default function Notebook({ cells, onDelete, handleCodeChange, onNewClick, setHasRun, clearCellRuns }) {
     const { runPython,
         stdout,
         stderr,
@@ -195,6 +201,7 @@ export default function Notebook({ cells, onDelete, handleCodeChange, onNewClick
         interruptExecution();
         setCellOutputs([]);
         setActiveCell(-1);
+        clearCellRuns();
     }
 
 
@@ -207,7 +214,7 @@ export default function Notebook({ cells, onDelete, handleCodeChange, onNewClick
             <Header explore onRun={restart} onNewClick={onNewClick} />
             <Container md>
                 {cells.map((item) => (
-                    <Cell key={"notebookcell" + item.id} cell={item} onDelete={onDelete} activeCell={activeCell} setActiveCell={setActiveCell} runFn={run} isLoading={isLoading} isRunning={isRunning} cellOutputs={cellOutputs} clearCellOutputs={clearCellOutputs} handleCodeChange={handleCodeChange} />
+                    <Cell key={"notebookcell" + item.id} cell={item} onDelete={onDelete} activeCell={activeCell} setActiveCell={setActiveCell} runFn={run} isLoading={isLoading} isRunning={isRunning} cellOutputs={cellOutputs} clearCellOutputs={clearCellOutputs} handleCodeChange={handleCodeChange} setHasRun={setHasRun} />
                 ))}
             </Container>
         </Container>

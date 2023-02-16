@@ -45,8 +45,15 @@ export function Layout({ children }) {
         setCells(newList);
     }
 
+    const setHasRun = (id) => {
+        let newList = [...cells];
+        newList[id].hasRun = true;
+        setCells(newList);
+    }
+
+
     function handleAdd(type) {
-        const newList = cells.concat({ type: type, id: cells.length, deleted: false, code: templates[type] });
+        const newList = cells.concat({ type: type, id: cells.length, deleted: false, code: templates[type], hasRun: false });
 
         setCells(newList);
 
@@ -58,6 +65,16 @@ export function Layout({ children }) {
         let newList = [...cells];
         newList[id].deleted = true;
 
+        setCells(newList);
+    }
+
+    const clearCellRuns = () => {
+        let newList = [...cells];
+        newList = newList.map((item) => {
+            item.hasRun = false;
+            return item;
+        }
+        );
         setCells(newList);
     }
 
@@ -73,7 +90,7 @@ export function Layout({ children }) {
             {/* {cells.map((item) => (
                     <Cell key={item.id} cell={item} onDelete={handleDelete} />
                 ))} */}
-            <Notebook cells={cells} onDelete={handleDelete} handleCodeChange={handleCodeChange} onNewClick={(type) => handleAdd(type)} />
+            <Notebook cells={cells} onDelete={handleDelete} handleCodeChange={handleCodeChange} onNewClick={(type) => handleAdd(type)} setHasRun={setHasRun} clearCellRuns={clearCellRuns} />
             {/* </Container> */}
             {/* <p>{output}</p> */}
         </Box>
