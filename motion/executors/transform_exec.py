@@ -4,6 +4,7 @@ import datetime
 import dataclasses
 import inspect
 import multiprocessing
+import ray
 
 from motion.transform import Transform
 
@@ -12,14 +13,37 @@ def _get_fields_from_type(t):
         raise ValueError("Cannot get fields from None type.")
     return dataclasses.fields(t)
 
+
 class TransformVersion(object):
-    def __init__(self, te, version, ignore_fit=False):
+    def __init__(self, te, version):
         self.te = te
         self.timestamp = datetime.datetime.now()
         
+        # Set up transform object
+        self.transform = self.te.transform(self.te)
+        # Set user-defined parameters
+        self.min_train_size = (
+            self.transform.min_train_size
+            if hasattr(self.transform, "min_train_size")
+            else 0
+        )
+        self.ignore_fit = (
+            self.transform.ignore_fit
+            if hasattr(self.transform, "ignore_fit")
+            else False
+        )
+        self.max_staleness = (
+            self.transform.max_staleness
+            if hasattr(self.transform, "max_staleness")
+            else 0
+        )
+        if self.ignore_fit:
+            self.max_staleness = 1e10
+        
+        
         self.processed = asyncio.Queue()
-    
-        self.fit_task = asyncio.create_task(self.fit(version, ignore_fit))
+        
+        self.fit_task = asyncio.create_task(self.fit(version, self.ignore_fit))
     
     async def fit(self, version, ignore_fit):
         if ignore_fit:
@@ -27,7 +51,7 @@ class TransformVersion(object):
             return
 
         train_ids = self.te.store.idsBefore(version)
-        if len(train_ids) < self.te.min_train_size:
+        if len(train_ids) < self.transform.min_train_size:
             raise ValueError(
                 f"Insufficient data to train {version}. Need at least {self.min_train_size} datapoints."
             )
@@ -35,10 +59,9 @@ class TransformVersion(object):
 
         assert version not in train_ids
         
-        print("Fetching features for training set...")
         features = await self.te.fetchFeatures(train_ids, version=version)
 
-        if self.te.transform.labelType is not None:
+        if self.transform.labelType is not None:
             labels = []
             for train_id in train_ids:
                 label_values = self.te.store.mget(
@@ -46,7 +69,7 @@ class TransformVersion(object):
                     self.te.label_fields,
                 )
                 labels.append(
-                    self.te.transform.labelType(
+                    self.transform.labelType(
                         **{
                             k: v
                             for k, v in label_values.items()
@@ -56,14 +79,12 @@ class TransformVersion(object):
                 )
 
         # Fit transform to training set
-        self.te.transform._check_type(features=features, labels=labels)
+        self.transform._check_type(features=features, labels=labels)
 
-        new_state = self.te.transform.fit(features=features, labels=labels)
+        new_state = self.transform.fit(features=features, labels=labels)
         self.state = new_state
-        print("Model finished fitting.")
     
     async def infer(self, id):
-        print("Running infer on id: ", id)
         await self.fit_task
         
          # Get features for this id
@@ -71,7 +92,7 @@ class TransformVersion(object):
         features = features[0]
         
         # Run inference
-        res = self.te.transform.infer(self.state, features)             
+        res = self.transform.infer(self.state, features)       
         
         # Log results to processed queue
         self.processed.put_nowait((id, features, res))
@@ -84,20 +105,11 @@ class TransformVersion(object):
         # Get features for these ids
         fetch_tasks = [self.te.fetchFeatures([id], version=id) for id in ids]
         all_features = await asyncio.gather(*fetch_tasks)
-        loop = asyncio.get_running_loop()
-        infer_tasks = []
         
-        print("Running inference on many features...")
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            for features in all_features:
-                print(features)
-                infer_tasks.append(loop.run_in_executor(executor, self.te.transform.infer, self.state, features[0]))
-            
-        all_results = await asyncio.gather(*infer_tasks)
+        all_results = {id: self.transform.infer(self.state, features[0]) for id, features in zip(ids, all_features)}
         
         # TODO: put in queue
         
-        print("Finished inferMany")
         return all_results
         
     async def getProcessed(self):
@@ -111,7 +123,7 @@ class TransformVersion(object):
 
 class TransformExecutorV2(object):
     def __init__(self, transform, store, upstream_executors=[]):
-        self.transform = transform(self)
+        self.transform = transform
         self.store = store
         self.upstream_executors = upstream_executors
         
@@ -132,25 +144,6 @@ class TransformExecutorV2(object):
                 f.name
                 for f in _get_fields_from_type(self.transform.returnType)
             ]
-        
-        # Set user-defined parameters
-        self.min_train_size = (
-            self.transform.min_train_size
-            if hasattr(self.transform, "min_train_size")
-            else 0
-        )
-        self.ignore_fit = (
-            self.transform.ignore_fit
-            if hasattr(self.transform, "ignore_fit")
-            else False
-        )
-        self.max_staleness = (
-            self.transform.max_staleness
-            if hasattr(self.transform, "max_staleness")
-            else 0
-        )
-        if self.ignore_fit:
-            self.max_staleness = 1e10
     
     # def versionState(self, step, state):
     #     self.state_history[step] = TransformVersion(copy.deepcopy(state), self)
@@ -211,7 +204,7 @@ class TransformExecutorV2(object):
             [
                 v
                 for v in self.state_history.keys()
-                if v <= version and v > version - self.max_staleness
+                if v <= version and v > version - self.transform.max_staleness
             ]
             or [None]
         )
@@ -220,11 +213,12 @@ class TransformExecutorV2(object):
             version = closest_version
         else:
             # Train on all data up to not including the version
-            self.state_history[version] = TransformVersion(self, version, self.ignore_fit)
+            self.state_history[version] = TransformVersion(self, version)
             
         
         # Submit inference
         correct_state = self.state_history[version]
+        # res = ray.get(correct_state.infer.remote(id))
         res = await correct_state.infer(id)
         return res
     
@@ -234,7 +228,7 @@ class TransformExecutorV2(object):
             [
                 v
                 for v in self.state_history.keys()
-                if v <= version and v > version - self.max_staleness
+                if v <= version and v > version - self.transform.max_staleness
             ]
             or [None]
         )
@@ -243,10 +237,14 @@ class TransformExecutorV2(object):
             version = closest_version
         else:
             # Train on all data up to not including the version
-            self.state_history[version] = TransformVersion(self, version, self.ignore_fit)
+            self.state_history[version] = TransformVersion(self, version)
         
         # Submit all inferences
         correct_state = self.state_history[version]
+        
+        
+        # results = ray.get([correct_state.infer.remote(id) for id in ids])
+        
         results = await correct_state.inferMany(ids)
-        return {id: res for id, res in zip(ids, results)}
+        return results
             

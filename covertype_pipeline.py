@@ -86,11 +86,9 @@ class Preprocess(Transform):
     featureType = CovertypeFeature
     labelType = None
     returnType = CovertypeFeature
-
-    def setUp(self):
-        self.max_staleness = 1e6
-        self.min_train_size = 100
-
+    max_staleness = 1e6
+    min_train_size = 100
+    
     def fit(
         self,
         features: typing.List[featureType],
@@ -111,10 +109,8 @@ class Model(Transform):
     featureType = CovertypeFeature
     labelType = CovertypeLabel
     returnType = CovertypeLabel
-
-    def setUp(self):
-        self.max_staleness = 1e6
-        self.min_train_size = 100
+    max_staleness = 1e6
+    min_train_size = 100
 
     def fit(
         self,
@@ -142,9 +138,8 @@ class Identity(Transform):
     featureType = CovertypeLabel
     labelType = None
     returnType = int
+    ignore_fit = True
 
-    def setUp(self):
-        self.ignore_fit = True
 
     def infer(self, state, feature):
         return feature.target * 1
