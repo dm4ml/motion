@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from motion.transform import Transform
 from motion.data import SklearnStore
 from motion.execute import PipelineExecutor
+from motion.executors import PipelineExecutorV2
 
 from rich import print, pretty
 from sklearn import ensemble
@@ -120,7 +121,7 @@ class Model(Transform):
         features: typing.List[featureType],
         labels: typing.List[labelType],
     ):
-        model = ensemble.RandomForestClassifier()
+        model = ensemble.RandomForestClassifier(random_state=0)
 
         train_set = np.array([np.array(f) for f in features])
         train_target = np.array([l.target for l in labels])
@@ -134,7 +135,7 @@ class Model(Transform):
             target=int(
                 state["model"].predict(np.array(feature).reshape(1, -1))[0]
             )
-        )
+        ).target
 
 
 class Identity(Transform):
@@ -159,11 +160,12 @@ if __name__ == "__main__":
         for elem in np.arange(0.8 * len(store.store), len(store.store))
     ]
 
-    pe = PipelineExecutor(store)
+    pe = PipelineExecutorV2(store)
+    # pe = PipelineExecutor(store)
     # pe.addTransform(Model)
     pe.addTransform(Preprocess)
     pe.addTransform(Model, [Preprocess])
-    pe.addTransform(Identity, [Model])
+    # pe.addTransform(Identity, [Model])
 
     # Print pipeline
     pe.printPipeline()
@@ -171,7 +173,7 @@ if __name__ == "__main__":
     # Execute
     test_ids = [int(elem) for elem in range(1000, 2000)]
     preds = None
-    cProfile.run("preds = pe.executemany(test_ids, max_workers=1)")
+    cProfile.run("preds = pe.executemany(test_ids)") #727.509 seconds for v2 but 0 accuracy? 443.327 seconds for v1 but also 0 accuracy
 
     # Compute accuracy
     numerator = 0

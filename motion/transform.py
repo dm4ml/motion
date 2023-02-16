@@ -26,7 +26,6 @@ class Transform(ABC):
 
     def __init__(self, executor):
         self.executor = executor
-        self.state = {}
         self.setUp()
 
     def setUp(self):
