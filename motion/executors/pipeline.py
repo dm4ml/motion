@@ -80,9 +80,12 @@ class PipelineExecutorV2(object):
         final_node = list(ts.static_order())[-1]
         te = self.transforms[final_node]
         
-        infer_calls = [te.infer(id, version=id) for id in ids]
-        results = await asyncio.gather(*infer_calls)
-        return {id: res for id, res in zip(ids, results)}
+        infer_calls = [te.infer(id, version=id, lazy=True) for id in ids]
+        await asyncio.gather(*infer_calls)
+        results = await te.processOutstanding()
+        
+        
+        return results
     
     def executemany(self, ids):
         return asyncio.run(self._executemany(ids))

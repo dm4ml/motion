@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from motion.transform import Transform
+# from motion.transform import Transform
+from motion.transform import TransformV2 as Transform
 from motion.data import SklearnStore
 from motion.execute import PipelineExecutor
 from motion.executors import PipelineExecutorV2
@@ -11,6 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 import cProfile
 import numpy as np
+import time
 import typing
 
 
@@ -89,6 +91,13 @@ class Preprocess(Transform):
     max_staleness = 1e6
     min_train_size = 100
     
+    def setUp(self):
+        self.featureType = CovertypeFeature
+        self.labelType = None
+        self.returnType = CovertypeFeature
+        self.max_staleness = 1e6
+        self.min_train_size = 100
+    
     def fit(
         self,
         features: typing.List[featureType],
@@ -97,20 +106,31 @@ class Preprocess(Transform):
         scaler = MinMaxScaler()
         train_set = np.array([np.array(f) for f in features])
         scaler.fit(train_set)
-        return {"scaler": scaler}
+        self.state = {"scaler": scaler}
 
-    def infer(self, state, feature: featureType) -> typing.Any:
+    def infer(self, feature: featureType) -> typing.Any:
         return CovertypeFeature(
-            *state["scaler"].transform(np.array(feature).reshape(1, -1))[0]
+            *self.state["scaler"].transform(np.array(feature).reshape(1, -1))[0]
         )
+    
+    def inferBatch(self, features: typing.List[featureType]):
+        batch = np.array([np.array(f) for f in features])
+        return [CovertypeFeature(*elem) for elem in self.state["scaler"].transform(batch)]
 
 
 class Model(Transform):
     featureType = CovertypeFeature
     labelType = CovertypeLabel
-    returnType = CovertypeLabel
+    returnType = int
     max_staleness = 1e6
     min_train_size = 100
+    
+    def setUp(self):
+        self.featureType = CovertypeFeature
+        self.labelType = CovertypeLabel
+        self.returnType = CovertypeLabel
+        self.max_staleness = 1e6
+        self.min_train_size = 100
 
     def fit(
         self,
@@ -124,25 +144,25 @@ class Model(Transform):
         model.fit(train_set, train_target)
 
         train_acc = model.score(train_set, train_target)
-        return {"model": model, "train_acc": train_acc}
+        self.state = {"model": model, "train_acc": train_acc}
 
-    def infer(self, state, feature: featureType):
-        return CovertypeLabel(
-            target=int(
-                state["model"].predict(np.array(feature).reshape(1, -1))[0]
-            )
-        ).target
-
-
-class Identity(Transform):
-    featureType = CovertypeLabel
-    labelType = None
-    returnType = int
-    ignore_fit = True
+    def infer(self, feature: featureType):
+        return self.state["model"].predict(np.array(feature).reshape(1, -1))[0]
+    
+    def inferBatch(self, features: typing.List[featureType]):
+        batch = np.array([np.array(f) for f in features])
+        return self.state["model"].predict(batch)
 
 
-    def infer(self, state, feature):
-        return feature.target * 1
+# class Identity(Transform):
+#     featureType = CovertypeLabel
+#     labelType = None
+#     returnType = int
+#     ignore_fit = True
+
+
+#     def infer(self, state, feature):
+#         return feature.target * 1
 
 
 if __name__ == "__main__":
@@ -152,7 +172,7 @@ if __name__ == "__main__":
     store = SklearnStore("covertype")
     test_ids = [
         int(elem)
-        for elem in np.arange(0.8 * len(store.store), len(store.store))
+        for elem in np.arange(0.2 * len(store.store), len(store.store))
     ]
 
     pe = PipelineExecutorV2(store)
@@ -166,9 +186,12 @@ if __name__ == "__main__":
     pe.printPipeline()
 
     # Execute
-    test_ids = [int(elem) for elem in range(1000, 2000)]
+    # test_ids = [int(elem) for elem in range(1000, 5000)]
     preds = None
+    
+    start = time.time()
     cProfile.run("preds = pe.executemany(test_ids)") #727.509 seconds for v2 but 0 accuracy? 443.327 seconds for v1 but also 0 accuracy
+    print(f"Time taken: {time.time() - start} seconds")
 
     # Compute accuracy
     numerator = 0
