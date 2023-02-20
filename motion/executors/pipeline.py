@@ -43,23 +43,22 @@ class PipelineExecutorV2(object):
                     "[underline yellow]Features",
                     guide_style="bold bright_blue",
                 )
-                if self.transforms[node].transform.featureType is not None:
-                    for field in dataclasses.fields(
-                        self.transforms[node].transform.featureType
-                    ):
-                        features_tree.add(field.name)
+                for field in self.transforms[node].feature_fields:
+                    features_tree.add(field)
                 labels_tree = Tree(
                     "[underline yellow]Labels", guide_style="bold bright_blue"
                 )
-                if self.transforms[node].transform.labelType is not None:
-                    for field in dataclasses.fields(
-                        self.transforms[node].transform.labelType
-                    ):
-                        labels_tree.add(field.name)
+                for field in self.transforms[node].label_fields:
+                    labels_tree.add(field)
+                return_tree = Tree(
+                    "[underline yellow]Return", guide_style="bold bright_blue"
+                )
+                for field in self.transforms[node].return_fields:
+                    return_tree.add(field)
 
                 panels.append(
                     Panel(
-                        Group(features_tree, labels_tree),
+                        Group(features_tree, labels_tree, return_tree),
                         border_style="bold bright_blue",
                         title=f"[bold yellow]{node}",
                         expand=False,
@@ -79,20 +78,19 @@ class PipelineExecutorV2(object):
         ts = TopologicalSorter(self.transform_dag)
         final_node = list(ts.static_order())[-1]
         te = self.transforms[final_node]
-        
+
         infer_calls = [te.infer(id, version=id, lazy=True) for id in ids]
         await asyncio.gather(*infer_calls)
         results = await te.processOutstanding()
-        
-        
+
         return results
-    
+
     def executemany(self, ids):
         return asyncio.run(self._executemany(ids))
 
     def executeone(self, id):
         return self.executemany([id])[id]
-    
+
     def printStates(self):
         for node in self.transforms:
             rprint(node)

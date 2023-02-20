@@ -59,6 +59,7 @@ class Transform(ABC):
     def __call__(self, *args, **kwargs):
         return self.infer(*args, **kwargs)
 
+
 class TransformV2(ABC):
     # featureType = NotImplemented
     # labelType = NotImplemented
@@ -120,7 +121,7 @@ class TransformV2(ABC):
     @abstractmethod
     def infer(self, feature) -> typing.Any:
         pass
-    
+
     def inferBatch(self, features) -> typing.Any:
         pass
 

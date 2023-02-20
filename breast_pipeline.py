@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from motion.transform import Transform
+from motion.transform import TransformV2 as Transform
 from motion.data import SklearnStore
-from motion.execute import PipelineExecutor
+from motion.executors import PipelineExecutorV2 as PipelineExecutor
 
 from rich import print, pretty
 from sklearn import svm
@@ -57,25 +57,20 @@ class BreastLabel:
 
 
 class Preprocess(Transform):
-    featureType = BreastFeature
-    labelType = None
-    returnType = BreastFeature
-
     def setUp(self):
         self.max_staleness = 50
+        self.featureType = BreastFeature
+        self.labelType = None
+        self.returnType = BreastFeature
 
     # TODO(shreyashankar): get rid of labels if user doesn't want them
-    def fit(
-        self,
-        features: typing.List[featureType],
-        labels: typing.List[labelType],
-    ):
+    def fit(self, features, labels):
         train_set = np.array([np.array(f) for f in features])
         scaler = MinMaxScaler()
         scaler.fit(train_set)
-        self.updateState({"scaler": scaler})
+        self.state = {"scaler": scaler}
 
-    def infer(self, feature: featureType):
+    def infer(self, feature):
         return BreastFeature(
             *self.state["scaler"].transform(np.array(feature).reshape(1, -1))[
                 0
@@ -84,18 +79,13 @@ class Preprocess(Transform):
 
 
 class SVM(Transform):
-    featureType = BreastFeature
-    labelType = BreastLabel
-    returnType = int
-
     def setUp(self):
-        self.max_staleness = 15
+        self.max_staleness = 100
+        self.featureType = BreastFeature
+        self.labelType = BreastLabel
+        self.returnType = int
 
-    def fit(
-        self,
-        features: typing.List[featureType],
-        labels: typing.List[labelType],
-    ):
+    def fit(self, features, labels):
         model = svm.SVC(kernel="linear", probability=True)
 
         train_set = np.array([np.array(f) for f in features])
@@ -103,9 +93,9 @@ class SVM(Transform):
         model.fit(train_set, train_target)
 
         train_acc = model.score(train_set, train_target)
-        self.updateState({"model": model, "train_acc": train_acc})
+        self.state = {"model": model, "train_acc": train_acc}
 
-    def infer(self, feature: featureType):
+    def infer(self, feature):
         return self.state["model"].predict(np.array(feature).reshape(1, -1))[0]
 
 
@@ -141,31 +131,31 @@ if __name__ == "__main__":
     print("Accuracy: {0:.4f}".format(float(numerator / denominator)))
 
     # Try to execute some old id
-    old_id = 15
-    old_pred = pe.executeone(old_id)
-    print(
-        "Old prediction and label for id {0}: {1}, {2}".format(
-            old_id, old_pred, store.get(old_id, "target")
-        )
-    )
+    # old_id = 15
+    # old_pred = pe.executeone(old_id)
+    # print(
+    #     "Old prediction and label for id {0}: {1}, {2}".format(
+    #         old_id, old_pred, store.get(old_id, "target")
+    #     )
+    # )
 
-    # Try to execute some newer id we've already executed
-    id2 = 125
-    pred2 = pe.executeone(id2)
-    print(
-        "Prediction and label for id {0}: {1}, {2}".format(
-            id2, pred2, store.get(id2, "target")
-        )
-    )
+    # # Try to execute some newer id we've already executed
+    # id2 = 125
+    # pred2 = pe.executeone(id2)
+    # print(
+    #     "Prediction and label for id {0}: {1}, {2}".format(
+    #         id2, pred2, store.get(id2, "target")
+    #     )
+    # )
 
-    # Try to execute some middle id
-    id3 = 70
-    pred3 = pe.executeone(id3)
-    print(
-        "Prediction and label for id {0}: {1}, {2}".format(
-            id3, pred3, store.get(id3, "target")
-        )
-    )
+    # # Try to execute some middle id
+    # id3 = 70
+    # pred3 = pe.executeone(id3)
+    # print(
+    #     "Prediction and label for id {0}: {1}, {2}".format(
+    #         id3, pred3, store.get(id3, "target")
+    #     )
+    # )
 
     # Print state
     print(pe.transforms["Preprocess"].state_history)
