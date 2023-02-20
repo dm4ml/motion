@@ -187,6 +187,12 @@ class TransformExecutorV2(object):
         else:
             self.return_fields = []
 
+        # Check for label and feature overlap
+        if set(self.feature_fields).intersection(set(self.label_fields)):
+            raise ValueError(
+                f"Feature and label fields overlap for {transform.__name__}: {set(self.feature_fields).intersection(set(self.label_fields))}"
+            )
+
         # Set staleness
         self.max_staleness = (
             self.transform_dummy.max_staleness

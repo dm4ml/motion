@@ -120,6 +120,9 @@ if __name__ == "__main__":
     # Execute
     preds = pe.executemany(test_ids)
 
+    feedbacks = [store.get(test_id, "target") for test_id in test_ids]
+    pe.logFeedbackMany(test_ids, feedbacks)
+
     # Compute accuracy
     numerator = 0
     denominator = 0

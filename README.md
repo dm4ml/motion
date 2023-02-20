@@ -12,6 +12,8 @@ To dos:
 - [ ] Auto retrain
 - [ ] Implement `inc()`
 - [ ] Incorporate feedback / do evaluation
+- [ ] Allow labels to be derivations
+- [x] Make sure label names and feature names don't overlap
 - [ ] Track label provenance and make sure there is no leakage between features and label
 - [ ] Pinecone integration
 

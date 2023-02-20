@@ -30,7 +30,7 @@ class Store(ABC):
     @abstractmethod
     def mset(self, id, key_values):
         pass
-    
+
     @abstractmethod
     def idsBefore(self, id):
         pass
@@ -56,7 +56,11 @@ class SklearnStore(Store):
 
         df.columns = df.columns.str.strip()
         df.columns = df.columns.str.replace(" ", "_")
-        self.store = df.sample(frac=1, random_state = 0).reset_index(drop=True).to_dict("index")
+        self.store = (
+            df.sample(frac=1, random_state=0)
+            .reset_index(drop=True)
+            .to_dict("index")
+        )
 
     def get(self, id, key):
         return self.store[id][key] if key in self.store[id] else None
