@@ -43,10 +43,11 @@ class CatalogSchema:
     img_embedding: np.ndarray
 
 
-store = motion.create_store(
+store = motion.get_or_create_store(
     "fashion_search",
-    schemas={"query": QuerySchema, "catalog": CatalogSchema},
 )
+store.addNamespace("query", QuerySchema)
+store.addNamespace("catalog", CatalogSchema)
 
 # Step 2: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
 
@@ -61,19 +62,19 @@ def scrape_nordstrom(store):
 
 
 class ImageEmbeddings(motion.Transform):
-    def setUp(self):
+    def setUp(self, store):
         # Set up the image embedding model
         pass
 
-    def shouldFit(self, store, new_id):
+    def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
         pass
 
-    def fit(self, store, id):
+    def fit(self, id):
         # Fine-tune or fit the image embedding model
         pass
 
-    def transform(self, store, id):
+    def transform(self, id, triggered_by):
         # Embed the image
         pass
 
@@ -82,38 +83,38 @@ class ImageEmbeddings(motion.Transform):
 
 
 class QuerySuggestion(motion.Transform):
-    def setUp(self):
+    def setUp(self, store):
         # Set up the query suggestion model
         pass
 
-    def shouldFit(self, store, new_id):
+    def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
         pass
 
-    def fit(self, store, id):
+    def fit(self, id):
         # Fine-tune or fit the query suggestion model
         pass
 
-    def transform(self, store, id):
+    def transform(self, id, triggered_by):
         # Generate the query suggestions
         pass
 
 
 # TODO(shreyashankar): pass in the schema/table that triggered an operation. Since it'll be triggered by both queries and retail items. Also should this class even exist?
 class RetrieveRecommendation(motion.Transform):
-    def setUp(self):
+    def setUp(self, store):
         # Set up the vector store to hold image embeddings
         pass
 
-    def shouldFit(self, store, new_id):
+    def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
         pass
 
-    def fit(self, store, id):
+    def fit(self, id):
         # Amass the vector store
         pass
 
-    def transform(self, store, id):
+    def transform(self, id, triggered_by):
         # Retrieve the best images
         pass
 
