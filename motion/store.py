@@ -4,6 +4,9 @@ import inspect
 import os
 import typing
 
+from collections import namedtuple
+from motion import Transform
+
 CONNECTIONS = {}
 
 
@@ -22,10 +25,15 @@ def get_or_create_store(name: str) -> typing.Any:
     return CONNECTIONS[name]
 
 
+TriggerFn = namedtuple("TriggerFn", ["name", "fn", "transform"])
+
+
 class Store(object):
     def __init__(self, name: str):
         self.name = name
-        self.con = duckdb.connect(f"datastores/{name}/duck.db")
+        self.con = duckdb.connect(":memory:")
+        self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
+        # self.con = duckdb.connect(f"datastores/{name}/duck.db")
         self.triggers = (
             dill.load(open(f"datastores/{name}.triggers", "rb"))
             if os.path.exists(f"datastores/{name}.triggers")
@@ -42,19 +50,19 @@ class Store(object):
             else {}
         )
 
-    def __del__(self):
-        # Close connection and persist triggers
-        self.con.close()
-        dill.dump(
-            self.triggers, open(f"datastores/{self.name}.triggers", "wb")
-        )
-        dill.dump(
-            self.trigger_names,
-            open(f"datastores/{self.name}.trigger_names", "wb"),
-        )
-        dill.dump(
-            self.trigger_fns, open(f"datastores/{self.name}.trigger_fns", "wb")
-        )
+    # def __del__(self):
+    #     # Close connection and persist triggers
+    #     self.con.close()
+    #     dill.dump(
+    #         self.triggers, open(f"datastores/{self.name}.triggers", "wb")
+    #     )
+    #     dill.dump(
+    #         self.trigger_names,
+    #         open(f"datastores/{self.name}.trigger_names", "wb"),
+    #     )
+    #     dill.dump(
+    #         self.trigger_fns, open(f"datastores/{self.name}.trigger_fns", "wb")
+    #     )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
         """Add a namespace to the store.
@@ -65,7 +73,7 @@ class Store(object):
             schema (typing.Any): The schema of the namespace.
         """
         self.con.execute(
-            f"CREATE TABLE {name} (id INTEGER PRIMARY KEY, {schema})"
+            f"CREATE TABLE {self.name}.{name} (id INTEGER PRIMARY KEY, {schema})"
         )
 
     def deleteNamespace(self, name: str) -> None:
@@ -75,20 +83,20 @@ class Store(object):
         Args:
             name (str): The name of the namespace.
         """
-        self.con.execute(f"DROP TABLE {name}")
+        self.con.execute(f"DROP TABLE {self.name}.{name}")
 
-    def addTriggerFn(
+    def addTrigger(
         self,
         name: str,
         key: str,
-        fn: typing.Callable,
+        trigger: typing.Union[typing.Callable, type],
     ) -> None:
         """Adds a trigger to the store.
 
         Args:
             name (str): Trigger name.
             key (str): Name of the key to triger on. Formatted as "namespace.key".
-            fn (typing.Callable): Function to execute when the trigger is fired. Must take in the id of the row that triggered the trigger and a reference to the store object (in this order).
+            trigger (typing.Union[typing.Callable, type]): Function or class to execute when the trigger is fired. If function, must take in the id of the row that triggered the trigger and a reference to the store object (in this order). If class, must implement the Transform interface.
 
         Raises:
             ValueError: If there is already a trigger with the given name.
@@ -98,16 +106,31 @@ class Store(object):
                 f"Trigger {name} already exists. Please delete it and try again."
             )
 
-        # Check that the function signature is correct
-        if len(inspect.signature(fn).parameters) != 2:
+        if inspect.isfunction(trigger):
+            # Check that the function signature is correct
+            if len(inspect.signature(trigger).parameters) != 2:
+                raise ValueError(
+                    f"Trigger function must take in 2 arguments: id and store."
+                )
+
+        elif inspect.isclass(trigger):
+            # Check that the class implements the Transform interface
+            if not issubclass(trigger, Transform):
+                raise ValueError(
+                    f"Trigger class must implement the Transform interface."
+                )
+
+        else:
             raise ValueError(
-                f"Trigger function must take in 2 arguments: id and store."
+                f"Trigger {name} must be a function or class. Got {type(trigger)}."
             )
 
         # Add the trigger to the store
         self.trigger_names[name] = key
-        self.trigger_fns[name] = fn
-        self.triggers[key] = self.triggers.get(key, []) + [(name, fn)]
+        self.trigger_fns[name] = trigger(self)
+        self.triggers[key] = self.triggers.get(key, []) + [
+            TriggerFn(name, trigger, inspect.isclass(trigger))
+        ]
 
     def deleteTrigger(self, name: str) -> None:
         """Delete a trigger from the store.

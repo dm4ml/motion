@@ -1,3 +1,4 @@
 from motion.transform import Transform
+from motion.schema import Schema
 
-__all__ = ["Transform"]
+__all__ = ["Schema", "Transform"]

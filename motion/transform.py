@@ -8,8 +8,8 @@ TriggerElement = namedtuple("TriggerElement", ["namespace", "key"])
 
 
 class Transform(ABC):
-    def __init__(self):
-        self.setUp()
+    def __init__(self, store):
+        self.setUp(store)
 
     @abstractmethod
     def setUp(self, store):
