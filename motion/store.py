@@ -66,19 +66,18 @@ class Store(object):
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
         """Add a namespace to the store.
-        TODO(shreya): Implement this.
+        TODO(shreya): Error checking
 
         Args:
             name (str): The name of the namespace.
             schema (typing.Any): The schema of the namespace.
         """
-        self.con.execute(
-            f"CREATE TABLE {self.name}.{name} (id INTEGER PRIMARY KEY, {schema})"
-        )
+        sql = schema.format_create_table_sql(f"{self.name}.{name}")
+        self.con.execute(sql)
 
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
-        TODO(shreya): Implement this.
+        TODO(shreya): Error checking
 
         Args:
             name (str): The name of the namespace.
