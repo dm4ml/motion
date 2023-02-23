@@ -2,6 +2,9 @@ import copy
 import typing
 
 from abc import ABC, abstractmethod
+from collections import namedtuple
+
+TriggerElement = namedtuple("TriggerElement", ["namespace", "key"])
 
 
 class Transform(ABC):
@@ -13,7 +16,7 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def shouldFit(self, new_id, triggered_by):
+    def shouldFit(self, new_id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
@@ -21,5 +24,5 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def transform(self, id, triggered_by):
+    def transform(self, id, triggered_by: TriggerElement):
         pass
