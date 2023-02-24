@@ -24,12 +24,11 @@ class QuerySource(motion.MEnum):
 
 class QuerySchema(motion.Schema):
     src: QuerySource
+    query_id: int
     query: str
     text_suggestion: str
-    text_suggestion_page: int
     img_id: int
     img_score: int
-    img_id_page: int
 
 
 class CatalogSchema(motion.Schema):
@@ -62,19 +61,20 @@ def scrape_nordstrom(store):
 class EmbedImage(motion.Transform):
     def setUp(self, store):
         # Set up the image embedding model
-        pass
+        self.store = store
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
-        pass
+        return False
 
-    def fit(self, id):
+    def fit(self, id, context):
         # Fine-tune or fit the image embedding model
+        print("Fitting in EmbedImage!")
         pass
 
     def transform(self, id, triggered_by):
         # Embed the image
-        pass
+        print("Transforming in EmbedImage!")
 
 
 # Then we write the query suggestion subpipeline
@@ -83,38 +83,38 @@ class EmbedImage(motion.Transform):
 class SuggestQuery(motion.Transform):
     def setUp(self, store):
         # Set up the query suggestion model
-        pass
+        self.store = store
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
-        pass
+        return True
 
-    def fit(self, id):
+    def fit(self, id, context):
         # Fine-tune or fit the query suggestion model
-        pass
+        print("Fitting in SuggestQuery!")
 
     def transform(self, id, triggered_by):
         # Generate the query suggestions
-        pass
+        print("Transforming in SuggestQuery! ID: ", id)
 
 
 # TODO(shreyashankar): pass in the schema/table that triggered an operation. Since it'll be triggered by both queries and retail items. Also should this class even exist?
 class RetrieveRecommendation(motion.Transform):
     def setUp(self, store):
         # Set up the vector store to hold image embeddings
-        pass
+        self.store = store
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
         pass
 
-    def fit(self, id):
+    def fit(self, id, context):
         # Amass the vector store
         pass
 
     def transform(self, id, triggered_by):
         # Retrieve the best images
-        pass
+        print("Transforming in RetrieveRecommendation! ID: ", id)
 
 
 # Step 3: Add the pipeline components as triggers. Triggers can be added as cron jobs or on the addition/change of a row in a table.
@@ -135,22 +135,22 @@ store.addTrigger(
 
 store.set(
     "catalog",
-    primary_key={"id": store.getNewId("catalog")},
+    id=store.getNewId("catalog"),
     key="img_url",
     value="https://...",
 )
 
 store.set(
     "query",
-    primary_key={"id": store.getNewId("query")},
+    id=store.getNewId("query"),
     key="query",
     value="hello",
 )
 store.set(
     "query",
-    primary_key={"id": store.getNewId("query"), "text_suggestion_page": 1},
+    id=store.getNewId("query"),
     key="query",
-    value="hello",
+    value="hello2",
 )
 
 

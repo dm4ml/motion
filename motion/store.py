@@ -79,6 +79,9 @@ class Store(object):
             logging.info(stmt)
             self.con.execute(stmt)
 
+        # Create sequence for id
+        self.con.execute(f"CREATE SEQUENCE {self.name}.{name}_id_seq;")
+
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
         TODO(shreya): Error checking
@@ -86,7 +89,8 @@ class Store(object):
         Args:
             name (str): The name of the namespace.
         """
-        self.con.execute(f"DROP TABLE {self.name}.{name}")
+        self.con.execute(f"DROP TABLE {self.name}.{name};")
+        self.con.execute(f"DROP SEQUENCE {self.name}.{name}_id_seq;")
 
     def addTrigger(
         self,
@@ -99,7 +103,7 @@ class Store(object):
         Args:
             name (str): Trigger name.
             keys (typing.List[str]): Names of the keys to triger on. Formatted as "namespace.key". Trigger executes if there is a addition to any of the keys.
-            trigger (typing.Union[typing.Callable, type]): Function or class to execute when the trigger is fired. If function, must take in the id of the row that triggered the trigger and a reference to the store object (in this order). If class, must implement the Transform interface.
+            trigger (typing.Union[typing.Callable, type]): Function or class to execute when the trigger is fired. If function, must take in the id of the row that triggered the trigger, a reference to the element that triggered it, and a reference to the store object (in this order). If class, must implement the Transform interface.
 
         Raises:
             ValueError: If there is already a trigger with the given name.
@@ -111,9 +115,9 @@ class Store(object):
 
         if inspect.isfunction(trigger):
             # Check that the function signature is correct
-            if len(inspect.signature(trigger).parameters) != 2:
+            if len(inspect.signature(trigger).parameters) != 3:
                 raise ValueError(
-                    f"Trigger function must take in 2 arguments: id and store."
+                    f"Trigger function must take in 2 arguments: id, triggered_by, and store."
                 )
 
         elif inspect.isclass(trigger):
@@ -132,8 +136,11 @@ class Store(object):
         self.trigger_names[name] = keys
         self.trigger_fns[name] = trigger(self)
         for key in keys:
+            trigger_exec = (
+                trigger(self) if inspect.isclass(trigger) else trigger
+            )
             self.triggers[key] = self.triggers.get(key, []) + [
-                TriggerFn(name, trigger, inspect.isclass(trigger))
+                TriggerFn(name, trigger_exec, inspect.isclass(trigger))
             ]
 
     def deleteTrigger(self, name: str) -> None:
@@ -173,66 +180,83 @@ class Store(object):
         """
         return {k: self.getTriggersForKey(k) for k in self.triggers.keys()}
 
-    def getMaxId(self, namespace: str) -> int:
-        """Get the max id for a namespace.
-
-        Args:
-            namespace (str): The namespace to get the max id for.
-
-        Returns:
-            int: The max id.
-        """
-        max_id = (
-            self.con.execute(
-                f"SELECT MAX(id) FROM {self.name}.{namespace}"
-            ).fetchone()[0]
-            or -1
-        )
-        return max_id
-
-    def getNewId(self, namespace: str) -> int:
+    def getNewId(self, namespace: str, key: str = "id") -> int:
         """Get a new id for a namespace.
 
         Args:
             namespace (str): The namespace to get the new id for.
+            key (str, optional): The key to get the new id for. Defaults to "id".
 
         Returns:
             int: The new id.
         """
-        return self.getMaxId(namespace) + 1
 
-    def exists(self, namespace: str, primary_key: dict) -> bool:
+        self.con.execute(
+            f"CREATE SEQUENCE IF NOT EXISTS {self.name}.{namespace}_{key}_seq;"
+        )
+        return self.con.execute(
+            f"SELECT NEXTVAL('{self.name}.{namespace}_{key}_seq')"
+        ).fetchone()[0]
+
+    # def exists(self, namespace: str, primary_key: dict) -> bool:
+    #     """Determine if a record exists in a namespace.
+
+    #     Args:
+    #         namespace (str): The namespace to check.
+    #         primary_key (dict): The primary key of the record.
+
+    #     Returns:
+    #         bool: True if the record exists, False otherwise.
+    #     """
+    #     stmt = f"SELECT COUNT(*) FROM {self.name}.{namespace} WHERE "
+    #     for k, v in primary_key.items():
+    #         stmt += f"{k} = {v} AND "
+    #     stmt = stmt[:-5]
+    #     return self.con.execute(stmt).fetchone()[0] > 0
+
+    def exists(self, namespace: str, id: int) -> bool:
         """Determine if a record exists in a namespace.
 
         Args:
             namespace (str): The namespace to check.
-            primary_key (dict): The primary key of the record.
+            id (int): The primary key of the record.
 
         Returns:
             bool: True if the record exists, False otherwise.
         """
-        stmt = f"SELECT COUNT(*) FROM {self.name}.{namespace} WHERE "
-        for k, v in primary_key.items():
-            stmt += f"{k} = {v} AND "
-        stmt = stmt[:-5]
-        return self.con.execute(stmt).fetchone()[0] > 0
+        return (
+            self.con.execute(
+                f"SELECT COUNT(*) FROM {self.name}.{namespace} WHERE id = {id}"
+            ).fetchone()[0]
+            > 0
+        )
 
-    def executeTrigger(self, trigger: TriggerFn, trigger_elem: TriggerElement):
+    def executeTrigger(
+        self, id: int, trigger: TriggerFn, trigger_elem: TriggerElement
+    ):
         """Execute a trigger.
 
         Args:
+            id (int): The id of the record that triggered the trigger.
             trigger (TriggerFn): The trigger to execute.
             trigger_elem (TriggerElement): The element that triggered the trigger.
         """
         trigger_name, trigger_fn, isTransform = trigger
         logging.info(f"Running trigger {trigger_name}...")
         if not isTransform:
-            trigger_fn(trigger_elem.id, self)
+            trigger_fn(id, trigger_elem, self)
+        else:
+            # Execute the transform lifecycle
+            context = trigger_fn.shouldFit(id, trigger_elem)
+            if context:
+                trigger_fn.fit(id, context)
+            trigger_fn.transform(id, trigger_elem)
+        logging.info(f"Finished running trigger {trigger_name}.")
 
     def set(
         self,
         namespace: str,
-        primary_key: typing.Dict,
+        id: int,
         key: str,
         value: typing.Any,
     ) -> None:
@@ -241,34 +265,68 @@ class Store(object):
 
         Args:
             namespace (str): The namespace to set the value in.
-            primary_key (typing.Dict): The primary key of the record. In most cases it will just be the id, like {"id": 1}. In some cases, when there are page attributes, it will be {"id": 1, "_page": 1}.
+            id (int): The id of the record to set the value for.
             key (str): The key to set the value for.
             value (typing.Any): The value to set.
         """
-        if not self.exists(namespace, primary_key):
+        if not self.exists(namespace, id):
             query_string = (
-                f"INSERT INTO {self.name}.{namespace} ({', '.join(primary_key.keys())}, {key}) VALUES ({', '.join(['?'] * len(primary_key.values()))}, ?)",
-                (*primary_key.values(), value),
+                f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?)",
+                (id, value),
             )
 
         else:
             query_string = (
-                f"UPDATE {self.name}.{namespace} SET {key} = ? WHERE {' AND '.join([f'{k} = ?' for k in primary_key.keys()])}",
-                (value, *primary_key.values()),
+                f"UPDATE {self.name}.{namespace} SET {key} = ? WHERE id = ?",
+                (value, id),
             )
 
         self.con.execute(*query_string)
 
         # Run triggers
-        # TODO(shreya): implement this
         trigger_elem = TriggerElement(
             namespace=namespace, key=key, value=value
         )
-        print(trigger_elem)
         for trigger in self.triggers.get(f"{namespace}.{key}", []):
-            trigger_name, trigger_fn, isTransform = trigger
-            logging.info(f"Running trigger {trigger_name}...")
-            # if isTransform:
-            #     self.set(namespace, primary_key, key, trigger_fn(value))
-            # else:
-            #     trigger_fn()
+            self.executeTrigger(id, trigger, trigger_elem)
+
+    def setMany(
+        self,
+        namespace: str,
+        id: int,
+        key_values: typing.Dict[str, typing.Any],
+        run_duplicates: bool = False,
+    ) -> None:
+        """Set multiple values for a key in a namespace.
+        TODO(shreyashankar): Handle complex types.
+
+        Args:
+            namespace (str): The namespace to set the value in.
+            id (int): The id of the record to set the value for.
+            key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
+            run_duplicates (bool, optional): Whether to run duplicate triggers. Defaults to False.
+        """
+        if not self.exists(namespace, id):
+            query_string = (
+                f"INSERT INTO {self.name}.{namespace} (id, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))})",
+                (id, *key_values.values()),
+            )
+
+        else:
+            query_string = (
+                f"UPDATE {self.name}.{namespace} SET {', '.join([f'{k} = ?' for k in key_values.keys()])} WHERE id = ?",
+                (*key_values.values(), id),
+            )
+
+        self.con.execute(*query_string)
+
+        # Run triggers
+        executed = set()
+        for key, value in key_values.items():
+            trigger_elem = TriggerElement(
+                namespace=namespace, key=key, value=value
+            )
+            for trigger in self.triggers.get(f"{namespace}.{key}", []):
+                if run_duplicates or trigger not in executed:
+                    self.executeTrigger(id, trigger, trigger_elem)
+                    executed.add(trigger)

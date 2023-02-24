@@ -23,22 +23,22 @@ class Schema(ABC):
     def __init_subclass__(cls, **kwargs):
         return dataclass(cls, kw_only=True, **kwargs)
 
-    @classmethod
-    def getPageFields(cls):
-        return {
-            field.name: getattr(cls, field.name)
-            for field in dataclasses.fields(cls)
-            if field.name.endswith("_page")
-        }
+    # @classmethod
+    # def getPageFields(cls):
+    #     return {
+    #         field.name: getattr(cls, field.name)
+    #         for field in dataclasses.fields(cls)
+    #         if field.name.endswith("_page")
+    #     }
 
     def __post_init__(self):
         # Check id, ts are not None
         if self.id is None or self.create_at is None:
             raise ValueError("id and create_at must be defined.")
 
-        self.has_composite_key = (
-            True if len(self.getPageFields()) > 0 else False
-        )
+        # self.has_composite_key = (
+        #     True if len(self.getPageFields()) > 0 else False
+        # )
 
         # Create unique key
         # self.unique_key = "_".join(
@@ -49,17 +49,17 @@ class Schema(ABC):
     @classmethod
     def formatCreateStmts(cls, table_name: str) -> typing.List[str]:
         fields = dataclasses.fields(cls)
-        page_fields = [
-            field for field in fields if field.name.endswith("_page")
-        ]
+        # page_fields = [
+        #     field for field in fields if field.name.endswith("_page")
+        # ]
 
         user_defined_fields = [
             f
             for f in fields
             if not f.name == "id" and not f.name == "create_at"
         ]
-        for field in page_fields:
-            user_defined_fields.remove(field)
+        # for field in page_fields:
+        #     user_defined_fields.remove(field)
 
         names_and_types = [
             "id INT NOT NULL",
@@ -90,15 +90,15 @@ class Schema(ABC):
                 names_and_types.append(f"{field.name} BLOB")
 
         # Add page fields
-        for field in page_fields:
-            names_and_types.append(f"{field.name} INT DEFAULT 0")
+        # for field in page_fields:
+        #     names_and_types.append(f"{field.name} INT DEFAULT 0")
 
         create_enum_str = [
             f"CREATE TYPE {name} AS ENUM ({', '.join(values)});"
             for name, values in enums.items()
         ]
 
-        primary_keys = ["id"] + [f.name for f in page_fields]
+        primary_keys = ["id"]
         primary_key_str = f"PRIMARY KEY ({', '.join(primary_keys)})"
 
         create_table_str = f"CREATE TABLE {table_name} ({', '.join(names_and_types)}, {primary_key_str});"
