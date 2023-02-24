@@ -198,22 +198,6 @@ class Store(object):
             f"SELECT NEXTVAL('{self.name}.{namespace}_{key}_seq')"
         ).fetchone()[0]
 
-    # def exists(self, namespace: str, primary_key: dict) -> bool:
-    #     """Determine if a record exists in a namespace.
-
-    #     Args:
-    #         namespace (str): The namespace to check.
-    #         primary_key (dict): The primary key of the record.
-
-    #     Returns:
-    #         bool: True if the record exists, False otherwise.
-    #     """
-    #     stmt = f"SELECT COUNT(*) FROM {self.name}.{namespace} WHERE "
-    #     for k, v in primary_key.items():
-    #         stmt += f"{k} = {v} AND "
-    #     stmt = stmt[:-5]
-    #     return self.con.execute(stmt).fetchone()[0] > 0
-
     def exists(self, namespace: str, id: int) -> bool:
         """Determine if a record exists in a namespace.
 

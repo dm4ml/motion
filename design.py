@@ -98,7 +98,6 @@ class SuggestQuery(motion.Transform):
         print("Transforming in SuggestQuery! ID: ", id)
 
 
-# TODO(shreyashankar): pass in the schema/table that triggered an operation. Since it'll be triggered by both queries and retail items. Also should this class even exist?
 class RetrieveRecommendation(motion.Transform):
     def setUp(self, store):
         # Set up the vector store to hold image embeddings
