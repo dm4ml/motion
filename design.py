@@ -102,7 +102,7 @@ class EmbedImage(motion.Transform):
 # Then we write the query suggestion subpipeline
 
 
-class SuggestQuery(motion.Transform):
+class SuggestIdea(motion.Transform):
     def setUp(self, store):
         # Set up the query suggestion model
         self.store = store
@@ -113,11 +113,11 @@ class SuggestQuery(motion.Transform):
 
     def fit(self, id, context):
         # Fine-tune or fit the query suggestion model
-        print("Fitting in SuggestQuery!")
+        print("Fitting in SuggestIdea!")
 
     def transform(self, id, triggered_by):
         # Generate the query suggestions
-        print("Transforming in SuggestQuery! ID: ", id)
+        print("Transforming in SuggestIdea! ID: ", id)
 
 
 class RetrieveRecommendation(motion.Transform):
@@ -141,7 +141,7 @@ class RetrieveRecommendation(motion.Transform):
 # Step 3: Add the pipeline components as triggers. Triggers can be added as cron jobs or on the addition/change of a row in a table.
 
 store.addTrigger(
-    name="suggest_query", keys=["query.query"], trigger=SuggestQuery
+    name="suggest_idea", keys=["query.query"], trigger=SuggestIdea
 )
 store.addTrigger(
     name="embed_images", keys=["catalog.img_url"], trigger=EmbedImage
