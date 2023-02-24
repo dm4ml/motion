@@ -62,7 +62,7 @@ class Schema(ABC):
         #     user_defined_fields.remove(field)
 
         names_and_types = [
-            "id INT NOT NULL",
+            "id INT NOT NULL PRIMARY KEY",
             "create_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         ]
         enums = {}
@@ -98,9 +98,11 @@ class Schema(ABC):
             for name, values in enums.items()
         ]
 
-        primary_keys = ["id"]
-        primary_key_str = f"PRIMARY KEY ({', '.join(primary_keys)})"
+        # primary_keys = ["id"]
+        # primary_key_str = f"PRIMARY KEY ({', '.join(primary_keys)})"
 
-        create_table_str = f"CREATE TABLE {table_name} ({', '.join(names_and_types)}, {primary_key_str});"
+        create_table_str = (
+            f"CREATE TABLE {table_name} ({', '.join(names_and_types)});"
+        )
 
         return create_enum_str + [create_table_str]

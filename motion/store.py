@@ -3,6 +3,7 @@ import duckdb
 import inspect
 import logging
 import os
+import pandas as pd
 import typing
 
 from collections import namedtuple
@@ -51,6 +52,7 @@ class Store(object):
             if os.path.exists(f"datastores/{name}.trigger_fns")
             else {}
         )
+        self.table_columns = {}
 
     # def __del__(self):
     #     # Close connection and persist triggers
@@ -81,6 +83,14 @@ class Store(object):
 
         # Create sequence for id
         self.con.execute(f"CREATE SEQUENCE {self.name}.{name}_id_seq;")
+
+        # Store column names
+        self.table_columns[name] = (
+            self.con.execute(f"DESCRIBE {self.name}.{name};")
+            .fetchdf()["column_name"]
+            .tolist()
+        )
+        self.table_columns[name].remove("id")
 
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
@@ -210,9 +220,9 @@ class Store(object):
         """
         return (
             self.con.execute(
-                f"SELECT COUNT(*) FROM {self.name}.{namespace} WHERE id = {id}"
-            ).fetchone()[0]
-            > 0
+                f"SELECT id FROM {self.name}.{namespace} WHERE id = {id}"
+            ).fetchone()
+            is not None
         )
 
     def executeTrigger(
@@ -243,16 +253,23 @@ class Store(object):
         id: int,
         key: str,
         value: typing.Any,
-    ) -> None:
+    ) -> int:
         """Set a value for a key in a namespace.
         TODO(shreyashankar): Handle complex types.
 
         Args:
             namespace (str): The namespace to set the value in.
-            id (int): The id of the record to set the value for.
+            id (int): The id of the record to set the value for. If none, a
+            new id will be generated.
             key (str): The key to set the value for.
             value (typing.Any): The value to set.
+
+        Returns:
+            int: The id of the record that was set.
         """
+        if not id:
+            id = self.getNewId(namespace)
+
         if not self.exists(namespace, id):
             query_string = (
                 f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?)",
@@ -274,6 +291,8 @@ class Store(object):
         for trigger in self.triggers.get(f"{namespace}.{key}", []):
             self.executeTrigger(id, trigger, trigger_elem)
 
+        return id
+
     def setMany(
         self,
         namespace: str,
@@ -283,6 +302,7 @@ class Store(object):
     ) -> None:
         """Set multiple values for a key in a namespace.
         TODO(shreyashankar): Handle complex types.
+        TODO(shreyashankar): Should we even have this?
 
         Args:
             namespace (str): The namespace to set the value in.
@@ -314,3 +334,124 @@ class Store(object):
                 if run_duplicates or trigger not in executed:
                     self.executeTrigger(id, trigger, trigger_elem)
                     executed.add(trigger)
+
+    def duplicate(self, namespace: str, id: int) -> int:
+        """Duplicate a record in a namespace. Doesn't run triggers.
+
+        Args:
+            namespace (str): The namespace to duplicate the record in.
+            id (int): The id of the record to duplicate.
+
+        Returns:
+            int: The new id of the duplicated record.
+        """
+        new_id = self.getNewId(namespace)
+        self.con.execute(
+            f"INSERT INTO {self.name}.{namespace} SELECT {new_id} AS id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE id = {id}"
+        )
+        return new_id
+
+    def get(
+        self, namespace: str, id: int, keys: typing.List[str], **kwargs
+    ) -> typing.Any:
+        """Get values for an id's keys in a namespace.
+        TODO: Handle complex types.
+
+        Args:
+            namespace (str): The namespace to get the value from.
+            id (int): The id of the record to get the value for.
+            keys (typing.List[str]): The keys to get the values for.
+
+        Keyword Args:
+            caller_id (int, optional): The id of the caller. Defaults to None.
+            Used to prevent leakage, i.e., looking at data that has not
+            been generated yet.
+
+        Returns:
+            typing.Any: The values for the keys.
+        """
+        # Check that there is no leakage
+        if kwargs.get("caller_id") is not None:
+            caller_id = kwargs.get("caller_id")
+            if caller_id > id:
+                raise ValueError(
+                    f"Caller id {caller_id} is greater than id {id}!"
+                )
+
+        res = self.con.execute(
+            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id = {id}"
+        ).fetchone()
+        res_dict = {k: v for k, v in zip(keys, res)}
+        res_dict.update({"id": id})
+        return res_dict
+
+    def mget(
+        self,
+        namespace: str,
+        ids: typing.List[int],
+        keys: typing.List[str],
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Get multiple values for keys in a namespace.
+        TODO: Handle complex types.
+
+        Args:
+            namespace (str): The namespace to get the value from.
+            ids (typing.List[int]): The ids of the records to get the value for.
+            keys (typing.List[str]): The keys to get the values for.
+
+        Keyword Args:
+            caller_id (int, optional): The id of the caller. Defaults to None.
+            Used to prevent leakage, i.e., looking at data that has not been
+            generated yet.
+
+        Returns:
+            pd.DataFrame: The values for the key.
+        """
+        # Check that there is no leakage
+        if kwargs.get("caller_id") is not None:
+            caller_id = kwargs.get("caller_id")
+            if caller_id > max(ids):
+                raise ValueError(
+                    f"Caller id {caller_id} is greater than id {id}!"
+                )
+
+        return self.con.execute(
+            f"SELECT {', '.join(['id'] + keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
+        ).fetchdf()
+
+    def getIdsForKey(
+        self, namespace: str, key: str, value: typing.Any, **kwargs
+    ) -> typing.List[int]:
+        """Get ids for a key-value pair in a namespace.
+
+        Args:
+            namespace (str): The namespace to get the value from.
+            key (str): The key to get the values for.
+            value (typing.Any): The value to get the ids for.
+
+        Keyword Args:
+            caller_id (int, optional): The id of the caller. Defaults to None.
+            caller_namespace (str, optional): The namespace of the caller. Defaults to None.
+
+        Returns:
+            typing.List[int]: The ids for the key-value pair.
+        """
+        # Retrieve caller_id if it exists
+        caller_id = kwargs.get("caller_id", None)
+        caller_namespace = kwargs.get("caller_namespace", None)
+        if caller_id is not None and caller_namespace is not None:
+            caller_time = self.con.execute(
+                f"SELECT ts FROM {self.name}.{caller_namespace} WHERE id = ?",
+                (caller_id,),
+            ).fetchone()[0]
+            return self.con.execute(
+                f"SELECT id FROM {self.name}.{namespace} WHERE {key} = ? AND ts < ?",
+                (value, caller_time),
+            ).fetchall()
+
+        # Otherwise, just return all the ids
+        return self.con.execute(
+            f"SELECT id FROM {self.name}.{namespace} WHERE {key} = ?",
+            (value,),
+        ).fetchall()

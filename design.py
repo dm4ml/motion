@@ -134,23 +134,25 @@ store.addTrigger(
 
 store.set(
     "catalog",
-    id=store.getNewId("catalog"),
+    id=None,
     key="img_url",
     value="https://...",
 )
 
 store.set(
     "query",
-    id=store.getNewId("query"),
+    id=None,
     key="query",
     value="hello",
 )
 store.set(
     "query",
-    id=store.getNewId("query"),
+    id=None,
     key="query",
     value="hello2",
 )
+
+new_id = store.duplicate("query", id=1)
 
 
 print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())
