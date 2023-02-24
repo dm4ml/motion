@@ -4,7 +4,7 @@ import typing
 from abc import ABC, abstractmethod
 from collections import namedtuple
 
-TriggerElement = namedtuple("TriggerElement", ["namespace", "key"])
+TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
 
 
 class Transform(ABC):

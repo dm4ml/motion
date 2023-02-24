@@ -1,27 +1,28 @@
+import logging
 import numpy as np
 import motion
 
 from dataclasses import dataclass
-from enum import Enum
+from rich import print
+
+# create logger
+logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 
 # Step 1: Define the store schemas and create the store
 
 
-class Retailer(Enum):
-    NORDSTROM = 0
-    REVOLVE = 1
-    BLOOMINGDALES = 2
+class Retailer(motion.MEnum):
+    NORDSTROM = "Nordstrom"
+    REVOLVE = "Revolve"
+    BLOOMINGDALES = "Bloomingdales"
 
 
-class QuerySource(Enum):
-    OFFLINE = 0
-    ONLINE = 1
+class QuerySource(motion.MEnum):
+    OFFLINE = "Offline"
+    ONLINE = "Online"
 
 
-@dataclass
-class QuerySchema:
-    id: int
-    ts: int
+class QuerySchema(motion.Schema):
     src: QuerySource
     query: str
     text_suggestion: str
@@ -31,10 +32,7 @@ class QuerySchema:
     img_id_page: int
 
 
-@dataclass
-class CatalogSchema:
-    id: int
-    ts: int
+class CatalogSchema(motion.Schema):
     retailer: Retailer
     img_url: str
     img_desc: str
@@ -44,7 +42,7 @@ class CatalogSchema:
 
 
 store = motion.get_or_create_store(
-    "fashion_search",
+    "fashion",
 )
 store.addNamespace("query", QuerySchema)
 store.addNamespace("catalog", CatalogSchema)
@@ -61,7 +59,7 @@ def scrape_nordstrom(store):
     # TODO: implement rest
 
 
-class ImageEmbeddings(motion.Transform):
+class EmbedImage(motion.Transform):
     def setUp(self, store):
         # Set up the image embedding model
         pass
@@ -82,7 +80,7 @@ class ImageEmbeddings(motion.Transform):
 # Then we write the query suggestion subpipeline
 
 
-class QuerySuggestion(motion.Transform):
+class SuggestQuery(motion.Transform):
     def setUp(self, store):
         # Set up the query suggestion model
         pass
@@ -120,3 +118,41 @@ class RetrieveRecommendation(motion.Transform):
 
 
 # Step 3: Add the pipeline components as triggers. Triggers can be added as cron jobs or on the addition/change of a row in a table.
+
+store.addTrigger(
+    name="suggest_query", keys=["query.query"], trigger=SuggestQuery
+)
+store.addTrigger(
+    name="embed_images", keys=["catalog.img_url"], trigger=EmbedImage
+)
+store.addTrigger(
+    name="retrieve_recommendation",
+    keys=["catalog.img_embedding", "query.text_suggestion"],
+    trigger=RetrieveRecommendation,
+)
+
+# Step 4: Add the data to the store. This will trigger the pipeline components.
+
+store.set(
+    "catalog",
+    primary_key={"id": store.getNewId("catalog")},
+    key="img_url",
+    value="https://...",
+)
+
+store.set(
+    "query",
+    primary_key={"id": store.getNewId("query")},
+    key="query",
+    value="hello",
+)
+store.set(
+    "query",
+    primary_key={"id": store.getNewId("query"), "text_suggestion_page": 1},
+    key="query",
+    value="hello",
+)
+
+
+print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())
+print(store.con.execute("SELECT * FROM fashion.query").fetchdf())
