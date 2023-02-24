@@ -1,6 +1,13 @@
+import clip
 import logging
 import numpy as np
 import motion
+import requests
+import torch
+
+from io import BytesIO
+from PIL import Image
+from typing import TypeVar
 
 from dataclasses import dataclass
 from rich import print
@@ -34,10 +41,7 @@ class QuerySchema(motion.Schema):
 class CatalogSchema(motion.Schema):
     retailer: Retailer
     img_url: str
-    img_desc: str
-    img_html: str
-    img_summary: str
-    img_embedding: np.ndarray
+    img_embedding: TypeVar("FLOAT[]")
 
 
 store = motion.get_or_create_store(
@@ -62,6 +66,8 @@ class EmbedImage(motion.Transform):
     def setUp(self, store):
         # Set up the image embedding model
         self.store = store
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
@@ -69,12 +75,28 @@ class EmbedImage(motion.Transform):
 
     def fit(self, id, context):
         # Fine-tune or fit the image embedding model
-        print("Fitting in EmbedImage!")
         pass
 
     def transform(self, id, triggered_by):
         # Embed the image
-        print("Transforming in EmbedImage!")
+        image_url = self.store.get("catalog", id=id, keys=["img_url"])[
+            "img_url"
+        ]
+        response = requests.get(image_url)
+        with torch.no_grad():
+            image_input = (
+                self.preprocess(Image.open(BytesIO(response.content)))
+                .unsqueeze(0)
+                .to(self.device)
+            )
+            image_features = self.model.encode_image(image_input).squeeze()
+
+        self.store.set(
+            "catalog",
+            id=id,
+            key="img_embedding",
+            value=image_features.tolist(),
+        )
 
 
 # Then we write the query suggestion subpipeline
@@ -136,23 +158,23 @@ store.set(
     "catalog",
     id=None,
     key="img_url",
-    value="https://...",
+    value="https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/6ca26f26_2313",
 )
 
-store.set(
-    "query",
-    id=None,
-    key="query",
-    value="hello",
-)
-store.set(
-    "query",
-    id=None,
-    key="query",
-    value="hello2",
-)
+# store.set(
+#     "query",
+#     id=None,
+#     key="query",
+#     value="hello",
+# )
+# store.set(
+#     "query",
+#     id=None,
+#     key="query",
+#     value="hello2",
+# )
 
-new_id = store.duplicate("query", id=1)
+# new_id = store.duplicate("query", id=1)
 
 
 print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())

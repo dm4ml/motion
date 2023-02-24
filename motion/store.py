@@ -218,12 +218,10 @@ class Store(object):
         Returns:
             bool: True if the record exists, False otherwise.
         """
-        return (
-            self.con.execute(
-                f"SELECT id FROM {self.name}.{namespace} WHERE id = {id}"
-            ).fetchone()
-            is not None
-        )
+        elem = self.con.execute(
+            f"SELECT id FROM {self.name}.{namespace} WHERE id = {id}"
+        ).fetchone()
+        return elem is not None
 
     def executeTrigger(
         self, id: int, trigger: TriggerFn, trigger_elem: TriggerElement
@@ -267,22 +265,34 @@ class Store(object):
         Returns:
             int: The id of the record that was set.
         """
+        if key == "id":
+            raise ValueError("Cannot set the id field.")
+
         if not id:
             id = self.getNewId(namespace)
 
         if not self.exists(namespace, id):
             query_string = (
-                f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?)",
+                f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?);",
                 (id, value),
             )
+            self.con.execute(*query_string)
 
         else:
-            query_string = (
-                f"UPDATE {self.name}.{namespace} SET {key} = ? WHERE id = ?",
-                (value, id),
+            # Delete and re-insert the row with the new value
+            old_row = self.con.execute(
+                f"SELECT * FROM {self.name}.{namespace} WHERE id = {id}"
+            ).fetch_df()
+            self.con.execute(
+                f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
             )
 
-        self.con.execute(*query_string)
+            # Update the row with the new value
+            old_row.at[0, key] = value
+            query_string = (
+                f"INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;"
+            )
+            self.con.execute(query_string)
 
         # Run triggers
         trigger_elem = TriggerElement(

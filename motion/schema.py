@@ -74,7 +74,7 @@ class Schema(ABC):
                 float,
                 date,
                 datetime,
-            ]:
+            ] or isinstance(field.type, typing.TypeVar):
                 names_and_types.append(
                     f"{field.name} {field.type.__name__.split('.')[-1].upper()}"
                 )
