@@ -1,6 +1,7 @@
 import clip
 import cohere
 import faiss
+import json
 import logging
 import numpy as np
 import motion
@@ -49,6 +50,8 @@ class QuerySchema(motion.Schema):
 class CatalogSchema(motion.Schema):
     retailer: Retailer
     img_url: str
+    img_name: str
+    permalink: str
     img_embedding: TypeVar("FLOAT[]")
 
 
@@ -63,13 +66,40 @@ store.addNamespace("catalog", CatalogSchema)
 
 def scrape_everlane_sale(store):
     # Scrape the catalog and add the images to the store
-    url = "https://www.everlane.com/collections/womens-sale-2"
+    urls = [
+        "https://www.everlane.com/collections/womens-sale-2",
+        "https://www.everlane.com/collections/mens-sale-2",
+    ]
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
     }
-    r = requests.get(url=url, headers=headers)
-    soup = BeautifulSoup(r.content, "html5lib")
-    print(soup.prettify())
+    product_info = []
+    for url in urls:
+        r = requests.get(url=url, headers=headers)
+
+        soup = BeautifulSoup(r.content, "html5lib")
+
+        res = soup.find("script", attrs={"id": "__NEXT_DATA__"})
+        products = json.loads(res.contents[0])["props"]["pageProps"][
+            "fallbackData"
+        ]["products"]
+
+        for product in products:
+            img_url = product["albums"]["square"][0]["src"]
+            img_name = product["displayName"]
+            permalink = product["permalink"]
+            product_info.append(
+                {
+                    "img_url": img_url,
+                    "img_name": img_name,
+                    "permalink": permalink,
+                }
+            )
+
+    for product in product_info[:100]:
+        new_id = store.getNewId("catalog")
+        product.update({"retailer": Retailer.EVERLANE})
+        store.setMany("catalog", id=new_id, key_values=product)
 
     # new_id = store.new_id("catalog")
 
@@ -201,31 +231,7 @@ store.addTrigger(
 
 # Step 4: Add the data to the store. This will trigger the pipeline components.
 
-store.setMany(
-    "catalog",
-    id=None,
-    key_values={
-        "img_url": "https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/6ca26f26_2313",
-        "retailer": Retailer.EVERLANE,
-    },
-)
-store.setMany(
-    "catalog",
-    id=None,
-    key_values={
-        "img_url": "https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/35989595_00e1",
-        "retailer": Retailer.EVERLANE,
-    },
-)
-
-store.setMany(
-    "catalog",
-    id=None,
-    key_values={
-        "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Golden_Doodle_Standing_%28HD%29.jpg/220px-Golden_Doodle_Standing_%28HD%29.jpg",
-        "retailer": Retailer.NORDSTROM,
-    },
-)
+scrape_everlane_sale(store)
 
 query_id = store.getNewId("query")
 store.setMany(
@@ -239,8 +245,12 @@ store.setMany(
 )
 best_ids = store.getIdsForKey("query", key="query_id", value=query_id)
 best_image_ids = store.mget("query", ids=best_ids, keys=["img_id"])
-print(f"Best image ids: {best_image_ids}")
+# print(f"Best image ids: {best_image_ids}")
 
 
-print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())
-print(store.con.execute("SELECT * FROM fashion.query").fetchdf())
+# print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())
+print(
+    store.con.execute(
+        "SELECT fashion.query.query, fashion.query.text_suggestion, fashion.catalog.permalink, fashion.query.img_score FROM fashion.query JOIN fashion.catalog ON fashion.query.img_id = fashion.catalog.id WHERE fashion.query.img_id IS NOT NULL"
+    ).fetchdf()
+)
