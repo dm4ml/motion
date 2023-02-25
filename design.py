@@ -1,7 +1,10 @@
 import clip
+import cohere
 import logging
 import numpy as np
 import motion
+import os
+import re
 import requests
 import torch
 
@@ -10,6 +13,8 @@ from PIL import Image
 from typing import TypeVar
 
 from dataclasses import dataclass
+from langchain.llms import Cohere
+from langchain import PromptTemplate, LLMChain
 from rich import print
 
 # create logger
@@ -79,9 +84,10 @@ class EmbedImage(motion.Transform):
 
     def transform(self, id, triggered_by):
         # Embed the image
-        image_url = self.store.get("catalog", id=id, keys=["img_url"])[
-            "img_url"
-        ]
+        image_url = triggered_by.value
+        # image_url = self.store.get("catalog", id=id, keys=["img_url"])[
+        #     "img_url"
+        # ]
         response = requests.get(image_url)
         with torch.no_grad():
             image_input = (
@@ -106,18 +112,36 @@ class SuggestIdea(motion.Transform):
     def setUp(self, store):
         # Set up the query suggestion model
         self.store = store
+        self.co = cohere.Client(os.environ["COHERE_API_KEY"])
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
-        return True
+        return False
 
     def fit(self, id, context):
         # Fine-tune or fit the query suggestion model
-        print("Fitting in SuggestIdea!")
+        pass
 
     def transform(self, id, triggered_by):
         # Generate the query suggestions
-        print("Transforming in SuggestIdea! ID: ", id)
+        query = triggered_by.value
+        prompt = (
+            f"List 5 detailed outfit ideas for a woman to wear to {query}:\n1."
+        )
+        response = self.co.generate(
+            prompt=prompt,
+            max_tokens=100,
+            temperature=0.5,
+            num_generations=1,
+            stop_sequences=["--"],
+            frequency_penalty=0.4,
+        )
+        text = response[0].text
+        suggestions = [s.strip() for s in text.split("\n")[:5]]
+        suggestions = [re.sub("[1-9]. ", "", s) for s in suggestions]
+        for s in suggestions:
+            new_id = store.duplicate("query", id=id)
+            self.store.set("query", id=new_id, key="text_suggestion", value=s)
 
 
 class RetrieveRecommendation(motion.Transform):
@@ -135,7 +159,10 @@ class RetrieveRecommendation(motion.Transform):
 
     def transform(self, id, triggered_by):
         # Retrieve the best images
-        print("Transforming in RetrieveRecommendation! ID: ", id)
+        print(
+            "Transforming in RetrieveRecommendation! Triggered by: ",
+            triggered_by,
+        )
 
 
 # Step 3: Add the pipeline components as triggers. Triggers can be added as cron jobs or on the addition/change of a row in a table.
@@ -161,12 +188,12 @@ store.set(
     value="https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/6ca26f26_2313",
 )
 
-# store.set(
-#     "query",
-#     id=None,
-#     key="query",
-#     value="hello",
-# )
+store.set(
+    "query",
+    id=None,
+    key="query",
+    value="a club in Vegas",
+)
 # store.set(
 #     "query",
 #     id=None,
