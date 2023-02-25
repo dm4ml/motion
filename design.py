@@ -13,6 +13,7 @@ from io import BytesIO
 from PIL import Image
 from typing import TypeVar
 
+from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from langchain.llms import Cohere
 from langchain import PromptTemplate, LLMChain
@@ -42,7 +43,7 @@ class QuerySchema(motion.Schema):
     query: str
     text_suggestion: str
     img_id: int
-    img_score: int
+    img_score: float
 
 
 class CatalogSchema(motion.Schema):
@@ -60,13 +61,21 @@ store.addNamespace("catalog", CatalogSchema)
 # Step 2: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
 
 
-def scrape_nordstrom(store):
+def scrape_everlane_sale(store):
     # Scrape the catalog and add the images to the store
-    new_id = store.new_id("catalog")
-    store.add(
-        "catalog", {"id": new_id, "retailer": Retailer.NORDSTROM}
-    )  # Add more fields as necessary
-    # TODO: implement rest
+    url = "https://www.everlane.com/collections/womens-sale-2"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
+    }
+    r = requests.get(url=url, headers=headers)
+    soup = BeautifulSoup(r.content, "html5lib")
+    print(soup.prettify())
+
+    # new_id = store.new_id("catalog")
+
+    # store.add(
+    #     "catalog", {"id": new_id, "retailer": Retailer.EVERLANE}
+    # )  # Add more fields as necessary
 
 
 # Then we write the query suggestion subpipeline
@@ -117,7 +126,7 @@ class Retrieval(motion.Transform):
         self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
 
         # Set up the FAISS index
-        self.index = faiss.IndexFlatL2(512)
+        self.index = faiss.IndexFlatIP(512)
         self.index_to_id = {}
 
     def shouldFit(self, new_id, triggered_by):
@@ -145,8 +154,9 @@ class Retrieval(motion.Transform):
             value=image_features.squeeze().tolist(),
         )
 
-        # Add the image to the FAISS index
-        self.index.add(image_features.numpy())
+        # Add the normalized image to the FAISS index
+        image_features = image_features.numpy()
+        self.index.add(image_features / np.linalg.norm(image_features, axis=1))
         self.index_to_id[len(self.index_to_id)] = id
 
     def transformText(self, id, text):
@@ -154,7 +164,11 @@ class Retrieval(motion.Transform):
             text_inputs = clip.tokenize([text]).to(self.device)
             text_features = self.model.encode_text(text_inputs)
 
-        scores, indices = self.index.search(text_features.numpy(), 1)
+        # Search the FAISS index for the most similar image
+        text_features = text_features.numpy()
+        scores, indices = self.index.search(
+            text_features / np.linalg.norm(text_features, axis=1), 1
+        )
         for score, index in zip(scores[0], indices[0]):
             img_id = self.index_to_id[index]
             new_id = store.duplicate("query", id=id)
