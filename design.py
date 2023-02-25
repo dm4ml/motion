@@ -1,5 +1,6 @@
 import clip
 import cohere
+import faiss
 import logging
 import numpy as np
 import motion
@@ -27,6 +28,7 @@ class Retailer(motion.MEnum):
     NORDSTROM = "Nordstrom"
     REVOLVE = "Revolve"
     BLOOMINGDALES = "Bloomingdales"
+    EVERLANE = "Everlane"
 
 
 class QuerySource(motion.MEnum):
@@ -67,44 +69,6 @@ def scrape_nordstrom(store):
     # TODO: implement rest
 
 
-class EmbedImage(motion.Transform):
-    def setUp(self, store):
-        # Set up the image embedding model
-        self.store = store
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
-
-    def shouldFit(self, new_id, triggered_by):
-        # Check if fit should be called
-        return False
-
-    def fit(self, id, context):
-        # Fine-tune or fit the image embedding model
-        pass
-
-    def transform(self, id, triggered_by):
-        # Embed the image
-        image_url = triggered_by.value
-        # image_url = self.store.get("catalog", id=id, keys=["img_url"])[
-        #     "img_url"
-        # ]
-        response = requests.get(image_url)
-        with torch.no_grad():
-            image_input = (
-                self.preprocess(Image.open(BytesIO(response.content)))
-                .unsqueeze(0)
-                .to(self.device)
-            )
-            image_features = self.model.encode_image(image_input).squeeze()
-
-        self.store.set(
-            "catalog",
-            id=id,
-            key="img_embedding",
-            value=image_features.tolist(),
-        )
-
-
 # Then we write the query suggestion subpipeline
 
 
@@ -134,35 +98,80 @@ class SuggestIdea(motion.Transform):
             temperature=0.5,
             num_generations=1,
             stop_sequences=["--"],
-            frequency_penalty=0.4,
+            frequency_penalty=0.3,
         )
         text = response[0].text
         suggestions = [s.strip() for s in text.split("\n")[:5]]
         suggestions = [re.sub("[1-9]. ", "", s) for s in suggestions]
+
         for s in suggestions:
             new_id = store.duplicate("query", id=id)
             self.store.set("query", id=new_id, key="text_suggestion", value=s)
 
 
-class RetrieveRecommendation(motion.Transform):
+class Retrieval(motion.Transform):
     def setUp(self, store):
-        # Set up the vector store to hold image embeddings
+        # Set up the embedding model
         self.store = store
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.preprocess = clip.load("ViT-B/32", device=self.device)
+
+        # Set up the FAISS index
+        self.index = faiss.IndexFlatL2(512)
+        self.index_to_id = {}
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
-        pass
+        return False
 
     def fit(self, id, context):
-        # Amass the vector store
+        # Fine-tune or fit the image embedding model
         pass
 
-    def transform(self, id, triggered_by):
-        # Retrieve the best images
-        print(
-            "Transforming in RetrieveRecommendation! Triggered by: ",
-            triggered_by,
+    def transformImage(self, id, image_url):
+        response = requests.get(image_url)
+        with torch.no_grad():
+            image_input = (
+                self.preprocess(Image.open(BytesIO(response.content)))
+                .unsqueeze(0)
+                .to(self.device)
+            )
+            image_features = self.model.encode_image(image_input)
+
+        self.store.set(
+            "catalog",
+            id=id,
+            key="img_embedding",
+            value=image_features.squeeze().tolist(),
         )
+
+        # Add the image to the FAISS index
+        self.index.add(image_features.numpy())
+        self.index_to_id[len(self.index_to_id)] = id
+
+    def transformText(self, id, text):
+        with torch.no_grad():
+            text_inputs = clip.tokenize([text]).to(self.device)
+            text_features = self.model.encode_text(text_inputs)
+
+        scores, indices = self.index.search(text_features.numpy(), 1)
+        for score, index in zip(scores[0], indices[0]):
+            img_id = self.index_to_id[index]
+            new_id = store.duplicate("query", id=id)
+            self.store.setMany(
+                "query",
+                id=new_id,
+                key_values={"img_id": img_id, "img_score": score},
+            )
+
+    def transform(self, id, triggered_by):
+        # Embed the image
+        if triggered_by.key == "img_url":
+            self.transformImage(id, triggered_by.value)
+
+        # If the trigger key is the text suggestion, then we need to retrieve the image
+        elif triggered_by.key == "text_suggestion":
+            self.transformText(id, triggered_by.value)
 
 
 # Step 3: Add the pipeline components as triggers. Triggers can be added as cron jobs or on the addition/change of a row in a table.
@@ -171,37 +180,52 @@ store.addTrigger(
     name="suggest_idea", keys=["query.query"], trigger=SuggestIdea
 )
 store.addTrigger(
-    name="embed_images", keys=["catalog.img_url"], trigger=EmbedImage
-)
-store.addTrigger(
-    name="retrieve_recommendation",
-    keys=["catalog.img_embedding", "query.text_suggestion"],
-    trigger=RetrieveRecommendation,
+    name="retrieval",
+    keys=["catalog.img_url", "query.text_suggestion"],
+    trigger=Retrieval,
 )
 
 # Step 4: Add the data to the store. This will trigger the pipeline components.
 
-store.set(
+store.setMany(
     "catalog",
     id=None,
-    key="img_url",
-    value="https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/6ca26f26_2313",
+    key_values={
+        "img_url": "https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/6ca26f26_2313",
+        "retailer": Retailer.EVERLANE,
+    },
+)
+store.setMany(
+    "catalog",
+    id=None,
+    key_values={
+        "img_url": "https://media.everlane.com/image/upload/c_fill,w_640,ar_1:1,q_auto,dpr_1.0,g_face:center,f_auto,fl_progressive:steep/i/35989595_00e1",
+        "retailer": Retailer.EVERLANE,
+    },
 )
 
-store.set(
+store.setMany(
+    "catalog",
+    id=None,
+    key_values={
+        "img_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Golden_Doodle_Standing_%28HD%29.jpg/220px-Golden_Doodle_Standing_%28HD%29.jpg",
+        "retailer": Retailer.NORDSTROM,
+    },
+)
+
+query_id = store.getNewId("query")
+store.setMany(
     "query",
     id=None,
-    key="query",
-    value="a club in Vegas",
+    key_values={
+        "query": "a club in Las Vegas",
+        "src": QuerySource.ONLINE,
+        "query_id": query_id,
+    },
 )
-# store.set(
-#     "query",
-#     id=None,
-#     key="query",
-#     value="hello2",
-# )
-
-# new_id = store.duplicate("query", id=1)
+best_ids = store.getIdsForKey("query", key="query_id", value=query_id)
+best_image_ids = store.mget("query", ids=best_ids, keys=["img_id"])
+print(f"Best image ids: {best_image_ids}")
 
 
 print(store.con.execute("SELECT * FROM fashion.catalog").fetchdf())

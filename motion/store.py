@@ -7,6 +7,7 @@ import pandas as pd
 import typing
 
 from collections import namedtuple
+from enum import Enum
 from motion import Transform, Schema
 from motion.transform import TriggerElement
 
@@ -145,10 +146,8 @@ class Store(object):
         # Add the trigger to the store
         self.trigger_names[name] = keys
         self.trigger_fns[name] = trigger(self)
+        trigger_exec = trigger(self) if inspect.isclass(trigger) else trigger
         for key in keys:
-            trigger_exec = (
-                trigger(self) if inspect.isclass(trigger) else trigger
-            )
             self.triggers[key] = self.triggers.get(key, []) + [
                 TriggerFn(name, trigger_exec, inspect.isclass(trigger))
             ]
@@ -271,6 +270,10 @@ class Store(object):
         if not id:
             id = self.getNewId(namespace)
 
+        # Convert enums to their values
+        if isinstance(value, Enum):
+            value = value.value
+
         if not self.exists(namespace, id):
             query_string = (
                 f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?);",
@@ -320,19 +323,37 @@ class Store(object):
             key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
             run_duplicates (bool, optional): Whether to run duplicate triggers. Defaults to False.
         """
+        if not id:
+            id = self.getNewId(namespace)
+
+        # Convert enums to their values
+        for key, value in key_values.items():
+            if isinstance(value, Enum):
+                key_values.update({key: value.value})
+
         if not self.exists(namespace, id):
             query_string = (
                 f"INSERT INTO {self.name}.{namespace} (id, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))})",
                 (id, *key_values.values()),
             )
+            self.con.execute(*query_string)
 
         else:
-            query_string = (
-                f"UPDATE {self.name}.{namespace} SET {', '.join([f'{k} = ?' for k in key_values.keys()])} WHERE id = ?",
-                (*key_values.values(), id),
+            # Delete and re-insert the row with the new value
+            old_row = self.con.execute(
+                f"SELECT * FROM {self.name}.{namespace} WHERE id = {id}"
+            ).fetch_df()
+            self.con.execute(
+                f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
             )
 
-        self.con.execute(*query_string)
+            # Update the row with the new value
+            for key, value in key_values.items():
+                old_row.at[0, key] = value
+            query_string = (
+                f"INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;"
+            )
+            self.con.execute(query_string)
 
         # Run triggers
         executed = set()
@@ -426,9 +447,14 @@ class Store(object):
                     f"Caller id {caller_id} is greater than id {id}!"
                 )
 
-        return self.con.execute(
-            f"SELECT {', '.join(['id'] + keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
-        ).fetchdf()
+        return (
+            self.con.execute(
+                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
+            )
+            .fetchdf()
+            .dropna()
+            .reset_index(drop=True)
+        )
 
     def getIdsForKey(
         self, namespace: str, key: str, value: typing.Any, **kwargs
@@ -455,13 +481,15 @@ class Store(object):
                 f"SELECT ts FROM {self.name}.{caller_namespace} WHERE id = ?",
                 (caller_id,),
             ).fetchone()[0]
-            return self.con.execute(
+            res = self.con.execute(
                 f"SELECT id FROM {self.name}.{namespace} WHERE {key} = ? AND ts < ?",
                 (value, caller_time),
             ).fetchall()
+            return [r[0] for r in res]
 
         # Otherwise, just return all the ids
-        return self.con.execute(
+        res = self.con.execute(
             f"SELECT id FROM {self.name}.{namespace} WHERE {key} = ?",
             (value,),
         ).fetchall()
+        return [r[0] for r in res]
