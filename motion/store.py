@@ -92,6 +92,7 @@ class Store(object):
             .tolist()
         )
         self.table_columns[name].remove("id")
+        self.table_columns[name].remove("derived_id")
 
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
@@ -233,7 +234,7 @@ class Store(object):
             trigger_elem (TriggerElement): The element that triggered the trigger.
         """
         trigger_name, trigger_fn, isTransform = trigger
-        logging.info(f"Running trigger {trigger_name}...")
+        logging.info(f"Running trigger {trigger_name} for {trigger_elem}...")
         if not isTransform:
             trigger_fn(id, trigger_elem, self)
         else:
@@ -312,10 +313,9 @@ class Store(object):
         id: int,
         key_values: typing.Dict[str, typing.Any],
         run_duplicates: bool = False,
-    ) -> None:
+    ) -> int:
         """Set multiple values for a key in a namespace.
         TODO(shreyashankar): Handle complex types.
-        TODO(shreyashankar): Should we even have this?
 
         Args:
             namespace (str): The namespace to set the value in.
@@ -366,6 +366,8 @@ class Store(object):
                     self.executeTrigger(id, trigger, trigger_elem)
                     executed.add(trigger)
 
+        return id
+
     def duplicate(self, namespace: str, id: int) -> int:
         """Duplicate a record in a namespace. Doesn't run triggers.
 
@@ -378,7 +380,7 @@ class Store(object):
         """
         new_id = self.getNewId(namespace)
         self.con.execute(
-            f"INSERT INTO {self.name}.{namespace} SELECT {new_id} AS id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE id = {id}"
+            f"INSERT INTO {self.name}.{namespace} SELECT {new_id} AS id, {id} AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE id = {id}"
         )
         return new_id
 
@@ -397,6 +399,8 @@ class Store(object):
             caller_id (int, optional): The id of the caller. Defaults to None.
             Used to prevent leakage, i.e., looking at data that has not
             been generated yet.
+            include_derived (bool, optional): Whether to include derived ids. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Only used in conjuction with include_derived. Defaults to True.
 
         Returns:
             typing.Any: The values for the keys.
@@ -409,12 +413,36 @@ class Store(object):
                     f"Caller id {caller_id} is greater than id {id}!"
                 )
 
-        res = self.con.execute(
-            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id = {id}"
-        ).fetchone()
-        res_dict = {k: v for k, v in zip(keys, res)}
-        res_dict.update({"id": id})
-        return res_dict
+        if not kwargs.get("include_derived", False):
+            res = self.con.execute(
+                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id = {id}"
+            ).fetchone()
+            res_dict = {k: v for k, v in zip(keys, res)}
+            res_dict.update({"id": id})
+            return res_dict
+
+        # Recursively get derived ids
+        id_res = self.con.execute(
+            f"SELECT id FROM {self.name}.{namespace} WHERE derived_id = {id}"
+        ).fetchall()
+        id_res = [i[0] for i in id_res]
+        all_ids = [id] + id_res
+        while len(id_res) > 0:
+            id_res = self.con.execute(
+                f"SELECT id FROM {self.name}.{namespace} WHERE derived_id IN ({', '.join([str(i) for i in id_res])})"
+            ).fetchall()
+            id_res = [i[0] for i in id_res]
+            all_ids.extend(id_res)
+
+        if kwargs.get("filter_null", True):
+            return self.con.execute(
+                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
+            ).fetchdf()
+
+        else:
+            return self.con.execute(
+                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])})"
+            ).fetchdf()
 
     def mget(
         self,
