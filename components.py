@@ -17,7 +17,7 @@ from typing import TypeVar
 from bs4 import BeautifulSoup
 
 
-# Step 1: Define the store schemas and create the store
+# Step 1: Define the store schemas
 
 
 class Retailer(motion.MEnum):
@@ -49,7 +49,7 @@ class CatalogSchema(motion.Schema):
     img_embedding: TypeVar("FLOAT[]")
 
 
-# Step 2: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
+# Step 2: Define the scrapers (just Everlane for now)
 
 
 def scrape_everlane_sale(store):
@@ -94,7 +94,7 @@ def scrape_everlane_sale(store):
         store.setMany("catalog", id=new_id, key_values=product)
 
 
-# Then we write the query suggestion subpipeline
+# Step 3: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
 
 
 class SuggestIdea(motion.Transform):

@@ -39,7 +39,6 @@ def make_grid(cols, rows):
 
 
 store = setup_database()
-# st.subheader("Fashion Search")
 query = st.text_input("What to wear to")
 
 if query:
