@@ -44,7 +44,7 @@ query = st.text_input("What to wear to")
 if query:
     query_id = store.getNewId("query")
     with st.spinner("Fetching results..."):
-        store.setMany(
+        created_id = store.setMany(
             "query",
             id=None,
             key_values={

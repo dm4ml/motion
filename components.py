@@ -72,7 +72,7 @@ def scrape_everlane_sale(store):
             "fallbackData"
         ]["products"]
 
-        for product in products:
+        for product in products[:20]:
             img_url = product["albums"]["square"][0]["src"]
             img_name = product["displayName"]
             permalink = product["permalink"]
