@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from rich import print
+import pandas as pd
 
 import json
 
@@ -38,7 +39,9 @@ def scrape_everlane_sale():
                 }
             )
 
-    print(len(product_info))
+    df = pd.DataFrame(product_info)
+    df = df.drop_duplicates(subset=["img_url"])
+    print(len(df))
 
 
 scrape_everlane_sale()
