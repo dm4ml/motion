@@ -52,19 +52,30 @@ if query:
             },
         )
 
-        results = store.con.execute(
-            "SELECT fashion.query.query, fashion.query.text_suggestion, fashion.catalog.permalink, fashion.catalog.img_url, fashion.query.img_score FROM fashion.query JOIN fashion.catalog ON fashion.query.img_id = fashion.catalog.id WHERE fashion.query.img_id IS NOT NULL AND fashion.query.query_id = ? ORDER BY fashion.query.img_score ASC",
-            (query_id,),
-        ).fetchdf()
-
-        deduplicated_results = results[
-            ["permalink", "img_url"]
-        ].drop_duplicates()
+        # Retrieve the results and get the lowest cosine similarity
+        # (i.e., best match) for each img_id
+        results = (
+            store.get(
+                "query",
+                id=created_id,
+                keys=["img_id", "img_score"],
+                include_derived=True,
+            )
+            .groupby("img_id")
+            .min()
+            .reset_index()
+        )
+        # Retrieve the image url and permalink for each img_id
+        image_results = store.mget(
+            "catalog",
+            ids=results["img_id"].values,
+            keys=["img_url", "permalink"],
+        )
 
         st_cols = st.columns(3)
         col_idx = 0
 
-        for _, row in deduplicated_results.iterrows():
+        for _, row in image_results.iterrows():
             st_cols[col_idx].image(row["img_url"])
             st_cols[col_idx].markdown(
                 f'[Link]({"https://www.everlane.com/products/" + row["permalink"]})'

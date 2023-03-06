@@ -443,6 +443,7 @@ class Store(object):
             namespace (str): The namespace to get the value from.
             ids (typing.List[int]): The ids of the records to get the value for.
             keys (typing.List[str]): The keys to get the values for.
+            filter_null (bool, optional): Whether to filter out null values.  Defaults to True.
 
         Keyword Args:
             caller_id (int, optional): The id of the caller. Defaults to None.
@@ -460,14 +461,15 @@ class Store(object):
                     f"Caller id {caller_id} is greater than id {id}!"
                 )
 
-        return (
-            self.con.execute(
-                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
-            )
-            .fetchdf()
-            .dropna()
-            .reset_index(drop=True)
-        )
+        res = self.con.execute(
+            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
+        ).fetchdf()
+
+        if kwargs.get("filter_null", True):
+            return res.dropna().reset_index(drop=True)
+
+        else:
+            return res
 
     def getIdsForKey(
         self, namespace: str, key: str, value: typing.Any, **kwargs
