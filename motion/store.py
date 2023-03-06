@@ -42,8 +42,6 @@ class Store(object):
         self.name = name
         self.memory = memory
 
-        print("Initializing Store!")
-
         if not memory and not os.path.exists(f"datastores/{name}"):
             os.makedirs(f"datastores/{name}")
 
