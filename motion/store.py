@@ -14,17 +14,22 @@ from motion.transform import TriggerElement
 CONNECTIONS = {}
 
 
-def get_or_create_store(name: str) -> typing.Any:
+def get_store(name: str, create: bool, memory: bool = True) -> typing.Any:
     """Get or create a store with the given name.
 
     Args:
         name (str): The name of the store to get or create.
+        create (bool): Whether to create the store if it doesn't exist.
+        memory (bool, optional): Whether to use memory for the store. Defaults to True.
 
     Returns:
         typing.Any: The store.
     """
     if name not in CONNECTIONS:
-        CONNECTIONS[name] = Store(name)
+        if not create:
+            raise Exception(f"Store {name} does not exist. Set create=True.")
+
+        CONNECTIONS[name] = Store(name, memory=memory)
 
     return CONNECTIONS[name]
 
@@ -33,50 +38,81 @@ TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
 
 class Store(object):
-    def __init__(self, name: str):
+    def __init__(self, name: str, memory: bool = True):
         self.name = name
-        self.con = duckdb.connect(":memory:")
+        self.memory = memory
+
+        print("Initializing Store!")
+
+        if not memory and not os.path.exists(f"datastores/{name}"):
+            os.makedirs(f"datastores/{name}")
+
+        self.con = (
+            duckdb.connect(":memory:")
+            if self.memory
+            else duckdb.connect(f"datastores/{name}/duck.db")
+        )
         self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
-        # self.con = duckdb.connect(f"datastores/{name}/duck.db")
         self.triggers = (
-            dill.load(open(f"datastores/{name}.triggers", "rb"))
-            if os.path.exists(f"datastores/{name}.triggers")
+            dill.load(open(f"datastores/{name}/triggers", "rb"))
+            if os.path.exists(f"datastores/{name}/triggers")
             else {}
         )
         self.trigger_names = (
-            dill.load(open(f"datastores/{name}.trigger_names", "rb"))
-            if os.path.exists(f"datastores/{name}.trigger_names")
+            dill.load(open(f"datastores/{name}/trigger_names", "rb"))
+            if os.path.exists(f"datastores/{name}/trigger_names")
             else {}
         )
         self.trigger_fns = (
-            dill.load(open(f"datastores/{name}.trigger_fns", "rb"))
-            if os.path.exists(f"datastores/{name}.trigger_fns")
+            dill.load(open(f"datastores/{name}/trigger_fns", "rb"))
+            if os.path.exists(f"datastores/{name}/trigger_fns")
             else {}
         )
-        self.table_columns = {}
+
+        self.table_columns = (
+            dill.load(open(f"datastores/{name}/table_columns", "rb"))
+            if os.path.exists(f"datastores/{name}/table_columns")
+            else {}
+        )
 
     # def __del__(self):
     #     # Close connection and persist triggers
     #     self.con.close()
-    #     dill.dump(
-    #         self.triggers, open(f"datastores/{self.name}.triggers", "wb")
-    #     )
-    #     dill.dump(
-    #         self.trigger_names,
-    #         open(f"datastores/{self.name}.trigger_names", "wb"),
-    #     )
-    #     dill.dump(
-    #         self.trigger_fns, open(f"datastores/{self.name}.trigger_fns", "wb")
-    #     )
+
+    #     if not self.memory:
+    #         dill.dump(
+    #             self.triggers, open(f"datastores/{self.name}/triggers", "wb")
+    #         )
+    #         dill.dump(
+    #             self.trigger_names,
+    #             open(f"datastores/{self.name}/trigger_names", "wb"),
+    #         )
+    #         dill.dump(
+    #             self.trigger_fns,
+    #             open(f"datastores/{self.name}/trigger_fns", "wb"),
+    #         )
+    #         dill.dump(
+    #             self.table_columns,
+    #             open(f"datastores/{self.name}/table_columns", "wb"),
+    #         )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
         """Add a namespace to the store.
-        TODO(shreya): Error checking
 
         Args:
             name (str): The name of the namespace.
             schema (typing.Any): The schema of the namespace.
         """
+
+        # Check if namespace already exists
+        tables = self.con.execute(f"SHOW TABLES;").fetchall()
+        tables = [t[0] for t in tables]
+        if name in tables:
+            logging.warning(
+                f"Namespace {name} already exists in store {self.name}. Doing nothing."
+            )
+            return
+
         stmts = schema.formatCreateStmts(f"{self.name}.{name}")
         for stmt in stmts:
             logging.info(stmt)
@@ -94,6 +130,13 @@ class Store(object):
         self.table_columns[name].remove("id")
         self.table_columns[name].remove("derived_id")
 
+        # Persist
+        if not self.memory:
+            dill.dump(
+                self.table_columns,
+                open(f"datastores/{self.name}/table_columns", "wb"),
+            )
+
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
         TODO(shreya): Error checking
@@ -103,6 +146,13 @@ class Store(object):
         """
         self.con.execute(f"DROP TABLE {self.name}.{name};")
         self.con.execute(f"DROP SEQUENCE {self.name}.{name}_id_seq;")
+
+        # Persist
+        if not self.memory:
+            dill.dump(
+                self.table_columns,
+                open(f"datastores/{self.name}/table_columns", "wb"),
+            )
 
     def addTrigger(
         self,
@@ -121,9 +171,8 @@ class Store(object):
             ValueError: If there is already a trigger with the given name.
         """
         if name in self.trigger_names:
-            raise ValueError(
-                f"Trigger {name} already exists. Please delete it and try again."
-            )
+            logging.warning(f"Trigger {name} already exists. Doing nothing.")
+            return
 
         if inspect.isfunction(trigger):
             # Check that the function signature is correct

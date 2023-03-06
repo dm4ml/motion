@@ -6,4 +6,5 @@
 *.next*
 *__pycache__*
 *faiss_index/*
-scratch*
+scratch.py
+datastores*

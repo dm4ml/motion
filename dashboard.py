@@ -7,9 +7,7 @@ import components
 @st.cache_resource
 def setup_database():
     # Create store and add triggers
-    store = motion.get_or_create_store(
-        "fashion",
-    )
+    store = motion.get_store("fashion", create=True, memory=False)
     store.addNamespace("query", components.QuerySchema)
     store.addNamespace("catalog", components.CatalogSchema)
 
