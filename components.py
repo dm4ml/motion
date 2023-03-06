@@ -56,8 +56,21 @@ class CatalogSchema(motion.Schema):
 def scrape_everlane_sale(store):
     # Scrape the catalog and add the images to the store
     urls = [
-        "https://www.everlane.com/collections/womens-sale-2",
-        # "https://www.everlane.com/collections/mens-sale-2",
+        # "https://www.everlane.com/collections/womens-sale-2",
+        "https://www.everlane.com/collections/womens-all-tops",
+        "https://www.everlane.com/collections/womens-tees",
+        "https://www.everlane.com/collections/womens-sweaters",
+        "https://www.everlane.com/collections/womens-sweatshirts",
+        "https://www.everlane.com/collections/womens-bodysuits",
+        "https://www.everlane.com/collections/womens-jeans",
+        "https://www.everlane.com/collections/womens-bottoms",
+        "https://www.everlane.com/collections/womens-skirts-shorts",
+        "https://www.everlane.com/collections/womens-dresses",
+        "https://www.everlane.com/collections/womens-outerwear",
+        "https://www.everlane.com/collections/womens-underwear",
+        "https://www.everlane.com/collections/womens-perform",
+        "https://www.everlane.com/collections/swimwear",
+        "https://www.everlane.com/collections/womens-shoes",
     ]
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
@@ -73,7 +86,7 @@ def scrape_everlane_sale(store):
             "fallbackData"
         ]["products"]
 
-        for product in products[:20]:
+        for product in products:
             img_url = product["albums"]["square"][0]["src"]
             img_name = product["displayName"]
             permalink = product["permalink"]
@@ -87,10 +100,16 @@ def scrape_everlane_sale(store):
 
     # Delete duplicates
     df = pd.DataFrame(product_info)
-    df = df.drop_duplicates(subset=["img_url"])
+    df = (
+        df.drop_duplicates(subset=["img_url"])
+        .sample(frac=1)
+        .reset_index(drop=True)
+    )
+    logging.info(f"Found {len(df)} unique products")
 
-    for product in product_info:
+    for _, product_row in df.head(20).iterrows():
         new_id = store.getNewId("catalog")
+        product = product_row.to_dict()
         product.update({"retailer": Retailer.EVERLANE})
         store.set("catalog", id=new_id, key_values=product)
 
