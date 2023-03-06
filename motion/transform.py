@@ -20,7 +20,7 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def fit(self, id):
+    def fit(self, id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod

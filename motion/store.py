@@ -288,9 +288,8 @@ class Store(object):
             trigger_fn(id, trigger_elem, self)
         else:
             # Execute the transform lifecycle
-            context = trigger_fn.shouldFit(id, trigger_elem)
-            if context:
-                trigger_fn.fit(id, context)
+            if trigger_fn.shouldFit(id, trigger_elem):
+                trigger_fn.fit(id, trigger_elem)
             trigger_fn.transform(id, trigger_elem)
         logging.info(f"Finished running trigger {trigger_name}.")
 

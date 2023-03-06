@@ -107,7 +107,7 @@ class SuggestIdea(motion.Transform):
         # Check if fit should be called
         return False
 
-    def fit(self, id, context):
+    def fit(self, id, triggered_by):
         # Fine-tune or fit the query suggestion model
         pass
 
@@ -150,7 +150,7 @@ class Retrieval(motion.Transform):
         # Check if fit should be called
         return False
 
-    def fit(self, id, context):
+    def fit(self, id, triggered_by):
         # Fine-tune or fit the image embedding model
         pass
 
