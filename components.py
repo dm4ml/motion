@@ -92,7 +92,7 @@ def scrape_everlane_sale(store):
     for product in product_info:
         new_id = store.getNewId("catalog")
         product.update({"retailer": Retailer.EVERLANE})
-        store.setMany("catalog", id=new_id, key_values=product)
+        store.set("catalog", id=new_id, key_values=product)
 
 
 # Step 3: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
@@ -132,7 +132,9 @@ class SuggestIdea(motion.Transform):
 
         for s in suggestions:
             new_id = self.store.duplicate("query", id=id)
-            self.store.set("query", id=new_id, key="text_suggestion", value=s)
+            self.store.set(
+                "query", id=new_id, key_values={"text_suggestion": s}
+            )
 
 
 class Retrieval(motion.Transform):
@@ -172,8 +174,7 @@ class Retrieval(motion.Transform):
         self.store.set(
             "catalog",
             id=id,
-            key="img_embedding",
-            value=image_features.squeeze().tolist(),
+            key_values={"img_embedding": image_features.squeeze().tolist()},
         )
 
         # Add the normalized image to the FAISS index
@@ -194,7 +195,7 @@ class Retrieval(motion.Transform):
         for score, index in zip(scores[0], indices[0]):
             img_id = self.index_to_id[index]
             new_id = self.store.duplicate("query", id=id)
-            self.store.setMany(
+            self.store.set(
                 "query",
                 id=new_id,
                 key_values={"img_id": img_id, "img_score": score},

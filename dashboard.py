@@ -42,7 +42,7 @@ query = st.text_input("What to wear to")
 if query:
     query_id = store.getNewId("query")
     with st.spinner("Fetching results..."):
-        created_id = store.setMany(
+        created_id = store.set(
             "query",
             id=None,
             key_values={
@@ -51,6 +51,7 @@ if query:
                 "query_id": query_id,
             },
         )
+
         results = store.con.execute(
             "SELECT fashion.query.query, fashion.query.text_suggestion, fashion.catalog.permalink, fashion.catalog.img_url, fashion.query.img_score FROM fashion.query JOIN fashion.catalog ON fashion.query.img_id = fashion.catalog.id WHERE fashion.query.img_id IS NOT NULL AND fashion.query.query_id = ? ORDER BY fashion.query.img_score ASC",
             (query_id,),

@@ -295,68 +295,6 @@ class Store(object):
         self,
         namespace: str,
         id: int,
-        key: str,
-        value: typing.Any,
-    ) -> int:
-        """Set a value for a key in a namespace.
-        TODO(shreyashankar): Handle complex types.
-
-        Args:
-            namespace (str): The namespace to set the value in.
-            id (int): The id of the record to set the value for. If none, a
-            new id will be generated.
-            key (str): The key to set the value for.
-            value (typing.Any): The value to set.
-
-        Returns:
-            int: The id of the record that was set.
-        """
-        if key == "id":
-            raise ValueError("Cannot set the id field.")
-
-        if not id:
-            id = self.getNewId(namespace)
-
-        # Convert enums to their values
-        if isinstance(value, Enum):
-            value = value.value
-
-        if not self.exists(namespace, id):
-            query_string = (
-                f"INSERT INTO {self.name}.{namespace} (id, {key}) VALUES (?, ?);",
-                (id, value),
-            )
-            self.con.execute(*query_string)
-
-        else:
-            # Delete and re-insert the row with the new value
-            old_row = self.con.execute(
-                f"SELECT * FROM {self.name}.{namespace} WHERE id = {id}"
-            ).fetch_df()
-            self.con.execute(
-                f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
-            )
-
-            # Update the row with the new value
-            old_row.at[0, key] = value
-            query_string = (
-                f"INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;"
-            )
-            self.con.execute(query_string)
-
-        # Run triggers
-        trigger_elem = TriggerElement(
-            namespace=namespace, key=key, value=value
-        )
-        for trigger in self.triggers.get(f"{namespace}.{key}", []):
-            self.executeTrigger(id, trigger, trigger_elem)
-
-        return id
-
-    def setMany(
-        self,
-        namespace: str,
-        id: int,
         key_values: typing.Dict[str, typing.Any],
         run_duplicates: bool = False,
     ) -> int:
@@ -396,6 +334,7 @@ class Store(object):
             # Update the row with the new value
             for key, value in key_values.items():
                 old_row.at[0, key] = value
+
             query_string = (
                 f"INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;"
             )
