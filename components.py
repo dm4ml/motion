@@ -135,15 +135,17 @@ class SuggestIdea(motion.Transform):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
-            f"List 5 detailed outfit ideas for a woman to wear to {query}:\n1."
+            f"List 5 detailed outfit ideas for a woman to wear to {query}."
         )
         response = self.co.generate(
             prompt=prompt,
-            max_tokens=100,
-            temperature=0.5,
-            num_generations=1,
-            stop_sequences=["--"],
-            frequency_penalty=0.3,
+            model="command-xlarge-nightly",
+            max_tokens=300,
+            temperature=0.9,
+            k=0,
+            p=0.75,
+            stop_sequences=[],
+            return_likelihoods="NONE",
         )
         text = response[0].text
         suggestions = [s.strip() for s in text.split("\n")[:5]]
