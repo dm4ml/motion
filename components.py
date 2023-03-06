@@ -11,6 +11,7 @@ import re
 import requests
 import torch
 
+from clipft import fine_tune_model
 from io import BytesIO
 from PIL import Image
 from typing import TypeVar
@@ -40,6 +41,7 @@ class QuerySchema(motion.Schema):
     text_suggestion: str
     img_id: int
     img_score: float
+    feedback: bool
 
 
 class CatalogSchema(motion.Schema):
@@ -131,6 +133,9 @@ class SuggestIdea(motion.Transform):
         # Fine-tune or fit the query suggestion model
         pass
 
+    def shouldTransform(self, id, triggered_by):
+        return True
+
     def transform(self, id, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
@@ -172,11 +177,54 @@ class Retrieval(motion.Transform):
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
-        return False
+        if (
+            triggered_by.namespace == "query"
+            and triggered_by.key == "feedback"
+            and triggered_by.value == True
+        ):
+            return True
+
+        else:
+            return False
+
+    def shouldTransform(self, id, triggered_by):
+        # Don't call transform if trigger element is feedback
+        if (
+            triggered_by.namespace == "query"
+            and triggered_by.key == "feedback"
+            and triggered_by.value == True
+        ):
+            return False
+
+        else:
+            return True
 
     def fit(self, id, triggered_by):
-        # Fine-tune or fit the image embedding model
-        pass
+        # Get 100 most recent image ids and captions with positive feedback
+        positive_feedback_ids = self.store.getIdsForKey(
+            "query", "feedback", True
+        )[:100]
+        text_suggestions_and_img_ids = self.store.mget(
+            "query",
+            ids=positive_feedback_ids,
+            keys=["text_suggestion", "img_id"],
+        )
+        img_ids_and_urls = self.store.mget(
+            "catalog",
+            ids=text_suggestions_and_img_ids.img_id.values,
+            keys=["img_url"],
+        )
+        img_urls_and_captions = text_suggestions_and_img_ids.merge(
+            img_ids_and_urls, left_on="img_id", right_index=True
+        )[["img_url", "text_suggestion"]].dropna()
+
+        # Fine-tune model
+        new_model = fine_tune_model(
+            self.model,
+            img_urls=img_urls_and_captions.img_url.values,
+            img_captions=img_urls_and_captions.text_suggestion.values,
+        )
+        self.model = new_model
 
     def transformImage(self, id, image_url):
         headers = {
