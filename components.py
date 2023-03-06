@@ -1,6 +1,7 @@
 import clip
 import cohere
 import faiss
+import logging
 import json
 import numpy as np
 import motion
@@ -155,7 +156,11 @@ class Retrieval(motion.Transform):
         pass
 
     def transformImage(self, id, image_url):
-        response = requests.get(image_url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
+        }
+        response = requests.get(image_url, headers=headers)
+
         with torch.no_grad():
             image_input = (
                 self.preprocess(Image.open(BytesIO(response.content)))
