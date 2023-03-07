@@ -1,3 +1,4 @@
+import asyncio
 import clip
 import cohere
 import faiss
@@ -11,7 +12,7 @@ import re
 import requests
 import torch
 
-from clipft import fine_tune_model
+from clipft import async_download_image, fine_tune_model
 from io import BytesIO
 from PIL import Image
 from typing import TypeVar
@@ -47,6 +48,7 @@ class QuerySchema(motion.Schema):
 class CatalogSchema(motion.Schema):
     retailer: Retailer
     img_url: str
+    img_blob: TypeVar("BLOB")
     img_name: str
     permalink: str
     img_embedding: TypeVar("FLOAT[]")
@@ -108,16 +110,32 @@ def scrape_everlane_sale(store, k=20):
         .sample(frac=1)
         .reset_index(drop=True)
     )
-    logging.info(f"Found {len(df)} unique products")
+    logging.info(f"Found {len(df)} unique products.")
+    df = df.head(k)
 
-    for _, product_row in df.head(k).iterrows():
+    # Get blobs from the images
+    img_urls, contents = asyncio.run(
+        async_download_image(df["img_url"].values)
+    )
+    img_url_to_content = dict(zip(img_urls, contents))
+
+    for _, product_row in df.iterrows():
+        if product_row["img_url"] not in img_url_to_content:
+            continue
+
         new_id = store.getNewId("catalog")
         product = product_row.to_dict()
-        product.update({"retailer": Retailer.EVERLANE})
+        product.update(
+            {
+                "retailer": Retailer.EVERLANE,
+                "img_blob": img_url_to_content[product_row["img_url"]],
+            }
+        )
         store.set("catalog", id=new_id, key_values=product)
 
 
-# Step 3: Define the pipeline components. One amasses the catalog; the other generates the query suggestions. We first start with the catalog subpipeline.
+# Step 3: Define the pipeline components. One amasses the catalog; the other
+# generates the query suggestions. We first start with the catalog subpipeline.
 
 
 class SuggestIdea(motion.Transform):
@@ -205,39 +223,34 @@ class Retrieval(motion.Transform):
                 f"Fine-tuning CLIP model on {len(positive_feedback_ids)} ids."
             )
 
-            # Get image URLs and text suggestions
+            # Get image blobs and text suggestions
             text_suggestions_and_img_ids = self.store.mget(
                 "query",
                 ids=positive_feedback_ids,
                 keys=["text_suggestion", "img_id"],
             )
-            img_ids_and_urls = self.store.mget(
+            img_ids_and_blobs = self.store.mget(
                 "catalog",
                 ids=text_suggestions_and_img_ids.img_id.values,
-                keys=["img_url"],
+                keys=["img_blob"],
             )
-            img_urls_and_captions = text_suggestions_and_img_ids.merge(
-                img_ids_and_urls, left_on="img_id", right_on="id"
-            )[["img_url", "text_suggestion"]].dropna()
+            img_blobs_and_captions = text_suggestions_and_img_ids.merge(
+                img_ids_and_blobs, left_on="img_id", right_on="id"
+            )[["img_blob", "text_suggestion"]].dropna()
 
             # Fine-tune model
             new_model = fine_tune_model(
                 self.model,
-                img_urls=img_urls_and_captions.img_url.values,
-                captions=img_urls_and_captions.text_suggestion.values,
+                img_blobs=img_blobs_and_captions.img_blob.values,
+                captions=img_blobs_and_captions.text_suggestion.values,
             )
             self.model = new_model
             # TODO(shreyashankar): need to rerun model on all the previous images ??
 
-    def transformImage(self, id, image_url):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
-        }
-        response = requests.get(image_url, headers=headers)
-
+    def transformImage(self, id, img_blob):
         with torch.no_grad():
             image_input = (
-                self.preprocess(Image.open(BytesIO(response.content)))
+                self.preprocess(Image.open(BytesIO(img_blob)))
                 .unsqueeze(0)
                 .to(self.device)
             )
@@ -287,7 +300,7 @@ class Retrieval(motion.Transform):
 
     def transform(self, id, triggered_by):
         # Embed the image
-        if triggered_by.key == "img_url":
+        if triggered_by.key == "img_blob":
             self.transformImage(id, triggered_by.value)
 
         # If the trigger key is the text suggestion, then we need to retrieve the image

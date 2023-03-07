@@ -1,23 +1,12 @@
 import asyncio
 import aiohttp
 import clip
-import json
 import logging
 import numpy as np
-import requests
 import torch
 from tqdm import tqdm
 from io import BytesIO
 from PIL import Image
-from bs4 import BeautifulSoup
-
-
-def download_image(url, session):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
-    }
-    response = requests.get(url, headers=headers)
-    return Image.open(BytesIO(response.content))
 
 
 async def get(url, session):
@@ -27,7 +16,7 @@ async def get(url, session):
     try:
         async with session.get(url=url, headers=headers) as response:
             resp = await response.content.read()
-            return url, Image.open(BytesIO(resp))
+            return url, resp
     except Exception as e:
         logging.error(
             "Unable to get url {} due to {}.".format(url, e.__class__)
@@ -42,26 +31,24 @@ async def async_download_image(img_urls):
 
 
 class OutfitDataset(torch.utils.data.Dataset):
-    def __init__(self, img_urls, captions, device):
+    def __init__(self, img_blobs, captions, device):
         _, preprocess_fn = clip.load("ViT-B/32", device=device)
 
-        self.img_urls = img_urls
-        self.preprocessed_images = {}
+        self.img_blobs = img_blobs
+        self.preprocessed_images = [
+            preprocess_fn(Image.open(BytesIO(content)))
+            for content in img_blobs
+        ]
         self.captions = captions
-
-        logging.info("Downloading images...")
-        img_urls, contents = asyncio.run(async_download_image(img_urls))
-        for img_url, content in zip(img_urls, contents):
-            self.preprocessed_images[img_url] = preprocess_fn(content)
-        logging.info("Done downloading and preprocessing images.")
+        logging.info("Done preprocessing images.")
 
     def __getitem__(self, index):
-        img_url = self.img_urls[index]
+        preprocessed_image = self.preprocessed_images[index]
         caption = self.captions[index]
-        return self.preprocessed_images[img_url], caption
+        return preprocessed_image, caption
 
     def __len__(self):
-        return len(self.img_urls)
+        return len(self.captions)
 
 
 def convert_models_to_fp32(model):
@@ -74,22 +61,22 @@ def filter_list(elements, positions):
     return [elements[position] for position in positions]
 
 
-def fine_tune_model(model, img_urls, captions, batch_size=16, epochs=5):
+def fine_tune_model(model, img_blobs, captions, batch_size=16, epochs=5):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Get ids for a train split
-    perm = np.random.permutation(len(img_urls))
-    train_ids = perm[: int(0.8 * len(img_urls))]
-    test_ids = perm[int(0.8 * len(img_urls)) :]
+    perm = np.random.permutation(len(captions))
+    train_ids = perm[: int(0.8 * len(captions))]
+    test_ids = perm[int(0.8 * len(captions)) :]
 
     train_dataset = OutfitDataset(
-        filter_list(img_urls, train_ids),
+        filter_list(img_blobs, train_ids),
         filter_list(captions, train_ids),
         device,
     )
     logging.info(f"Train dataset size: {len(train_dataset)}")
     test_dataset = OutfitDataset(
-        filter_list(img_urls, test_ids),
+        filter_list(img_blobs, test_ids),
         filter_list(captions, test_ids),
         device,
     )

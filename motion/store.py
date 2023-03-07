@@ -73,27 +73,6 @@ class Store(object):
             else {}
         )
 
-    # def __del__(self):
-    #     # Close connection and persist triggers
-    #     self.con.close()
-
-    #     if not self.memory:
-    #         dill.dump(
-    #             self.triggers, open(f"datastores/{self.name}/triggers", "wb")
-    #         )
-    #         dill.dump(
-    #             self.trigger_names,
-    #             open(f"datastores/{self.name}/trigger_names", "wb"),
-    #         )
-    #         dill.dump(
-    #             self.trigger_fns,
-    #             open(f"datastores/{self.name}/trigger_fns", "wb"),
-    #         )
-    #         dill.dump(
-    #             self.table_columns,
-    #             open(f"datastores/{self.name}/table_columns", "wb"),
-    #         )
-
     def addNamespace(self, name: str, schema: typing.Any) -> None:
         """Add a namespace to the store.
 
@@ -282,7 +261,7 @@ class Store(object):
         """
         trigger_name, trigger_fn, isTransform = trigger
         logging.info(
-            f"Running trigger {trigger_name} for id {id}, context {trigger_elem}..."
+            f"Running trigger {trigger_name} for id {id}, key {trigger_elem.key}..."
         )
         if not isTransform:
             trigger_fn(id, trigger_elem, self)

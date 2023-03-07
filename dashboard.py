@@ -18,12 +18,12 @@ def setup_database():
     )
     store.addTrigger(
         name="retrieval",
-        keys=["catalog.img_url", "query.text_suggestion", "query.feedback"],
+        keys=["catalog.img_blob", "query.text_suggestion", "query.feedback"],
         trigger=components.Retrieval,
     )
 
     # Add the catalog
-    components.scrape_everlane_sale(store, k=100)
+    components.scrape_everlane_sale(store, k=20)
 
     return store
 
