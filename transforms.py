@@ -1,140 +1,18 @@
-import asyncio
 import clip
 import cohere
 import faiss
 import logging
-import json
 import numpy as np
 import motion
 import os
-import pandas as pd
 import re
-import requests
 import torch
 
-from clipft import async_download_image, fine_tune_model
+from clipft import fine_tune_model
 from io import BytesIO
 from PIL import Image
-from typing import TypeVar
 
-from bs4 import BeautifulSoup
-
-
-# Step 1: Define the store schemas
-
-
-class Retailer(motion.MEnum):
-    NORDSTROM = "Nordstrom"
-    REVOLVE = "Revolve"
-    BLOOMINGDALES = "Bloomingdales"
-    EVERLANE = "Everlane"
-
-
-class QuerySource(motion.MEnum):
-    OFFLINE = "Offline"
-    ONLINE = "Online"
-
-
-class QuerySchema(motion.Schema):
-    src: QuerySource
-    query_id: int
-    query: str
-    text_suggestion: str
-    img_id: int
-    img_score: float
-    feedback: bool
-
-
-class CatalogSchema(motion.Schema):
-    retailer: Retailer
-    img_url: str
-    img_blob: TypeVar("BLOB")
-    img_name: str
-    permalink: str
-    img_embedding: TypeVar("FLOAT[]")
-
-
-# Step 2: Define the scrapers (just Everlane for now)
-
-
-def scrape_everlane_sale(store, k=20):
-    # Scrape the catalog and add the images to the store
-    urls = [
-        # "https://www.everlane.com/collections/womens-sale-2",
-        "https://www.everlane.com/collections/womens-all-tops",
-        "https://www.everlane.com/collections/womens-tees",
-        "https://www.everlane.com/collections/womens-sweaters",
-        "https://www.everlane.com/collections/womens-sweatshirts",
-        "https://www.everlane.com/collections/womens-bodysuits",
-        "https://www.everlane.com/collections/womens-jeans",
-        "https://www.everlane.com/collections/womens-bottoms",
-        "https://www.everlane.com/collections/womens-skirts-shorts",
-        "https://www.everlane.com/collections/womens-dresses",
-        "https://www.everlane.com/collections/womens-outerwear",
-        "https://www.everlane.com/collections/womens-underwear",
-        "https://www.everlane.com/collections/womens-perform",
-        "https://www.everlane.com/collections/swimwear",
-        "https://www.everlane.com/collections/womens-shoes",
-    ]
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
-    }
-    product_info = []
-    for url in urls:
-        r = requests.get(url=url, headers=headers)
-
-        soup = BeautifulSoup(r.content, "html5lib")
-
-        res = soup.find("script", attrs={"id": "__NEXT_DATA__"})
-        products = json.loads(res.contents[0])["props"]["pageProps"][
-            "fallbackData"
-        ]["products"]
-
-        for product in products:
-            img_url = product["albums"]["square"][0]["src"]
-            img_name = product["displayName"]
-            permalink = product["permalink"]
-            product_info.append(
-                {
-                    "img_url": img_url,
-                    "img_name": img_name,
-                    "permalink": "https://www.everlane.com/products/"
-                    + permalink,
-                }
-            )
-
-    # Delete duplicates
-    df = pd.DataFrame(product_info)
-    df = (
-        df.drop_duplicates(subset=["img_url"])
-        .sample(frac=1)
-        .reset_index(drop=True)
-    )
-    logging.info(f"Found {len(df)} unique products.")
-    df = df.head(k)
-
-    # Get blobs from the images
-    img_urls, contents = asyncio.run(
-        async_download_image(df["img_url"].values)
-    )
-    img_url_to_content = dict(zip(img_urls, contents))
-
-    for _, product_row in df.iterrows():
-        if product_row["img_url"] not in img_url_to_content:
-            continue
-
-        new_id = store.getNewId("catalog")
-        product = product_row.to_dict()
-        product.update(
-            {
-                "retailer": Retailer.EVERLANE,
-                "img_blob": img_url_to_content[product_row["img_url"]],
-            }
-        )
-        store.set("catalog", id=new_id, key_values=product)
-
-
-# Step 3: Define the pipeline components. One amasses the catalog; the other
+# Define the pipeline transforms. One amasses the catalog; the other
 # generates the query suggestions. We first start with the catalog subpipeline.
 
 
@@ -152,10 +30,10 @@ class SuggestIdea(motion.Transform):
         # Fine-tune or fit the query suggestion model
         pass
 
-    def shouldTransform(self, id, triggered_by):
+    def shouldInfer(self, id, triggered_by):
         return True
 
-    def transform(self, id, triggered_by):
+    def infer(self, id, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
@@ -183,6 +61,7 @@ class SuggestIdea(motion.Transform):
             )
 
 
+# TODO(shreyashankar): should not be modifying state in transform methods
 class Retrieval(motion.Transform):
     def setUp(self, store):
         # Set up the embedding model
@@ -247,7 +126,7 @@ class Retrieval(motion.Transform):
             self.model = new_model
             # TODO(shreyashankar): need to rerun model on all the previous images ??
 
-    def transformImage(self, id, img_blob):
+    def inferImage(self, id, img_blob):
         with torch.no_grad():
             image_input = (
                 self.preprocess(Image.open(BytesIO(img_blob)))
@@ -267,7 +146,7 @@ class Retrieval(motion.Transform):
         self.index.add(image_features / np.linalg.norm(image_features, axis=1))
         self.index_to_id[len(self.index_to_id)] = id
 
-    def transformText(self, id, text):
+    def inferText(self, id, text):
         with torch.no_grad():
             text_inputs = clip.tokenize([text]).to(self.device)
             text_features = self.model.encode_text(text_inputs)
@@ -286,7 +165,7 @@ class Retrieval(motion.Transform):
                 key_values={"img_id": img_id, "img_score": score},
             )
 
-    def shouldTransform(self, id, triggered_by):
+    def shouldInfer(self, id, triggered_by):
         # Don't call transform if trigger element is feedback
         if (
             triggered_by.namespace == "query"
@@ -298,11 +177,11 @@ class Retrieval(motion.Transform):
         else:
             return True
 
-    def transform(self, id, triggered_by):
+    def infer(self, id, triggered_by):
         # Embed the image
         if triggered_by.key == "img_blob":
-            self.transformImage(id, triggered_by.value)
+            self.inferImage(id, triggered_by.value)
 
         # If the trigger key is the text suggestion, then we need to retrieve the image
         elif triggered_by.key == "text_suggestion":
-            self.transformText(id, triggered_by.value)
+            self.inferText(id, triggered_by.value)

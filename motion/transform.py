@@ -24,9 +24,9 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def shouldTransform(self, id, triggered_by: TriggerElement):
+    def shouldInfer(self, id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def transform(self, id, triggered_by: TriggerElement):
+    def infer(self, id, triggered_by: TriggerElement):
         pass

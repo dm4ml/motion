@@ -1,29 +1,31 @@
-import motion
 import streamlit as st
 
-import components
+from motion import get_store
+from transforms import SuggestIdea, Retrieval
+from schemas import QuerySchema, CatalogSchema, QuerySource
+from scrapers import scrape_everlane_sale
 
 
 @st.cache_resource
 def setup_database():
     # Create store and add triggers
-    store = motion.get_store("fashion", create=True, memory=True)
-    store.addNamespace("query", components.QuerySchema)
-    store.addNamespace("catalog", components.CatalogSchema)
+    store = get_store("fashion", create=True, memory=True)
+    store.addNamespace("query", QuerySchema)
+    store.addNamespace("catalog", CatalogSchema)
 
     store.addTrigger(
         name="suggest_idea",
         keys=["query.query"],
-        trigger=components.SuggestIdea,
+        trigger=SuggestIdea,
     )
     store.addTrigger(
         name="retrieval",
         keys=["catalog.img_blob", "query.text_suggestion", "query.feedback"],
-        trigger=components.Retrieval,
+        trigger=Retrieval,
     )
 
     # Add the catalog
-    components.scrape_everlane_sale(store, k=20)
+    scrape_everlane_sale(store, k=20)
 
     return store
 
@@ -37,7 +39,7 @@ def run_query(query):
         id=None,
         key_values={
             "query": query,
-            "src": components.QuerySource.ONLINE,
+            "src": QuerySource.ONLINE,
             "query_id": query_id,
         },
     )
