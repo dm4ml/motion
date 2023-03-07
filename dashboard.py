@@ -9,7 +9,7 @@ from scrapers import scrape_everlane_sale
 @st.cache_resource
 def setup_database():
     # Create store and add triggers
-    store = get_store("fashion", create=True, memory=True)
+    store = get_store("fashion", create=True, memory=False)
     store.addNamespace("query", QuerySchema)
     store.addNamespace("catalog", CatalogSchema)
 
@@ -25,7 +25,7 @@ def setup_database():
     )
 
     # Add the catalog
-    scrape_everlane_sale(store, k=20)
+    # scrape_everlane_sale(store, k=1)
 
     return store
 

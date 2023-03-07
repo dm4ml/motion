@@ -490,3 +490,6 @@ class Store(object):
             (value,),
         ).fetchall()
         return [r[0] for r in res]
+
+    def sql(self, stmt: str) -> pd.DataFrame:
+        return self.con.execute(stmt).fetchdf()
