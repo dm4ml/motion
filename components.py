@@ -55,7 +55,7 @@ class CatalogSchema(motion.Schema):
 # Step 2: Define the scrapers (just Everlane for now)
 
 
-def scrape_everlane_sale(store):
+def scrape_everlane_sale(store, k=20):
     # Scrape the catalog and add the images to the store
     urls = [
         # "https://www.everlane.com/collections/womens-sale-2",
@@ -96,7 +96,8 @@ def scrape_everlane_sale(store):
                 {
                     "img_url": img_url,
                     "img_name": img_name,
-                    "permalink": permalink,
+                    "permalink": "https://www.everlane.com/products/"
+                    + permalink,
                 }
             )
 
@@ -109,7 +110,7 @@ def scrape_everlane_sale(store):
     )
     logging.info(f"Found {len(df)} unique products")
 
-    for _, product_row in df.head(20).iterrows():
+    for _, product_row in df.head(k).iterrows():
         new_id = store.getNewId("catalog")
         product = product_row.to_dict()
         product.update({"retailer": Retailer.EVERLANE})
@@ -155,6 +156,7 @@ class SuggestIdea(motion.Transform):
         text = response[0].text
         suggestions = [s.strip() for s in text.split("\n")[:5]]
         suggestions = [re.sub("[1-9]. ", "", s) for s in suggestions]
+        suggestions = [s for s in suggestions if s != ""]
 
         for s in suggestions:
             new_id = self.store.duplicate("query", id=id)
@@ -173,7 +175,7 @@ class Retrieval(motion.Transform):
         # Set up the FAISS index
         self.index = faiss.IndexFlatIP(512)
         self.index_to_id = {}
-        self.k = 10
+        self.k = 5
 
     def shouldFit(self, new_id, triggered_by):
         # Check if fit should be called
@@ -187,44 +189,45 @@ class Retrieval(motion.Transform):
         else:
             return False
 
-    def shouldTransform(self, id, triggered_by):
-        # Don't call transform if trigger element is feedback
-        if (
-            triggered_by.namespace == "query"
-            and triggered_by.key == "feedback"
-            and triggered_by.value == True
-        ):
-            return False
-
-        else:
-            return True
-
     def fit(self, id, triggered_by):
-        # Get 100 most recent image ids and captions with positive feedback
+        # Fine-tune model every 5 positive feedbacks on the most recent
+        # 100 positive feedbacks
+
         positive_feedback_ids = self.store.getIdsForKey(
             "query", "feedback", True
         )[:100]
-        text_suggestions_and_img_ids = self.store.mget(
-            "query",
-            ids=positive_feedback_ids,
-            keys=["text_suggestion", "img_id"],
-        )
-        img_ids_and_urls = self.store.mget(
-            "catalog",
-            ids=text_suggestions_and_img_ids.img_id.values,
-            keys=["img_url"],
-        )
-        img_urls_and_captions = text_suggestions_and_img_ids.merge(
-            img_ids_and_urls, left_on="img_id", right_index=True
-        )[["img_url", "text_suggestion"]].dropna()
 
-        # Fine-tune model
-        new_model = fine_tune_model(
-            self.model,
-            img_urls=img_urls_and_captions.img_url.values,
-            img_captions=img_urls_and_captions.text_suggestion.values,
-        )
-        self.model = new_model
+        if (
+            len(positive_feedback_ids) > 0
+            and len(positive_feedback_ids) % 5 == 0
+        ):
+            logging.info(
+                f"Fine-tuning CLIP model on {len(positive_feedback_ids)} ids."
+            )
+
+            # Get image URLs and text suggestions
+            text_suggestions_and_img_ids = self.store.mget(
+                "query",
+                ids=positive_feedback_ids,
+                keys=["text_suggestion", "img_id"],
+            )
+            img_ids_and_urls = self.store.mget(
+                "catalog",
+                ids=text_suggestions_and_img_ids.img_id.values,
+                keys=["img_url"],
+            )
+            img_urls_and_captions = text_suggestions_and_img_ids.merge(
+                img_ids_and_urls, left_on="img_id", right_on="id"
+            )[["img_url", "text_suggestion"]].dropna()
+
+            # Fine-tune model
+            new_model = fine_tune_model(
+                self.model,
+                img_urls=img_urls_and_captions.img_url.values,
+                captions=img_urls_and_captions.text_suggestion.values,
+            )
+            self.model = new_model
+            # TODO(shreyashankar): need to rerun model on all the previous images ??
 
     def transformImage(self, id, image_url):
         headers = {
@@ -269,6 +272,18 @@ class Retrieval(motion.Transform):
                 id=new_id,
                 key_values={"img_id": img_id, "img_score": score},
             )
+
+    def shouldTransform(self, id, triggered_by):
+        # Don't call transform if trigger element is feedback
+        if (
+            triggered_by.namespace == "query"
+            and triggered_by.key == "feedback"
+            and triggered_by.value == True
+        ):
+            return False
+
+        else:
+            return True
 
     def transform(self, id, triggered_by):
         # Embed the image

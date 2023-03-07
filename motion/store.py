@@ -281,7 +281,9 @@ class Store(object):
             trigger_elem (TriggerElement): The element that triggered the trigger.
         """
         trigger_name, trigger_fn, isTransform = trigger
-        logging.info(f"Running trigger {trigger_name} for {trigger_elem}...")
+        logging.info(
+            f"Running trigger {trigger_name} for id {id}, context {trigger_elem}..."
+        )
         if not isTransform:
             trigger_fn(id, trigger_elem, self)
         else:
@@ -463,7 +465,7 @@ class Store(object):
                 )
 
         res = self.con.execute(
-            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
+            f"SELECT id, {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(id) for id in ids])})"
         ).fetchdf()
 
         if kwargs.get("filter_null", True):
