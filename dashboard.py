@@ -1,7 +1,7 @@
 import streamlit as st
 
 from motion import get_store
-from transforms import SuggestIdea, Retrieval
+from triggers import SuggestIdea, Retrieval
 from schemas import QuerySchema, CatalogSchema, QuerySource
 from scrapers import scrape_everlane_sale
 

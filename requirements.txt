@@ -1,0 +1,13 @@
+beautifulsoup4
+clip
+cohere
+duckdb
+dill
+faiss-cpu
+numpy
+openai
+pandas
+pytorch
+streamlit
+torchvision
+tqdm

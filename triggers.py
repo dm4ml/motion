@@ -16,7 +16,7 @@ from PIL import Image
 # generates the query suggestions. We first start with the catalog subpipeline.
 
 
-class SuggestIdea(motion.Transform):
+class SuggestIdea(motion.Trigger):
     def setUp(self):
         # Set up the query suggestion model
         self.setState({"cohere": cohere.Client(os.environ["COHERE_API_KEY"])})
@@ -60,7 +60,7 @@ class SuggestIdea(motion.Transform):
             )
 
 
-class Retrieval(motion.Transform):
+class Retrieval(motion.Trigger):
     def setUp(self):
         # Set up the embedding model
         device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -8,8 +8,8 @@ import typing
 
 from collections import namedtuple
 from enum import Enum
-from motion import Transform, Schema
-from motion.transform import TriggerElement
+from motion import Trigger
+from motion.trigger import TriggerElement
 
 CONNECTIONS = {}
 
@@ -160,9 +160,9 @@ class Store(object):
 
         elif inspect.isclass(trigger):
             # Check that the class implements the Transform interface
-            if not issubclass(trigger, Transform):
+            if not issubclass(trigger, Trigger):
                 raise ValueError(
-                    f"Trigger class must implement the Transform interface."
+                    f"Trigger class must implement the Trigger interface."
                 )
 
         else:
@@ -196,16 +196,17 @@ class Store(object):
         del self.trigger_names[name]
         del self.trigger_fns[name]
 
-    def getTriggersForKey(self, key: str) -> typing.List[str]:
+    def getTriggersForKey(self, namespace: str, key: str) -> typing.List[str]:
         """Get the list of triggers for a given key.
 
         Args:
+            namespace (str): The namespace to get the triggers for.
             key (str): The key to get the triggers for.
 
         Returns:
             typing.List[str]: The list of triggers for the given key.
         """
-        names_and_fns = self.triggers.get(key, [])
+        names_and_fns = self.triggers.get(f"{namespace}.{key}", [])
         return [t[0] for t in names_and_fns]
 
     def getTriggersForAllKeys(self) -> typing.Dict[str, typing.List[str]]:
@@ -275,7 +276,7 @@ class Store(object):
         namespace: str,
         id: int,
         key_values: typing.Dict[str, typing.Any],
-        run_duplicates: bool = False,
+        run_duplicate_triggers: bool = False,
     ) -> int:
         """Set multiple values for a key in a namespace.
         TODO(shreyashankar): Handle complex types.
@@ -284,7 +285,7 @@ class Store(object):
             namespace (str): The namespace to set the value in.
             id (int): The id of the record to set the value for.
             key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
-            run_duplicates (bool, optional): Whether to run duplicate triggers. Defaults to False.
+            run_duplicate_triggers (bool, optional): Whether to run duplicate triggers. Defaults to False.
         """
         if not id:
             id = self.getNewId(namespace)
@@ -326,7 +327,7 @@ class Store(object):
                 namespace=namespace, key=key, value=value
             )
             for trigger in self.triggers.get(f"{namespace}.{key}", []):
-                if run_duplicates or trigger not in executed:
+                if run_duplicate_triggers or trigger not in executed:
                     self.executeTrigger(id, trigger, trigger_elem)
                     executed.add(trigger)
 
@@ -400,12 +401,12 @@ class Store(object):
 
         if kwargs.get("filter_null", True):
             return self.con.execute(
-                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
+                f"SELECT id, {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
             ).fetchdf()
 
         else:
             return self.con.execute(
-                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])})"
+                f"SELECT id, {', '.join(keys)} FROM {self.name}.{namespace} WHERE id IN ({', '.join([str(i) for i in all_ids])})"
             ).fetchdf()
 
     def mget(

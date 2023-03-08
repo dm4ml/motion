@@ -8,7 +8,7 @@ from collections import namedtuple
 TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
 
 
-class Transform(ABC):
+class Trigger(ABC):
     def __init__(self, store):
         self._state = {}
         self._mode = "setUp"
@@ -51,10 +51,8 @@ class Transform(ABC):
         return self._mode
 
     def setState(self, state):
-        if self.mode not in ["setUp", "shouldFit", "fit"]:
-            raise RuntimeError(
-                "setState can only be called in setUp, shouldFit, or fit."
-            )
+        if self.mode not in ["setUp", "fit"]:
+            raise RuntimeError("setState can only be called in setUp or fit.")
 
         self._state.update(state)
 
