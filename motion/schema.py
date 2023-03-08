@@ -75,6 +75,8 @@ class Schema(ABC):
             for name, values in enums.items()
         ]
 
-        create_table_str = f"CREATE TABLE {table_name} ({', '.join(names_and_types)} CHECK(derived_id < id));"
+        create_table_str = (
+            f"CREATE TABLE {table_name} ({', '.join(names_and_types)});"
+        )
 
         return create_enum_str + [create_table_str]
