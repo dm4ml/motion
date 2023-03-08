@@ -17,9 +17,8 @@ from PIL import Image
 
 
 class SuggestIdea(motion.Transform):
-    def setUp(self, store):
+    def setUp(self):
         # Set up the query suggestion model
-        self.store = store
         self.setState({"cohere": cohere.Client(os.environ["COHERE_API_KEY"])})
 
     def shouldFit(self, id, triggered_by):
@@ -61,11 +60,9 @@ class SuggestIdea(motion.Transform):
             )
 
 
-# TODO(shreyashankar): should not be modifying state in transform methods
 class Retrieval(motion.Transform):
-    def setUp(self, store):
+    def setUp(self):
         # Set up the embedding model
-        self.store = store
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model, preprocess = clip.load("ViT-B/32", device=device)
 
@@ -78,7 +75,7 @@ class Retrieval(motion.Transform):
                 "k": 5,
             }
         )
-        self.addImageToIndex()
+        self.addImagesToIndex()
 
     def shouldFit(self, id, triggered_by):
         # Check if fit should be called
@@ -157,9 +154,9 @@ class Retrieval(motion.Transform):
 
         # Add the normalized image to the FAISS index every 10 iterations
         if len(self.state["index_to_id"]) % 10 == 0:
-            self.addImageToIndex()
+            self.addImagesToIndex()
 
-    def addImageToIndex(self):
+    def addImagesToIndex(self):
         index = faiss.IndexFlatIP(512)
         id_embedding = self.store.sql(
             "SELECT id, img_embedding FROM fashion.catalog WHERE img_embedding IS NOT NULL"
