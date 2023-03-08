@@ -267,10 +267,7 @@ class Store(object):
             trigger_fn(id, trigger_elem, self)
         else:
             # Execute the transform lifecycle
-            if trigger_fn.shouldFit(id, trigger_elem):
-                trigger_fn.fit(id, trigger_elem)
-            if trigger_fn.shouldInfer(id, trigger_elem):
-                trigger_fn.infer(id, trigger_elem)
+            trigger_fn.execute(id, trigger_elem)
         logging.info(f"Finished running trigger {trigger_name}.")
 
     def set(

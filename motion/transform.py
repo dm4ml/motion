@@ -46,3 +46,9 @@ class Transform(ABC):
 
     def setState(self, state):
         self._state.update(state)
+
+    def execute(self, id, triggered_by):
+        if self.shouldFit(id, triggered_by):
+            self.fit(id, triggered_by)
+        if self.shouldInfer(id, triggered_by):
+            self.infer(id, triggered_by)
