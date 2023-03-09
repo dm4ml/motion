@@ -51,6 +51,8 @@ class Store(object):
             else duckdb.connect(f"datastores/{name}/duck.db")
         )
         self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
+        self.addLogTable()
+
         self.triggers = (
             dill.load(open(f"datastores/{name}/triggers", "rb"))
             if os.path.exists(f"datastores/{name}/triggers")
@@ -71,6 +73,45 @@ class Store(object):
             dill.load(open(f"datastores/{name}/table_columns", "rb"))
             if os.path.exists(f"datastores/{name}/table_columns")
             else {}
+        )
+
+    def addLogTable(self):
+        """Creates a table to store trigger logs."""
+
+        self.con.execute(
+            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, id INTEGER, trigger_key VARCHAR)"
+        )
+
+    def logTriggerExecution(
+        self,
+        trigger_name,
+        trigger_version,
+        trigger_action,
+        namespace,
+        id,
+        trigger_key,
+    ):
+        """Logs a trigger execution.
+
+        Args:
+            trigger_name (str): The name of the trigger.
+            trigger_version (int): The version of the trigger.
+            trigger_action (str): The action of the trigger.
+            namespace (str): The namespace of the trigger.
+            id (int): The id of the trigger.
+            trigger_key (str): The key of the trigger.
+        """
+
+        self.con.execute(
+            f"INSERT INTO {self.name}.logs(trigger_name, trigger_version, trigger_action, namespace, id, trigger_key) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                trigger_name,
+                trigger_version,
+                trigger_action,
+                namespace,
+                id,
+                trigger_key,
+            ),
         )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
@@ -172,8 +213,18 @@ class Store(object):
 
         # Add the trigger to the store
         self.trigger_names[name] = keys
-        self.trigger_fns[name] = trigger(self)
-        trigger_exec = trigger(self) if inspect.isclass(trigger) else trigger
+
+        version = self.con.execute(
+            f"SELECT MAX(trigger_version) FROM {self.name}.logs WHERE trigger_name = '{name}';"
+        ).fetchone()
+        version = version[0] if version[0] else 0
+        trigger_exec = (
+            trigger(self, name, version)
+            if inspect.isclass(trigger)
+            else trigger
+        )
+        self.trigger_fns[name] = trigger_exec
+
         for key in keys:
             self.triggers[key] = self.triggers.get(key, []) + [
                 TriggerFn(name, trigger_exec, inspect.isclass(trigger))
@@ -192,7 +243,7 @@ class Store(object):
         keys = self.trigger_names[name]
         fn = self.trigger_fns[name]
         for key in keys:
-            self.triggers[key].remove((name, fn))
+            self.triggers[key].remove((name, fn, isinstance(fn, Trigger)))
         del self.trigger_names[name]
         del self.trigger_fns[name]
 
@@ -266,6 +317,15 @@ class Store(object):
         )
         if not isTransform:
             trigger_fn(id, trigger_elem, self)
+            # Log the trigger execution
+            self.logTriggerExecution(
+                trigger_name,
+                0,
+                "function",
+                trigger_elem.namespace,
+                id,
+                trigger_elem.key,
+            )
         else:
             # Execute the transform lifecycle
             trigger_fn.execute(id, trigger_elem)

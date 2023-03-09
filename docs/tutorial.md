@@ -264,3 +264,8 @@ See `triggers.py` for a full example of this pattern, including finetuning on a 
 #### 3. Entry Points to the Application
 
 TODO(shreyashankar): document
+
+
+#### 4. Querying the DB directly with SQL
+
+TODO(shreyashankar): document

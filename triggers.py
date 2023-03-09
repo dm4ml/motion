@@ -94,7 +94,7 @@ class Retrieval(motion.Trigger):
 
     def fit(self, id, triggered_by):
         if triggered_by.key == "img_blob":
-            self.embedImage(id, triggered_by.value)
+            self.embedImage(id, triggered_by.value, self.state["model"])
 
             # Add the normalized image to the FAISS index every 10 iterations
             if id % 10 == 0:
@@ -106,18 +106,19 @@ class Retrieval(motion.Trigger):
 
         # Fine-tune model every 5 positive feedbacks on the most recent
         # 100 positive feedbacks
-        positive_feedback_ids = self.store.getIdsForKey(
-            "query", "feedback", True
-        )[:5]
+        if triggered_by.key == "feedback":
+            positive_feedback_ids = self.store.getIdsForKey(
+                "query", "feedback", True
+            )[-5:]
 
-        if (
-            len(positive_feedback_ids) > 0
-            and len(positive_feedback_ids) % 5 == 0
-        ):
-            new_state = self.fineTune(positive_feedback_ids)
-            return new_state
-        else:
-            return {}
+            if (
+                len(positive_feedback_ids) > 0
+                and len(positive_feedback_ids) % 5 == 0
+            ):
+                new_state = self.fineTune(positive_feedback_ids)
+                return new_state
+            else:
+                return {}
 
     def fineTune(self, positive_feedback_ids):
         logging.info(
@@ -152,21 +153,21 @@ class Retrieval(motion.Trigger):
 
         # Re-embed all the images
         for _, row in ids_and_blobs.iterrows():
-            self.embedImage(row["id"], row["img_blob"])
+            self.embedImage(row["id"], row["img_blob"], new_model)
 
         new_state = {"model": new_model}
         new_state.update(self.createIndex())
 
         return new_state
 
-    def embedImage(self, id, img_blob):
+    def embedImage(self, id, img_blob, model):
         with torch.no_grad():
             image_input = (
                 self.state["preprocess"](Image.open(BytesIO(img_blob)))
                 .unsqueeze(0)
                 .to(self.state["device"])
             )
-            image_features = self.state["model"].encode_image(image_input)
+            image_features = model.encode_image(image_input)
 
         self.store.set(
             "catalog",
