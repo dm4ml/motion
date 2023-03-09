@@ -108,7 +108,6 @@ class Retrieval(motion.Trigger):
             and len(positive_feedback_ids) % 50 == 0
         ):
             self.fineTune(positive_feedback_ids)
-            # TODO(shreyashankar): need to rerun model on all the previous images ??
 
     def fineTune(self, positive_feedback_ids):
         logging.info(
