@@ -6,34 +6,59 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 
 TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
+TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
 
 class Trigger(ABC):
-    def __init__(self, store, name, version):
+    def __init__(self, cursor, name, version):
         self._state = {}
-        self.name = name
-        self.store = store
         self._version = version
-        self.update(self.setUp())
+        self.update(self.setUp(cursor))
+
+        # Validate number of arguments in each trigger
+        if len(inspect.signature(self.setUp).parameters) != 1:
+            raise ValueError(
+                f"setUp() of trigger {name} should have 1 argument"
+            )
+
+        if len(inspect.signature(self.shouldFit).parameters) != 3:
+            raise ValueError(
+                f"shouldFit() of trigger {name} should have 3 arguments"
+            )
+
+        if len(inspect.signature(self.fit).parameters) != 3:
+            raise ValueError(
+                f"fit() of trigger {name} should have 3 arguments"
+            )
+
+        if len(inspect.signature(self.shouldInfer).parameters) != 3:
+            raise ValueError(
+                f"shouldInfer() of trigger {name} should have 3 arguments"
+            )
+
+        if len(inspect.signature(self.infer).parameters) != 3:
+            raise ValueError(
+                f"infer() of trigger {name} should have 3 arguments"
+            )
 
     @abstractmethod
-    def setUp(self):
+    def setUp(self, cursor):
         pass
 
     @abstractmethod
-    def shouldFit(self, id, triggered_by: TriggerElement):
+    def shouldFit(self, cursor, id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def fit(self, id, triggered_by: TriggerElement):
+    def fit(self, cursor, id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def shouldInfer(self, id, triggered_by: TriggerElement):
+    def shouldInfer(self, cursor, id, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def infer(self, id, triggered_by: TriggerElement):
+    def infer(self, cursor, id, triggered_by: TriggerElement):
         pass
 
     @property
@@ -48,29 +73,3 @@ class Trigger(ABC):
         if new_state:
             self._state.update(new_state)
             self._version += 1
-
-    def execute(self, id, triggered_by):
-        if self.shouldInfer(id, triggered_by):
-            self.infer(id, triggered_by)
-            self.store.logTriggerExecution(
-                self.name,
-                self.version,
-                "infer",
-                triggered_by.namespace,
-                id,
-                triggered_by.key,
-            )
-
-        if self.shouldFit(id, triggered_by):
-            # TODO(shreyashankar): Asynchronously trigger this
-            new_state = self.fit(id, triggered_by)
-            old_version = self.version
-            self.update(new_state)
-            self.store.logTriggerExecution(
-                self.name,
-                old_version,
-                "fit",
-                triggered_by.namespace,
-                id,
-                triggered_by.key,
-            )

@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from schemas import Retailer
 
 
-def scrape_everlane_sale(store, k=20):
+def scrape_everlane_sale(cursor, k=20):
     # Scrape the catalog and add the images to the store
     urls = [
         # "https://www.everlane.com/collections/womens-sale-2",
@@ -76,7 +76,7 @@ def scrape_everlane_sale(store, k=20):
         if product_row["img_url"] not in img_url_to_content:
             continue
 
-        new_id = store.getNewId("catalog")
+        new_id = cursor.getNewId("catalog")
         product = product_row.to_dict()
         product.update(
             {
@@ -84,4 +84,4 @@ def scrape_everlane_sale(store, k=20):
                 "img_blob": img_url_to_content[product_row["img_url"]],
             }
         )
-        store.set("catalog", id=new_id, key_values=product)
+        cursor.set("catalog", id=new_id, key_values=product)

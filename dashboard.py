@@ -25,16 +25,17 @@ def setup_database():
     )
 
     # Add the catalog
-    scrape_everlane_sale(store, k=100)
+    scrape_everlane_sale(store.cursor(), k=100)
 
     return store
 
 
 @st.cache_data(show_spinner="Fetching results...")
 def run_query(query):
-    query_id = store.getNewId("query")
+    cursor = store.cursor()
+    query_id = cursor.getNewId("query")
 
-    created_id = store.set(
+    created_id = cursor.set(
         "query",
         id=None,
         key_values={
@@ -46,7 +47,7 @@ def run_query(query):
 
     # Retrieve the results and get the lowest cosine similarity
     # (i.e., best match) for each img_id
-    results = store.get(
+    results = cursor.get(
         "query",
         id=created_id,
         keys=["id", "text_suggestion", "img_id", "img_score"],
@@ -58,7 +59,7 @@ def run_query(query):
     results.rename(columns={"id": "qid"}, inplace=True)
 
     # Retrieve the image url and permalink for each img_id
-    image_results = store.mget(
+    image_results = cursor.mget(
         "catalog",
         ids=results["img_id"].values,
         keys=["img_url", "permalink"],
@@ -85,7 +86,7 @@ if query:
         st_cols[col_idx].button(
             key="like_" + str(row["img_id"]),
             label="Like this",
-            on_click=lambda x: store.set(
+            on_click=lambda x: store.cursor().set(
                 "query",
                 id=x,
                 key_values={"feedback": True},

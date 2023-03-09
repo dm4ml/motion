@@ -17,14 +17,14 @@ from PIL import Image
 
 
 class SuggestIdea(motion.Trigger):
-    def setUp(self):
+    def setUp(self, cursor):
         # Set up the query suggestion model
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def shouldInfer(self, id, triggered_by):
+    def shouldInfer(self, cursor, id, triggered_by):
         return True
 
-    def infer(self, id, triggered_by):
+    def infer(self, cursor, id, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
@@ -46,22 +46,20 @@ class SuggestIdea(motion.Trigger):
         suggestions = [s for s in suggestions if s != ""]
 
         for s in suggestions:
-            new_id = self.store.duplicate("query", id=id)
-            self.store.set(
-                "query", id=new_id, key_values={"text_suggestion": s}
-            )
+            new_id = cursor.duplicate("query", id=id)
+            cursor.set("query", id=new_id, key_values={"text_suggestion": s})
 
-    def shouldFit(self, id, triggered_by):
+    def shouldFit(self, cursor, id, triggered_by):
         # Check if fit should be called
         return False
 
-    def fit(self, id, triggered_by):
+    def fit(self, cursor, id, triggered_by):
         # Fine-tune or fit the query suggestion model
         pass
 
 
 class Retrieval(motion.Trigger):
-    def setUp(self):
+    def setUp(self, cursor):
         # Set up the embedding model
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model, preprocess = clip.load("ViT-B/32", device=device)
@@ -73,12 +71,12 @@ class Retrieval(motion.Trigger):
             "preprocess": preprocess,
             "k": 5,
         }
-        index = self.createIndex()
+        index = self.createIndex(cursor)
         if index:
             state.update(index)
         return state
 
-    def inferText(self, id, text):
+    def inferText(self, cursor, id, text):
         with torch.no_grad():
             text_inputs = clip.tokenize([text]).to(self.state["device"])
             text_features = self.state["model"].encode_text(text_inputs)
@@ -91,24 +89,24 @@ class Retrieval(motion.Trigger):
         )
         for score, index in zip(scores[0], indices[0]):
             img_id = self.state["index_to_id"][index]
-            new_id = self.store.duplicate("query", id=id)
-            self.store.set(
+            new_id = cursor.duplicate("query", id=id)
+            cursor.set(
                 "query",
                 id=new_id,
                 key_values={"img_id": img_id, "img_score": score},
             )
 
-    def shouldInfer(self, id, triggered_by):
+    def shouldInfer(self, cursor, id, triggered_by):
         # Call infer only on text suggestions
         if triggered_by.key == "text_suggestion":
             return True
 
         return False
 
-    def infer(self, id, triggered_by):
-        self.inferText(id, triggered_by.value)
+    def infer(self, cursor, id, triggered_by):
+        self.inferText(cursor, id, triggered_by.value)
 
-    def shouldFit(self, id, triggered_by):
+    def shouldFit(self, cursor, id, triggered_by):
         # Check if fit should be called
         if triggered_by.key == "feedback" and triggered_by.value == True:
             return True
@@ -122,13 +120,15 @@ class Retrieval(motion.Trigger):
         else:
             return False
 
-    def fit(self, id, triggered_by):
+    def fit(self, cursor, id, triggered_by):
         if triggered_by.key == "img_blob":
-            self.embedImage(id, triggered_by.value, self.state["model"])
+            self.embedImage(
+                cursor, id, triggered_by.value, self.state["model"]
+            )
 
             # Add the normalized image to the FAISS index every 10 iterations
             if id % 10 == 0:
-                index = self.createIndex()
+                index = self.createIndex(cursor)
                 return index
 
             else:
@@ -137,7 +137,7 @@ class Retrieval(motion.Trigger):
         # Fine-tune model every 5 positive feedbacks on the most recent
         # 100 positive feedbacks
         if triggered_by.key == "feedback":
-            positive_feedback_ids = self.store.getIdsForKey(
+            positive_feedback_ids = cursor.getIdsForKey(
                 "query", "feedback", True
             )[-5:]
 
@@ -145,23 +145,23 @@ class Retrieval(motion.Trigger):
                 len(positive_feedback_ids) > 0
                 and len(positive_feedback_ids) % 5 == 0
             ):
-                new_state = self.fineTune(positive_feedback_ids)
+                new_state = self.fineTune(cursor, positive_feedback_ids)
                 return new_state
             else:
                 return {}
 
-    def fineTune(self, positive_feedback_ids):
+    def fineTune(self, cursor, positive_feedback_ids):
         logging.info(
             f"Fine-tuning CLIP model on {len(positive_feedback_ids)} ids."
         )
 
         # Get image blobs and text suggestions
-        text_suggestions_and_img_ids = self.store.mget(
+        text_suggestions_and_img_ids = cursor.mget(
             "query",
             ids=positive_feedback_ids,
             keys=["text_suggestion", "img_id"],
         )
-        img_ids_and_blobs = self.store.mget(
+        img_ids_and_blobs = cursor.mget(
             "catalog",
             ids=text_suggestions_and_img_ids.img_id.values,
             keys=["img_blob"],
@@ -177,20 +177,20 @@ class Retrieval(motion.Trigger):
             captions=img_blobs_and_captions.text_suggestion.values,
         )
 
-        ids_and_blobs = self.store.sql(
+        ids_and_blobs = cursor.sql(
             "SELECT id, img_blob FROM fashion.catalog WHERE img_embedding IS NOT NULL"
         )
 
         # Re-embed all the images
         for _, row in ids_and_blobs.iterrows():
-            self.embedImage(row["id"], row["img_blob"], new_model)
+            self.embedImage(cursor, row["id"], row["img_blob"], new_model)
 
         new_state = {"model": new_model}
-        new_state.update(self.createIndex())
+        new_state.update(self.createIndex(cursor))
 
         return new_state
 
-    def embedImage(self, id, img_blob, model):
+    def embedImage(self, cursor, id, img_blob, model):
         with torch.no_grad():
             image_input = (
                 self.state["preprocess"](Image.open(BytesIO(img_blob)))
@@ -199,15 +199,15 @@ class Retrieval(motion.Trigger):
             )
             image_features = model.encode_image(image_input)
 
-        self.store.set(
+        cursor.set(
             "catalog",
             id=id,
             key_values={"img_embedding": image_features.squeeze().tolist()},
         )
 
-    def createIndex(self):
+    def createIndex(self, cursor):
         index = faiss.IndexFlatIP(512)
-        id_embedding = self.store.sql(
+        id_embedding = cursor.sql(
             "SELECT id, img_embedding FROM fashion.catalog WHERE img_embedding IS NOT NULL"
         )
         if len(id_embedding) == 0:
