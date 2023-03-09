@@ -73,9 +73,10 @@ class Retrieval(motion.Trigger):
                 "model": model,
                 "preprocess": preprocess,
                 "k": 5,
+                "index_to_id": {},
             }
         )
-        self.addImagesToIndex()
+        self.createIndex()
 
     def shouldFit(self, id, triggered_by):
         # Check if fit should be called
@@ -96,15 +97,15 @@ class Retrieval(motion.Trigger):
             self.embedImage(id, triggered_by.value)
             return
 
-        # Fine-tune model every 5 positive feedbacks on the most recent
+        # Fine-tune model every 100 positive feedbacks on the most recent
         # 100 positive feedbacks
         positive_feedback_ids = self.store.getIdsForKey(
             "query", "feedback", True
-        )[:100]
+        )[:50]
 
         if (
             len(positive_feedback_ids) > 0
-            and len(positive_feedback_ids) % 5 == 0
+            and len(positive_feedback_ids) % 50 == 0
         ):
             self.fineTune(positive_feedback_ids)
             # TODO(shreyashankar): need to rerun model on all the previous images ??
@@ -129,13 +130,21 @@ class Retrieval(motion.Trigger):
             img_ids_and_blobs, left_on="img_id", right_on="id"
         )[["img_blob", "text_suggestion"]].dropna()
 
-        # Fine-tune model
+        # Fine-tune model and update all the embeddings
         new_model = fine_tune_model(
             self.state["model"],
             img_blobs=img_blobs_and_captions.img_blob.values,
             captions=img_blobs_and_captions.text_suggestion.values,
         )
         self.setState({"model": new_model})
+
+        ids_and_blobs = self.store.sql(
+            "SELECT id, img_blob FROM fashion.catalog WHERE img_embedding IS NOT NULL"
+        )
+
+        # Re-embed all the images
+        for _, row in ids_and_blobs.iterrows():
+            self.embedImage(row["id"], row["img_blob"])
 
     def embedImage(self, id, img_blob):
         with torch.no_grad():
@@ -153,10 +162,10 @@ class Retrieval(motion.Trigger):
         )
 
         # Add the normalized image to the FAISS index every 10 iterations
-        if len(self.state["index_to_id"]) % 10 == 0:
-            self.addImagesToIndex()
+        if id % 10 == 0:
+            self.createIndex()
 
-    def addImagesToIndex(self):
+    def createIndex(self):
         index = faiss.IndexFlatIP(512)
         id_embedding = self.store.sql(
             "SELECT id, img_embedding FROM fashion.catalog WHERE img_embedding IS NOT NULL"
