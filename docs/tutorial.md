@@ -1,8 +1,4 @@
-# motion
-
-A framework for building ML applications, using a trigger-based execution model.
-
-## Sample Application
+# Sample Application
 
 We'll be building a fashion search application, which will allow users to search for what clothes to buy based on a specific query. For our prototype, we'll use the following data sources (i.e., retailers):
 
@@ -90,26 +86,26 @@ store.addNamespace("catalog", CatalogSchema)
 
 A trigger is a stateful component of an ML pipeline, executed after `store.set` is called on a key that the trigger is listening to. Triggers are defined by subclassing `motion.Trigger`, and they have the following lifecycle:
 
-1. `setUp`: Called when the trigger is first created (i.e., when the application is first run). Creates any necessary resources/state, using the `self.setState` method.
+1. `setUp`: Called when the trigger is first created (i.e., when the application is first run). Creates any necessary resources/state and returns a state dictionary object.
 
 On every fire of the trigger, the following methods are called with the parameters `id` (id of the record that was set) and `triggered_by` ((namespace, key, value) NamedTuple), in this order:
 
 2. `shouldInfer`: Returns `True` if `infer` should be run, and `False` otherwise.
 3. `infer`: Called if `shouldInfer` returns `True`. 
 4. `shouldFit`: Called after `infer` is run. Returns `True` if `fit` should be run, and `False` otherwise.
-5. `fit`: Called if `shouldFit` returns `True`. In the future, this method will be run in a separate thread.
+5. `fit`: Called if `shouldFit` returns `True`. Returns a state dictionary object with any updated state (if state doesn't update, the dictionary can be empty). In the future, this method will be run in a separate thread.
 
-Each Trigger object has access to the store via `self.store` attribute and a state updating method `self.SetState({some_key: some_var})`. Any lifecycle method is allowed to call `self.store.set` to update the store, potientially firing more triggers. **Only the `setUp` and `fit` methods are allowed to call `self.setState` to update the state.** State should not be updated in any other method, as this will cause concurrency issues down the road. Additionally, state should only be updated via `self.setState`, not by directly updating the `self.state` attribute like `self.state["some_key"] = some_var`.
+Each Trigger object has access to the store via `self.store` attribute and the ability to update state in certain lifecycle methods. Any lifecycle method is allowed to call `self.store.set` to update the store, potientially firing more triggers. **Only the `setUp` and `fit` methods return new state.** State should not be updated manually within lifecycle methods, as this will cause concurrency issues down the road. Additionally, state should only be updated via returning updated state for some keys in a dictionary in `setUp` and `fit`, not by directly updating the `self.state` attribute like `self.state["some_key"] = some_var`.
 
 To recap, here is a table of lifecycle methods and acceptable write actions:
 
 | Lifecycle Method | Acceptable Actions |
 |------------------|--------------------|
-| `setUp`          | `self.setState`, `self.store.set`    |
+| `setUp`          | Returning state, `self.store.set`    |
 | `shouldInfer`    | `self.store.set`    |
 | `infer`          | `self.store.set`    |
 | `shouldFit`      | `self.store.set`    |
-| `fit`            | `self.setState`, `self.store.set`    |
+| `fit`            | Returning state, `self.store.set`    |
 
 Finally, here is a simple example of a trigger that runs an LLM to suggest an outfit idea given a query:
 
@@ -119,7 +115,7 @@ import motion
 class SuggestIdea(motion.Trigger):
     def setUp(self):
         # Set up the query suggestion model
-        self.setState({"cohere": cohere.Client(os.environ["COHERE_API_KEY"])})
+        return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
     def shouldFit(self, id, triggered_by):
         # Check if fit should be called

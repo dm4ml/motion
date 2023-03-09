@@ -19,7 +19,7 @@ from PIL import Image
 class SuggestIdea(motion.Trigger):
     def setUp(self):
         # Set up the query suggestion model
-        self.setState({"cohere": cohere.Client(os.environ["COHERE_API_KEY"])})
+        return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
     def shouldFit(self, id, triggered_by):
         # Check if fit should be called
@@ -67,16 +67,16 @@ class Retrieval(motion.Trigger):
         model, preprocess = clip.load("ViT-B/32", device=device)
 
         # Set up state
-        self.setState(
-            {
-                "device": device,
-                "model": model,
-                "preprocess": preprocess,
-                "k": 5,
-                "index_to_id": {},
-            }
-        )
-        self.createIndex()
+        state = {
+            "device": device,
+            "model": model,
+            "preprocess": preprocess,
+            "k": 5,
+        }
+        index = self.createIndex()
+        if index:
+            state.update(index)
+        return state
 
     def shouldFit(self, id, triggered_by):
         # Check if fit should be called
@@ -95,19 +95,29 @@ class Retrieval(motion.Trigger):
     def fit(self, id, triggered_by):
         if triggered_by.key == "img_blob":
             self.embedImage(id, triggered_by.value)
-            return
 
-        # Fine-tune model every 100 positive feedbacks on the most recent
+            # Add the normalized image to the FAISS index every 10 iterations
+            if id % 10 == 0:
+                index = self.createIndex()
+                return index
+
+            else:
+                return {}
+
+        # Fine-tune model every 5 positive feedbacks on the most recent
         # 100 positive feedbacks
         positive_feedback_ids = self.store.getIdsForKey(
             "query", "feedback", True
-        )[:50]
+        )[:5]
 
         if (
             len(positive_feedback_ids) > 0
-            and len(positive_feedback_ids) % 50 == 0
+            and len(positive_feedback_ids) % 5 == 0
         ):
-            self.fineTune(positive_feedback_ids)
+            new_state = self.fineTune(positive_feedback_ids)
+            return new_state
+        else:
+            return {}
 
     def fineTune(self, positive_feedback_ids):
         logging.info(
@@ -135,7 +145,6 @@ class Retrieval(motion.Trigger):
             img_blobs=img_blobs_and_captions.img_blob.values,
             captions=img_blobs_and_captions.text_suggestion.values,
         )
-        self.setState({"model": new_model})
 
         ids_and_blobs = self.store.sql(
             "SELECT id, img_blob FROM fashion.catalog WHERE img_embedding IS NOT NULL"
@@ -144,6 +153,11 @@ class Retrieval(motion.Trigger):
         # Re-embed all the images
         for _, row in ids_and_blobs.iterrows():
             self.embedImage(row["id"], row["img_blob"])
+
+        new_state = {"model": new_model}
+        new_state.update(self.createIndex())
+
+        return new_state
 
     def embedImage(self, id, img_blob):
         with torch.no_grad():
@@ -160,10 +174,6 @@ class Retrieval(motion.Trigger):
             key_values={"img_embedding": image_features.squeeze().tolist()},
         )
 
-        # Add the normalized image to the FAISS index every 10 iterations
-        if id % 10 == 0:
-            self.createIndex()
-
     def createIndex(self):
         index = faiss.IndexFlatIP(512)
         id_embedding = self.store.sql(
@@ -177,7 +187,7 @@ class Retrieval(motion.Trigger):
         new_index_to_id = {}
         for old_id in ids:
             new_index_to_id[len(new_index_to_id)] = old_id
-        self.setState({"index": index, "index_to_id": new_index_to_id})
+        return {"index": index, "index_to_id": new_index_to_id}
 
     def inferText(self, id, text):
         with torch.no_grad():
