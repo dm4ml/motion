@@ -4,10 +4,12 @@ cohere
 duckdb
 dill
 faiss-cpu
+html5lib
 numpy
 openai
+openai-clip
 pandas
-pytorch
 streamlit
+torch
 torchvision
 tqdm
