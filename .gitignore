@@ -8,3 +8,4 @@
 *faiss_index/*
 scratch.py
 datastores*
+*.egg-info

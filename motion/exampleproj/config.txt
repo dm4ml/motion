@@ -1,0 +1,8 @@
+from {0}.schemas import Chat
+from {0}.triggers import Chatbot
+
+config = {
+    "application": {"name": "chatbot", "author": "Goldilocks"},
+    "namespaces": [{"chat": Chat}],
+    "triggers": [{["chat.prompt"]: Chatbot}],
+}
