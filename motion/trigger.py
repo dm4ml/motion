@@ -1,5 +1,5 @@
-import copy
 import inspect
+import multiprocessing
 import typing
 
 from abc import ABC, abstractmethod
@@ -73,3 +73,34 @@ class Trigger(ABC):
         if new_state:
             self._state.update(new_state)
             self._version += 1
+
+    async def fitConsumer(self):
+        while True:
+            cursor, trigger_name, id, triggered_by = await self.fit_queue.get()
+            old_version = self.version
+            new_state = self.fit(cursor, id, triggered_by)
+            self.update(new_state)
+            self.logTriggerExecution(
+                trigger_name,
+                old_version,
+                "fit",
+                triggered_by.namespace,
+                id,
+                triggered_by.key,
+            )
+            self.fit_queue.task_done()
+
+    def fitWrapper(
+        self, cursor, trigger_name, id, triggered_by: TriggerElement
+    ):
+        old_version = self.version
+        new_state = self.fit(cursor, id, triggered_by)
+        self.update(new_state)
+        cursor.logTriggerExecution(
+            trigger_name,
+            old_version,
+            "fit",
+            triggered_by.namespace,
+            id,
+            triggered_by.key,
+        )

@@ -2,7 +2,7 @@
 Database connection, with functions that a users is allowed to
 call within trigger lifecycle methods.
 """
-
+import asyncio
 import logging
 import pandas as pd
 import typing
@@ -208,20 +208,8 @@ class Connection(object):
                 trigger_elem,
             ):
                 # TODO(shreyashankar): Asynchronously trigger this
-                old_version = trigger_fn.version
-                new_state = trigger_fn.fit(
-                    new_connection,
-                    id,
-                    trigger_elem,
-                )
-                trigger_fn.update(new_state)
-                self.logTriggerExecution(
-                    trigger_name,
-                    old_version,
-                    "fit",
-                    trigger_elem.namespace,
-                    id,
-                    trigger_elem.key,
+                trigger_fn.fitWrapper(
+                    new_connection, trigger_name, id, trigger_elem
                 )
 
         logging.info(f"Finished running trigger {trigger_name}.")
