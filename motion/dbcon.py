@@ -168,9 +168,9 @@ class Connection(object):
 
         if not isTransform:
             trigger_fn(
+                new_connection,
                 id,
                 trigger_elem,
-                new_connection,
             )
             # Log the trigger execution
             self.logTriggerExecution(
