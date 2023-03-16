@@ -12,12 +12,31 @@ from motion.trigger import TriggerElement, TriggerFn
 
 
 class Connection(object):
-    def __init__(self, name, db_con, table_columns, triggers, write_lock):
+    def __init__(
+        self,
+        name,
+        db_con,
+        table_columns,
+        triggers,
+        write_lock,
+        wait_for_results=False,
+    ):
         self.name = name
         self.cur = db_con.cursor()
         self.table_columns = table_columns
         self.triggers = triggers
         self.write_lock = write_lock
+        self.wait_for_results = wait_for_results
+        self.fit_events = []
+
+    def __del__(self):
+        if self.wait_for_results:
+            self.waitForResults()
+
+    def waitForResults(self):
+        for e in self.fit_events:
+            e.wait()
+        self.fit_events = []
 
     def getNewId(self, namespace: str, key: str = "id") -> int:
         """Get a new id for a namespace.
@@ -151,7 +170,10 @@ class Connection(object):
         )
 
     def executeTrigger(
-        self, id: int, trigger: TriggerFn, trigger_elem: TriggerElement
+        self,
+        id: int,
+        trigger: TriggerFn,
+        trigger_elem: TriggerElement,
     ):
         """Execute a trigger.
 
@@ -170,6 +192,7 @@ class Connection(object):
             self.table_columns,
             self.triggers,
             self.write_lock,
+            self.wait_for_results,
         )
 
         if not isTransform:
@@ -188,8 +211,6 @@ class Connection(object):
                 trigger_elem.key,
             )
 
-            # Close the connection
-            new_connection.cur.close()
             logging.info(
                 f"Finished running trigger {trigger_name} for id {id}."
             )
@@ -220,14 +241,12 @@ class Connection(object):
                 id,
                 trigger_elem,
             ):
+                fit_event = threading.Event()
                 trigger_fn.fitWrapper(
-                    new_connection,
-                    trigger_name,
-                    id,
-                    trigger_elem,
+                    new_connection, trigger_name, id, trigger_elem, fit_event
                 )
+                self.fit_events.append(fit_event)
             else:
-                new_connection.cur.close()
                 logging.info(
                     f"Finished running trigger {trigger_name} for id {id}."
                 )

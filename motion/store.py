@@ -94,7 +94,9 @@ class Store(object):
     def listening(self):
         return self._listening
 
-    def cursor(self, bypass_listening: bool = False):
+    def cursor(
+        self, bypass_listening: bool = False, wait_for_results: bool = False
+    ):
         """Generates a new cursor for the database, with triggers and all.
 
         Returns:
@@ -111,6 +113,7 @@ class Store(object):
             self.table_columns,
             self.triggers,
             self.db_write_lock,
+            wait_for_results,
         )
 
     def addLogTable(self):
@@ -328,7 +331,11 @@ class Store(object):
         for cron_expression, triggers in self.cron_triggers.items():
             self.cron_threads[cron_expression] = []
             for trigger_fn in triggers:
-                t = TaskThread(cron_expression, self.cursor(), trigger_fn)
+                t = TaskThread(
+                    cron_expression,
+                    self.cursor(wait_for_results=True),
+                    trigger_fn,
+                )
                 self.cron_threads[cron_expression].append(t)
                 t.start()
 

@@ -5,6 +5,7 @@ import typing
 
 from abc import ABC, abstractmethod
 from collections import namedtuple
+from queue import SimpleQueue
 
 TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
 TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
@@ -12,12 +13,6 @@ TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
 class Trigger(ABC):
     def __init__(self, cursor, name, version):
-        self._state = {}
-        self._state_lock = threading.Lock()
-        self._fit_lock = threading.Lock()
-        self._version = version
-        self.update(self.setUp(cursor))
-
         # Validate number of arguments in each trigger
         if len(inspect.signature(self.setUp).parameters) != 1:
             raise ValueError(
@@ -43,6 +38,21 @@ class Trigger(ABC):
             raise ValueError(
                 f"infer() of trigger {name} should have 3 arguments"
             )
+
+        self._state = {}
+        # self._state_lock = threading.Lock()
+        # self._fit_lock = threading.Lock()
+        self._version = version
+        self.update(self.setUp(cursor))
+
+        self._fit_queue = SimpleQueue()
+        self._fit_thread = threading.Thread(
+            target=self.processFitQueue,
+            args=(self._fit_queue,),
+            daemon=True,
+            name=f"{name}_fit_thread",
+        )
+        self._fit_thread.start()
 
     @abstractmethod
     def setUp(self, cursor):
@@ -80,8 +90,10 @@ class Trigger(ABC):
     def fitAndLogAsync(
         self, cursor, trigger_name, identifier, triggered_by: TriggerElement
     ):
+        # TODO(shreyashankar): turn this into a queue so tasks execute
+        # in order
+
         with self._fit_lock:
-            logging.info(f"Acquired fit lock for trigger {trigger_name}")
             new_state = self.fit(cursor, identifier, triggered_by)
             with self._state_lock:
                 old_version = self.version
@@ -99,15 +111,49 @@ class Trigger(ABC):
             identifier,
             triggered_by.key,
         )
-        cursor.cur.close()
+
+    def processFitQueue(self, queue):
+        while True:
+            (
+                cursor,
+                trigger_name,
+                identifier,
+                triggered_by,
+                fit_event,
+            ) = queue.get()
+            new_state = self.fit(cursor, identifier, triggered_by)
+            old_version = self.version
+            self.update(new_state)
+
+            logging.info(
+                f"Finished running trigger {trigger_name} for id {identifier}."
+            )
+
+            cursor.logTriggerExecution(
+                trigger_name,
+                old_version,
+                "fit",
+                triggered_by.namespace,
+                identifier,
+                triggered_by.key,
+            )
+            fit_event.set()
 
     def fitWrapper(
-        self, cursor, trigger_name, id, triggered_by: TriggerElement
+        self,
+        cursor,
+        trigger_name,
+        id,
+        triggered_by: TriggerElement,
+        fit_event: threading.Event,
     ):
-        thread = threading.Thread(
-            target=self.fitAndLogAsync,
-            args=(cursor, trigger_name, id, triggered_by),
+        # thread = threading.Thread(
+        #     target=self.fitAndLogAsync,
+        #     args=(cursor, trigger_name, id, triggered_by),
+        # )
+        # thread.start()
+        self._fit_queue.put(
+            (cursor, trigger_name, id, triggered_by, fit_event)
         )
-        thread.start()
 
-        # self.fitAndLogAsync(cursor, trigger_name, id, triggered_by)
+        # return thread

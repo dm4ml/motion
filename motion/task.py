@@ -37,8 +37,11 @@ class TaskThread(threading.Thread):
             )
 
             self.cur.executeTrigger(
-                id=None, trigger=self.trigger_fn, trigger_elem=trigger_elem
+                id=None,
+                trigger=self.trigger_fn,
+                trigger_elem=trigger_elem,
             )
+            self.cur.waitForResults()
 
     def stop(self):
         logging.info(f"Stopping task thread for name {self.trigger_fn.name}")
