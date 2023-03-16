@@ -120,7 +120,7 @@ class Store(object):
         """Creates a table to store trigger logs."""
 
         self.con.execute(
-            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, id INTEGER, trigger_key VARCHAR)"
+            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier INTEGER, trigger_key VARCHAR)"
         )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
@@ -154,7 +154,7 @@ class Store(object):
             .fetchdf()["column_name"]
             .tolist()
         )
-        self.table_columns[name].remove("id")
+        self.table_columns[name].remove("identifier")
         self.table_columns[name].remove("derived_id")
 
         # Persist

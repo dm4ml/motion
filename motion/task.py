@@ -17,6 +17,7 @@ class TaskThread(threading.Thread):
         self.cur = cursor
         self.trigger_fn = trigger_fn
         self.running = True
+        self.first_run = True
 
     def run(self):
         while self.running:
@@ -26,22 +27,28 @@ class TaskThread(threading.Thread):
             delay = (next_time - datetime.now()).total_seconds()
 
             # Wait until the scheduled time
-            if delay > 0:
-                time.sleep(delay)
+            if not self.first_run:
+                if delay > 0:
+                    time.sleep(delay)
+                else:
+                    continue
             else:
-                continue
+                self.first_run = False
 
-            # sleep for interval or until shutdown
+            # Run trigger
             trigger_elem = TriggerElement(
                 namespace=None, key=self.cron_expression, value=None
             )
 
             self.cur.executeTrigger(
-                id=None,
+                identifier=None,
                 trigger=self.trigger_fn,
                 trigger_elem=trigger_elem,
             )
             self.cur.waitForResults()
+            logging.info(
+                f"Finished waiting for background task {self.trigger_fn.name}."
+            )
 
     def stop(self):
         logging.info(f"Stopping task thread for name {self.trigger_fn.name}")

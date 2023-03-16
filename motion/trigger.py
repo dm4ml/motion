@@ -1,7 +1,7 @@
 import inspect
 import logging
 import threading
-import typing
+import sys
 
 from abc import ABC, abstractmethod
 from collections import namedtuple
@@ -41,12 +41,16 @@ class Trigger(ABC):
 
         self._state = {}
         self._version = version
+        self._last_fit_id = -sys.maxsize - 1
         self.update(self.setUp(cursor))
+
+        # self._fit_lock = threading.Lock()
+        # self._state_lock = threading.Lock()
 
         self._fit_queue = SimpleQueue()
         self._fit_thread = threading.Thread(
             target=self.processFitQueue,
-            args=(self._fit_queue,),
+            # args=(self._fit_queue,),
             daemon=True,
             name=f"{name}_fit_thread",
         )
@@ -57,19 +61,19 @@ class Trigger(ABC):
         pass
 
     @abstractmethod
-    def shouldFit(self, cursor, id, triggered_by: TriggerElement):
+    def shouldFit(self, cursor, identifier, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def fit(self, cursor, id, triggered_by: TriggerElement):
+    def fit(self, cursor, identifier, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def shouldInfer(self, cursor, id, triggered_by: TriggerElement):
+    def shouldInfer(self, cursor, identifier, triggered_by: TriggerElement):
         pass
 
     @abstractmethod
-    def infer(self, cursor, id, triggered_by: TriggerElement):
+    def infer(self, cursor, identifier, triggered_by: TriggerElement):
         pass
 
     @property
@@ -80,12 +84,16 @@ class Trigger(ABC):
     def version(self):
         return self._version
 
+    @property
+    def last_fit_id(self):
+        return self._last_fit_id
+
     def update(self, new_state):
         if new_state:
             self._state.update(new_state)
             self._version += 1
 
-    def processFitQueue(self, queue):
+    def processFitQueue(self):
         while True:
             (
                 cursor,
@@ -93,13 +101,13 @@ class Trigger(ABC):
                 identifier,
                 triggered_by,
                 fit_event,
-            ) = queue.get()
+            ) = self._fit_queue.get()
             new_state = self.fit(cursor, identifier, triggered_by)
             old_version = self.version
             self.update(new_state)
 
             logging.info(
-                f"Finished running trigger {trigger_name} for id {identifier}."
+                f"Finished running trigger {trigger_name} for identifier {identifier} and key {triggered_by.key}."
             )
 
             cursor.logTriggerExecution(
@@ -112,14 +120,49 @@ class Trigger(ABC):
             )
             fit_event.set()
 
+    # def fitAndLogAsync(
+    #     self, cursor, trigger_name, identifier, triggered_by: TriggerElement
+    # ):
+    #     with self._fit_lock:
+    #         if self.last_fit_id >= identifier:
+    #             logging.info(
+    #                 f"Finished running trigger {trigger_name} for id {identifier}."
+    #             )
+    #             return
+
+    #         new_state = self.fit(cursor, identifier, triggered_by)
+    #         with self._state_lock:
+    #             old_version = self.version
+    #             self.update(new_state)
+    #             self._last_fit_id = identifier
+
+    #         logging.info(
+    #             f"Finished running trigger {trigger_name} for id {identifier}."
+    #         )
+
+    #     cursor.logTriggerExecution(
+    #         trigger_name,
+    #         old_version,
+    #         "fit",
+    #         triggered_by.namespace,
+    #         identifier,
+    #         triggered_by.key,
+    #     )
+
     def fitWrapper(
         self,
         cursor,
         trigger_name,
-        id,
+        identifier,
         triggered_by: TriggerElement,
-        fit_event: threading.Event,
     ):
+        fit_event = threading.Event()
         self._fit_queue.put(
-            (cursor, trigger_name, id, triggered_by, fit_event)
+            (cursor, trigger_name, identifier, triggered_by, fit_event)
         )
+        # thread = threading.Thread(
+        #     target=self.fitAndLogAsync,
+        #     args=(cursor, trigger_name, identifier, triggered_by),
+        # )
+        # thread.start()
+        return fit_event

@@ -14,4 +14,6 @@ def sample_prompt_generator(cursor):
     rand_idx = random.randint(0, len(all_prompts) - 1)
 
     new_id = cursor.getNewId("catalog")
-    cursor.set("chat", id=new_id, key_values={"prompt": all_prompts[rand_idx]})
+    cursor.set(
+        "chat", identifier=new_id, key_values={"prompt": all_prompts[rand_idx]}
+    )

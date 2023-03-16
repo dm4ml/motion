@@ -146,7 +146,7 @@ class SuggestIdea(motion.Trigger):
         )
     
         self.store.set(
-            "query", id=id, key_values={"text_suggestion": response[0].text}
+            "query", identifier=identifier, key_values={"text_suggestion": response[0].text}
         )
 ```
 

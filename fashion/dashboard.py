@@ -21,7 +21,7 @@ def run_query(query):
 
     created_id = cursor.set(
         "query",
-        id=None,
+        identifier=None,
         key_values={
             "query": query,
             "src": QuerySource.ONLINE,
@@ -33,21 +33,21 @@ def run_query(query):
     # (i.e., best match) for each img_id
     results = cursor.get(
         "query",
-        id=created_id,
-        keys=["id", "text_suggestion", "img_id", "img_score"],
+        identifier=created_id,
+        keys=["identifier", "text_suggestion", "img_id", "img_score"],
         include_derived=True,
     )
     results = results.loc[
         results.groupby("img_id").img_score.idxmin()
     ].reset_index(drop=True)
-    results.rename(columns={"id": "qid"}, inplace=True)
+    results.rename(columns={"identifier": "qid"}, inplace=True)
 
     # Retrieve the image url and permalink for each img_id
     image_results = cursor.mget(
         "catalog",
-        ids=results["img_id"].values,
+        identifiers=results["img_id"].values,
         keys=["img_url", "permalink"],
-    ).merge(results, left_on="id", right_on="img_id")
+    ).merge(results, left_on="identifier", right_on="img_id")
 
     return image_results
 
@@ -71,7 +71,7 @@ if query:
             label="Like this",
             on_click=lambda x: store.cursor().set(
                 "query",
-                id=x,
+                identifier=x,
                 key_values={"feedback": True},
             ),
             args=(row["qid"],),

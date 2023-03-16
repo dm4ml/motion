@@ -17,7 +17,7 @@ class MEnum(Enum):
 
 @dataclass(kw_only=True)
 class Schema(ABC):
-    id: int
+    identifier: int
     derived_id: int
     create_at: datetime
 
@@ -26,8 +26,8 @@ class Schema(ABC):
 
     def __post_init__(self):
         # Check id, ts are not None
-        if self.id is None or self.create_at is None:
-            raise ValueError("id and create_at must be defined.")
+        if self.identifier is None or self.create_at is None:
+            raise ValueError("identifier and create_at must be defined.")
 
     @classmethod
     def formatCreateStmts(cls, table_name: str) -> typing.List[str]:
@@ -36,13 +36,13 @@ class Schema(ABC):
         user_defined_fields = [
             f
             for f in fields
-            if not f.name == "id"
+            if not f.name == "identifier"
             and not f.name == "create_at"
             and not f.name == "derived_id"
         ]
 
         names_and_types = [
-            "id INT NOT NULL PRIMARY KEY",
+            "identifier INT NOT NULL PRIMARY KEY",
             "derived_id INT DEFAULT -1",
             "create_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         ]

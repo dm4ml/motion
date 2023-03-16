@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from fashion.schemas import Retailer
 
 
-def scrape_everlane(cursor, id, triggered_by):
+def scrape_everlane(cursor, identifier, triggered_by):
     # Scrape the catalog and add the images to the store
     urls = [
         # "https://www.everlane.com/collections/womens-sale-2",
@@ -64,7 +64,14 @@ def scrape_everlane(cursor, id, triggered_by):
         .reset_index(drop=True)
     )
     logging.info(f"Found {len(df)} unique products.")
-    # df = df.head(10)
+    df = df.head(100)
+
+    # Filter out products that are already in the store
+    existing_img_urls = cursor.sql("SELECT img_url FROM fashion.catalog")[
+        "img_url"
+    ].values
+    df = df[~df["img_url"].isin(existing_img_urls)]
+    logging.info(f"Found {len(df)} new products.")
 
     # Get blobs from the images
     img_urls, contents = asyncio.run(
@@ -84,4 +91,4 @@ def scrape_everlane(cursor, id, triggered_by):
                 "img_blob": img_url_to_content[product_row["img_url"]],
             }
         )
-        cursor.set("catalog", id=new_id, key_values=product)
+        cursor.set("catalog", identifier=new_id, key_values=product)

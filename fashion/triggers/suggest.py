@@ -9,10 +9,10 @@ class SuggestIdea(motion.Trigger):
         # Set up the query suggestion model
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def shouldInfer(self, cursor, id, triggered_by):
+    def shouldInfer(self, cursor, identifier, triggered_by):
         return True
 
-    def infer(self, cursor, id, triggered_by):
+    def infer(self, cursor, identifier, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
@@ -34,13 +34,15 @@ class SuggestIdea(motion.Trigger):
         suggestions = [s for s in suggestions if s != ""]
 
         for s in suggestions:
-            new_id = cursor.duplicate("query", id=id)
-            cursor.set("query", id=new_id, key_values={"text_suggestion": s})
+            new_id = cursor.duplicate("query", identifier=identifier)
+            cursor.set(
+                "query", identifier=new_id, key_values={"text_suggestion": s}
+            )
 
-    def shouldFit(self, cursor, id, triggered_by):
+    def shouldFit(self, cursor, identifier, triggered_by):
         # Check if fit should be called
         return False
 
-    def fit(self, cursor, id, triggered_by):
+    def fit(self, cursor, identifier, triggered_by):
         # Fine-tune or fit the query suggestion model
         pass
