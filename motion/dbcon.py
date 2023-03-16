@@ -12,11 +12,12 @@ from motion.trigger import TriggerElement, TriggerFn
 
 
 class Connection(object):
-    def __init__(self, name, db_con, table_columns, triggers):
+    def __init__(self, name, db_con, table_columns, triggers, write_lock):
         self.name = name
         self.cur = db_con.cursor()
         self.table_columns = table_columns
         self.triggers = triggers
+        self.write_lock = write_lock
 
     def getNewId(self, namespace: str, key: str = "id") -> int:
         """Get a new id for a namespace.
@@ -32,9 +33,11 @@ class Connection(object):
         self.cur.execute(
             f"CREATE SEQUENCE IF NOT EXISTS {self.name}.{namespace}_{key}_seq;"
         )
-        return self.cur.execute(
+        new_id = self.cur.execute(
             f"SELECT NEXTVAL('{self.name}.{namespace}_{key}_seq')"
         ).fetchone()[0]
+        # logging.info(f"New id for {namespace} is {new_id}")
+        return new_id
 
     def exists(self, namespace: str, id: int) -> bool:
         """Determine if a record exists in a namespace.
@@ -76,29 +79,31 @@ class Connection(object):
                 key_values.update({key: value.value})
 
         if not self.exists(namespace, id):
-            query_string = (
-                f"INSERT INTO {self.name}.{namespace} (id, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))})",
-                (id, *key_values.values()),
-            )
-            self.cur.execute(*query_string)
+            with self.write_lock:
+                query_string = (
+                    f"INSERT INTO {self.name}.{namespace} (id, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))})",
+                    (id, *key_values.values()),
+                )
+                self.cur.execute(*query_string)
 
         else:
             # Delete and re-insert the row with the new value
             old_row = self.cur.execute(
                 f"SELECT * FROM {self.name}.{namespace} WHERE id = {id}"
             ).fetch_df()
-            self.cur.execute(
-                f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
-            )
+            # self.cur.execute(
+            #     f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
+            # )
+            # logging.info(f"Deleted row {id} from {namespace}.")
 
             # Update the row with the new value
             for key, value in key_values.items():
                 old_row.at[0, key] = value
 
-            query_string = (
-                f"INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;"
-            )
-            self.cur.execute(query_string)
+            with self.write_lock:
+                self.cur.execute(
+                    f"""DELETE FROM {self.name}.{namespace} WHERE id = {id}; INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;""",
+                )
 
         # Run triggers
         executed = set()
@@ -160,7 +165,11 @@ class Connection(object):
             f"Running trigger {trigger_name} for id {id}, key {trigger_elem.key}..."
         )
         new_connection = Connection(
-            self.name, self.cur, self.table_columns, self.triggers
+            self.name,
+            self.cur,
+            self.table_columns,
+            self.triggers,
+            self.write_lock,
         )
 
         if not isTransform:
@@ -234,9 +243,12 @@ class Connection(object):
             int: The new id of the duplicated record.
         """
         new_id = self.getNewId(namespace)
-        self.cur.execute(
-            f"INSERT INTO {self.name}.{namespace} SELECT {new_id} AS id, {id} AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE id = {id}"
-        )
+
+        with self.write_lock:
+            self.cur.execute(
+                f"INSERT INTO {self.name}.{namespace} SELECT {new_id} AS id, {id} AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE id = {id}"
+            )
+
         return new_id
 
     def get(

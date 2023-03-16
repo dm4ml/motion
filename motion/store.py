@@ -4,6 +4,7 @@ import inspect
 import logging
 import os
 import pandas as pd
+import threading
 import typing
 
 from collections import namedtuple
@@ -59,6 +60,7 @@ class Store(object):
                 os.path.join(datastore_prefix, name, "duck.db")
             )
         )
+        self.db_write_lock = threading.Lock()
 
         self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
         self.addLogTable()
@@ -104,7 +106,11 @@ class Store(object):
             )
 
         return Connection(
-            self.name, self.con, self.table_columns, self.triggers
+            self.name,
+            self.con,
+            self.table_columns,
+            self.triggers,
+            self.db_write_lock,
         )
 
     def addLogTable(self):
