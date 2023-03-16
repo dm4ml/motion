@@ -1,5 +1,6 @@
 import inspect
-import multiprocessing
+import logging
+import threading
 import typing
 
 from abc import ABC, abstractmethod
@@ -12,6 +13,8 @@ TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 class Trigger(ABC):
     def __init__(self, cursor, name, version):
         self._state = {}
+        self._state_lock = threading.Lock()
+        self._fit_lock = threading.Lock()
         self._version = version
         self.update(self.setUp(cursor))
 
@@ -74,28 +77,15 @@ class Trigger(ABC):
             self._state.update(new_state)
             self._version += 1
 
-    async def fitConsumer(self):
-        while True:
-            cursor, trigger_name, id, triggered_by = await self.fit_queue.get()
-            old_version = self.version
-            new_state = self.fit(cursor, id, triggered_by)
-            self.update(new_state)
-            self.logTriggerExecution(
-                trigger_name,
-                old_version,
-                "fit",
-                triggered_by.namespace,
-                id,
-                triggered_by.key,
-            )
-            self.fit_queue.task_done()
-
-    def fitWrapper(
+    def fitAndLogAsync(
         self, cursor, trigger_name, id, triggered_by: TriggerElement
     ):
-        old_version = self.version
-        new_state = self.fit(cursor, id, triggered_by)
-        self.update(new_state)
+        with self._fit_lock:
+            new_state = self.fit(cursor, id, triggered_by)
+            with self._state_lock:
+                old_version = self.version
+                self.update(new_state)
+
         cursor.logTriggerExecution(
             trigger_name,
             old_version,
@@ -104,3 +94,14 @@ class Trigger(ABC):
             id,
             triggered_by.key,
         )
+        cursor.cur.close()
+        logging.info(f"Finished running trigger {trigger_name} for id {id}.")
+
+    def fitWrapper(
+        self, cursor, trigger_name, id, triggered_by: TriggerElement
+    ):
+        thread = threading.Thread(
+            target=self.fitAndLogAsync,
+            args=(cursor, trigger_name, id, triggered_by),
+        )
+        thread.start()

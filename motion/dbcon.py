@@ -2,9 +2,9 @@
 Database connection, with functions that a users is allowed to
 call within trigger lifecycle methods.
 """
-import asyncio
 import logging
 import pandas as pd
+import threading
 import typing
 
 from enum import Enum
@@ -17,9 +17,6 @@ class Connection(object):
         self.cur = db_con.cursor()
         self.table_columns = table_columns
         self.triggers = triggers
-
-    def __del__(self):
-        self.cur.close()
 
     def getNewId(self, namespace: str, key: str = "id") -> int:
         """Get a new id for a namespace.
@@ -181,6 +178,13 @@ class Connection(object):
                 id,
                 trigger_elem.key,
             )
+
+            # Close the connection
+            new_connection.cur.close()
+            logging.info(
+                f"Finished running trigger {trigger_name} for id {id}."
+            )
+
         else:
             # Execute the transform lifecycle
             if trigger_fn.shouldInfer(
@@ -207,12 +211,17 @@ class Connection(object):
                 id,
                 trigger_elem,
             ):
-                # TODO(shreyashankar): Asynchronously trigger this
                 trigger_fn.fitWrapper(
-                    new_connection, trigger_name, id, trigger_elem
+                    new_connection,
+                    trigger_name,
+                    id,
+                    trigger_elem,
                 )
-
-        logging.info(f"Finished running trigger {trigger_name}.")
+            else:
+                new_connection.cur.close()
+                logging.info(
+                    f"Finished running trigger {trigger_name} for id {id}."
+                )
 
     def duplicate(self, namespace: str, id: int) -> int:
         """Duplicate a record in a namespace. Doesn't run triggers.

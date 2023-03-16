@@ -36,4 +36,7 @@ def init(
             trigger=trigger,
         )
 
+    # Start store
+    store.start()
+
     return store

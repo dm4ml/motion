@@ -85,17 +85,20 @@ class Store(object):
         # Set listening to false
         self._listening = False
 
+    def __del__(self):
+        self.stop()
+
     @property
     def listening(self):
         return self._listening
 
-    def cursor(self):
+    def cursor(self, bypass_listening: bool = False):
         """Generates a new cursor for the database, with triggers and all.
 
         Returns:
             Connection: The cursor.
         """
-        if not self.listening:
+        if not self.listening and not bypass_listening:
             raise Exception(
                 "Store has not started. Call store.start() before using the cursor."
             )
@@ -243,7 +246,7 @@ class Store(object):
         ).fetchone()
         version = version[0] if version[0] else 0
         trigger_exec = (
-            trigger(self.cursor(), name, version)
+            trigger(self.cursor(bypass_listening=True), name, version)
             if inspect.isclass(trigger)
             else trigger
         )
@@ -277,8 +280,15 @@ class Store(object):
                 self.cron_triggers[key].remove(
                     (name, fn, isinstance(fn, Trigger))
                 )
+                for t in self.cron_threads[key]:
+                    if t.trigger_fn.name == name:
+                        t.stop()
+                        t.join()
+                        self.cron_threads[key].remove(t)
+
             else:
                 self.triggers[key].remove((name, fn, isinstance(fn, Trigger)))
+
         del self.trigger_names[name]
         del self.trigger_fns[name]
 
@@ -325,3 +335,5 @@ class Store(object):
                 t.join()
 
         self._listening = False
+
+        logging.info("Stopped store.")

@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 
@@ -7,7 +8,7 @@ from motion.trigger import TriggerElement, TriggerFn
 
 
 class TaskThread(threading.Thread):
-    """Thread that executes a task every N seconds"""
+    """Thread that executes a task on cron schedule."""
 
     def __init__(self, cron_expression, cursor, trigger_fn: TriggerFn):
         threading.Thread.__init__(self)
@@ -15,6 +16,7 @@ class TaskThread(threading.Thread):
         self.cron_expression = cron_expression
         self.cur = cursor
         self.trigger_fn = trigger_fn
+        self.running = True
 
     def run(self):
         while self.running:
@@ -26,6 +28,8 @@ class TaskThread(threading.Thread):
             # Wait until the scheduled time
             if delay > 0:
                 time.sleep(delay)
+            else:
+                continue
 
             # sleep for interval or until shutdown
             trigger_elem = TriggerElement(
@@ -37,4 +41,5 @@ class TaskThread(threading.Thread):
             )
 
     def stop(self):
+        logging.info(f"Stopping task thread for name {self.trigger_fn.name}")
         self.running = False

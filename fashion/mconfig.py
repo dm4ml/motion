@@ -1,9 +1,9 @@
 from fashion.schemas import QuerySchema, CatalogSchema
-from fashion.triggers import Retrieval, SuggestIdea, scrape_everlane_sale
+from fashion.triggers import Retrieval, SuggestIdea, scrape_everlane
 
 mconfig = {
     "application": {
-        "name": "chatbot",
+        "name": "fashion",
         "author": "shreyashankar",
         "version": "0.1",
     },
@@ -15,14 +15,6 @@ mconfig = {
             "query.text_suggestion",
             "query.feedback",
         ],
-        scrape_everlane_sale: ["*/1 * * * *"],
+        scrape_everlane: ["*/1 * * * *"],
     },
 }
-
-if __name__ == "__main__":
-    import motion
-
-    # TODO(fix this error where store needs to start before trigger objects are created)
-    store = motion.init(mconfig)
-
-    print("Initialized store")
