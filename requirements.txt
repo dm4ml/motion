@@ -1,6 +1,7 @@
 beautifulsoup4
 clip
 cohere
+croniter
 duckdb
 dill
 faiss-cpu

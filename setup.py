@@ -20,11 +20,13 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),
     install_requires=[
+        "duckdb",
         "click",
+        "croniter",
     ],
     entry_points="""
         [console_scripts]
-        motion=motion.entry:motion
+        motion=motion.cli:motion
     """,
     include_package_data=True,
 )

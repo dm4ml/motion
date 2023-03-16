@@ -1,33 +1,17 @@
 import streamlit as st
 
-from motion import get_store
-from triggers import SuggestIdea, Retrieval
-from schemas import QuerySchema, CatalogSchema, QuerySource
-from scrapers import scrape_everlane_sale
+import motion
+from mconfig import mconfig
+from schemas import QuerySource
 
 
 @st.cache_resource
 def setup_database():
-    # Create store and add triggers
-    store = get_store("fashion", create=True, memory=True)
-    store.addNamespace("query", QuerySchema)
-    store.addNamespace("catalog", CatalogSchema)
-
-    store.addTrigger(
-        name="suggest_idea",
-        keys=["query.query"],
-        trigger=SuggestIdea,
-    )
-    store.addTrigger(
-        name="retrieval",
-        keys=["catalog.img_blob", "query.text_suggestion", "query.feedback"],
-        trigger=Retrieval,
-    )
-
-    # Add the catalog
-    scrape_everlane_sale(store.cursor(), k=100)
-
+    store = motion.init(mconfig)
     return store
+
+
+store = setup_database()
 
 
 @st.cache_data(show_spinner="Fetching results...")
@@ -68,7 +52,6 @@ def run_query(query):
     return image_results
 
 
-store = setup_database()
 query = st.text_input("What to wear to")
 
 if query:

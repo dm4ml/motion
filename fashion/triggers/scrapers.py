@@ -4,13 +4,13 @@ import json
 import pandas as pd
 import requests
 
-from utils import async_download_image
+from fashion.triggers.utils import async_download_image
 
 from bs4 import BeautifulSoup
-from schemas import Retailer
+from fashion.schemas import Retailer
 
 
-def scrape_everlane_sale(cursor, k=20):
+def scrape_everlane(cursor, id, triggered_by):
     # Scrape the catalog and add the images to the store
     urls = [
         # "https://www.everlane.com/collections/womens-sale-2",
@@ -64,7 +64,7 @@ def scrape_everlane_sale(cursor, k=20):
         .reset_index(drop=True)
     )
     logging.info(f"Found {len(df)} unique products.")
-    df = df.head(k)
+    # df = df.head(10)
 
     # Get blobs from the images
     img_urls, contents = asyncio.run(
