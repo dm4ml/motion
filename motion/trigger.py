@@ -40,8 +40,6 @@ class Trigger(ABC):
             )
 
         self._state = {}
-        # self._state_lock = threading.Lock()
-        # self._fit_lock = threading.Lock()
         self._version = version
         self.update(self.setUp(cursor))
 
@@ -87,31 +85,6 @@ class Trigger(ABC):
             self._state.update(new_state)
             self._version += 1
 
-    def fitAndLogAsync(
-        self, cursor, trigger_name, identifier, triggered_by: TriggerElement
-    ):
-        # TODO(shreyashankar): turn this into a queue so tasks execute
-        # in order
-
-        with self._fit_lock:
-            new_state = self.fit(cursor, identifier, triggered_by)
-            with self._state_lock:
-                old_version = self.version
-                self.update(new_state)
-
-            logging.info(
-                f"Finished running trigger {trigger_name} for id {identifier}."
-            )
-
-        cursor.logTriggerExecution(
-            trigger_name,
-            old_version,
-            "fit",
-            triggered_by.namespace,
-            identifier,
-            triggered_by.key,
-        )
-
     def processFitQueue(self, queue):
         while True:
             (
@@ -147,13 +120,6 @@ class Trigger(ABC):
         triggered_by: TriggerElement,
         fit_event: threading.Event,
     ):
-        # thread = threading.Thread(
-        #     target=self.fitAndLogAsync,
-        #     args=(cursor, trigger_name, id, triggered_by),
-        # )
-        # thread.start()
         self._fit_queue.put(
             (cursor, trigger_name, id, triggered_by, fit_event)
         )
-
-        # return thread
