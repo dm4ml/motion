@@ -102,7 +102,17 @@ class Trigger(ABC):
                 triggered_by,
                 fit_event,
             ) = self._fit_queue.get()
-            new_state = self.fit(cursor, identifier, triggered_by)
+
+            try:
+                new_state = self.fit(cursor, identifier, triggered_by)
+            except Exception as e:
+                logging.error(
+                    f"Error while fitting trigger {trigger_name}: {e}"
+                )
+                fit_event.set()
+                continue
+            # new_state = self.fit(cursor, identifier, triggered_by)
+
             old_version = self.version
             self.update(new_state)
 
@@ -118,6 +128,7 @@ class Trigger(ABC):
                 identifier,
                 triggered_by.key,
             )
+
             fit_event.set()
 
     # def fitAndLogAsync(
@@ -160,6 +171,7 @@ class Trigger(ABC):
         self._fit_queue.put(
             (cursor, trigger_name, identifier, triggered_by, fit_event)
         )
+        # fit_event.wait()
         # thread = threading.Thread(
         #     target=self.fitAndLogAsync,
         #     args=(cursor, trigger_name, identifier, triggered_by),

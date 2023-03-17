@@ -8,7 +8,7 @@ class QuerySource(motion.MEnum):
 
 class Chat(motion.Schema):
     src: QuerySource
-    session_id: int
+    session_id: str
     prompt: str
     completion: str
     feedback: bool

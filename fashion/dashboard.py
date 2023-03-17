@@ -1,13 +1,13 @@
 import streamlit as st
 
 import motion
-from mconfig import mconfig
+from mconfig import MCONFIG
 from schemas import QuerySource
 
 
 @st.cache_resource
 def setup_database():
-    store = motion.init(mconfig)
+    store = motion.init(MCONFIG)
     return store
 
 

@@ -7,5 +7,5 @@
 *__pycache__*
 *faiss_index/*
 scratch.py
-datastores*
+*datastores*
 *.egg-info

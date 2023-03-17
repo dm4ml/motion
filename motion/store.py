@@ -12,7 +12,7 @@ from croniter import croniter
 from enum import Enum
 from motion import Trigger
 from motion.dbcon import Connection
-from motion.task import TaskThread
+from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerElement, TriggerFn
 
 CONNECTIONS = {}
@@ -42,24 +42,32 @@ class Store(object):
     def __init__(
         self,
         name: str,
-        memory: bool = True,
         datastore_prefix: str = "datastores",
+        checkpoint: str = "0 * * * *",
     ):
         self.name = name
-        self.memory = memory
 
-        if not memory and not os.path.exists(
-            os.path.join(datastore_prefix, name)
-        ):
-            os.makedirs(os.path.join(datastore_prefix, name))
+        self.con = duckdb.connect(":memory:")
+        if not os.path.exists(os.path.join(datastore_prefix, "db")):
+            os.makedirs(os.path.join(datastore_prefix, "db"))
+        else:
+            try:
+                self.con.execute(
+                    f"IMPORT DATABASE '{os.path.join(datastore_prefix, 'db')}'"
+                )
+            except duckdb.IOException as e:
+                logging.warning(
+                    f"Could not import database {name} from {datastore_prefix}. Error: {e}"
+                )
 
-        self.con = (
-            duckdb.connect(":memory:")
-            if self.memory
-            else duckdb.connect(
-                os.path.join(datastore_prefix, name, "duck.db")
-            )
-        )
+        # self.con = (
+        #     duckdb.connect(":memory:")
+        #     if self.memory
+        #     else duckdb.connect(
+        #         os.path.join(datastore_prefix, "db", "duck.db")
+        #     )
+        # )
+
         self.db_write_lock = threading.Lock()
 
         self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
@@ -73,19 +81,30 @@ class Store(object):
         self.table_columns = (
             dill.load(
                 open(
-                    os.path.join(datastore_prefix, name, "table_columns"), "rb"
+                    os.path.join(datastore_prefix, "db", "table_columns"),
+                    "rb",
                 )
             )
             if os.path.exists(
-                os.path.join(datastore_prefix, name, "table_columns")
+                os.path.join(datastore_prefix, "db", "table_columns")
             )
             else {}
         )
 
         self.datastore_prefix = datastore_prefix
+        self.checkpoint_interval = checkpoint
 
         # Set listening to false
         self._listening = False
+
+    def checkpoint(self):
+        """Checkpoint the store."""
+        with self.db_write_lock:
+            self.con.execute(
+                f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, 'db')}' (FORMAT PARQUET);"
+            )
+
+        # TODO: checkpoint trigger objects
 
     def __del__(self):
         self.stop()
@@ -120,7 +139,7 @@ class Store(object):
         """Creates a table to store trigger logs."""
 
         self.con.execute(
-            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier INTEGER, trigger_key VARCHAR)"
+            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier VARCHAR, trigger_key VARCHAR)"
         )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:
@@ -146,7 +165,7 @@ class Store(object):
             self.con.execute(stmt)
 
         # Create sequence for id
-        self.con.execute(f"CREATE SEQUENCE {self.name}.{name}_id_seq;")
+        # self.con.execute(f"CREATE SEQUENCE {self.name}.{name}_id_seq;")
 
         # Store column names
         self.table_columns[name] = (
@@ -158,14 +177,13 @@ class Store(object):
         self.table_columns[name].remove("derived_id")
 
         # Persist
-        if not self.memory:
-            dill.dump(
-                self.table_columns,
-                open(
-                    os.path.join(self.datastore_prefix, name, "table_columns"),
-                    "wb",
-                ),
-            )
+        dill.dump(
+            self.table_columns,
+            open(
+                os.path.join(self.datastore_prefix, "db", "table_columns"),
+                "wb",
+            ),
+        )
 
     def deleteNamespace(self, name: str) -> None:
         """Delete a namespace from the store.
@@ -175,20 +193,19 @@ class Store(object):
             name (str): The name of the namespace.
         """
         self.con.execute(f"DROP TABLE {self.name}.{name};")
-        self.con.execute(f"DROP SEQUENCE {self.name}.{name}_id_seq;")
+        # self.con.execute(f"DROP SEQUENCE {self.name}.{name}_id_seq;")
 
         # Remove column names
         del self.table_columns[name]
 
         # Persist
-        if not self.memory:
-            dill.dump(
-                self.table_columns,
-                open(
-                    os.path.join(self.datastore_prefix, name, "table_columns"),
-                    "wb",
-                ),
-            )
+        dill.dump(
+            self.table_columns,
+            open(
+                os.path.join(self.datastore_prefix, "db", "table_columns"),
+                "wb",
+            ),
+        )
 
     def addTrigger(
         self,
@@ -331,13 +348,20 @@ class Store(object):
         for cron_expression, triggers in self.cron_triggers.items():
             self.cron_threads[cron_expression] = []
             for trigger_fn in triggers:
-                t = TaskThread(
+                t = CronThread(
                     cron_expression,
                     self.cursor(wait_for_results=True),
                     trigger_fn,
+                    self.checkpoint,
                 )
                 self.cron_threads[cron_expression].append(t)
                 t.start()
+
+        # Start a thread to checkpoint the store every 5 minutes
+        self.checkpoint_thread = CheckpointThread(
+            self, self.checkpoint_interval
+        )
+        self.checkpoint_thread.start()
 
     def stop(self) -> None:
         """Stop the store."""
@@ -346,6 +370,8 @@ class Store(object):
             for t in threads:
                 t.stop()
                 t.join()
+
+        self.checkpoint_thread.stop()
 
         self._listening = False
 

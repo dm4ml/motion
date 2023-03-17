@@ -3,9 +3,7 @@ import os
 from motion.store import Store
 
 
-def init(
-    mconfig: dict, memory: bool = True, datastore_prefix: str = "datastores"
-) -> Store:
+def init(mconfig: dict) -> Store:
     """Initialize the motion store.
 
     Args:
@@ -21,8 +19,18 @@ def init(
 
     name = mconfig["application"]["name"]
     author = mconfig["application"]["author"]
+    datastore_prefix = (
+        mconfig["datastore_prefix"]
+        if "datastore_prefix" in mconfig
+        else "datastores"
+    )
+    checkpoint = (
+        mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
+    )
 
-    store = Store(name, memory=memory, datastore_prefix=datastore_prefix)
+    store = Store(
+        name, datastore_prefix=datastore_prefix, checkpoint=checkpoint
+    )
 
     # Create namespaces
     for namespace, schema in mconfig["namespaces"].items():

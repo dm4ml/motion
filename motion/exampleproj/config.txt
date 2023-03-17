@@ -4,6 +4,7 @@ from {0}.triggers import Chatbot
 mconfig = {
     "application": {"name": "chatbot", "author": "{1}", "version": "0.1"},
     "namespaces": {"chat": Chat},
-    "triggers": {Chatbot: ["chat.prompt"]},
-    "cron_jobs": {sample_prompt_generator: "*/1 * * * *"}
+    "triggers": {Chatbot: ["chat.prompt"], sample_prompt_generator: ["*/1 * * * *"]},
+    "datastore_prefix": "datastores",
+    "checkpoint": "0 * * * *",
 }

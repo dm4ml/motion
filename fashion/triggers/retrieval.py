@@ -22,6 +22,7 @@ class Retrieval(motion.Trigger):
             "model": model,
             "preprocess": preprocess,
             "k": 5,
+            "streaming_image_count": 0,
         }
         index = self.createIndex(cursor)
         if index:
@@ -79,12 +80,21 @@ class Retrieval(motion.Trigger):
             )
 
             # Add the normalized image to the FAISS index every 10 iterations
-            if identifier % 10 == 0:
-                index = self.createIndex(cursor)
-                return index
+            if self.state["streaming_image_count"] % 10 == 0:
+                new_state = self.createIndex(cursor)
 
             else:
-                return {}
+                new_state = {}
+
+            new_state.update(
+                {
+                    "streaming_image_count": self.state[
+                        "streaming_image_count"
+                    ]
+                    + 1
+                }
+            )
+            return new_state
 
         # Fine-tune model every 5 positive feedbacks on the most recent
         # 100 positive feedbacks

@@ -17,8 +17,8 @@ class MEnum(Enum):
 
 @dataclass(kw_only=True)
 class Schema(ABC):
-    identifier: int
-    derived_id: int
+    identifier: str
+    derived_id: str
     create_at: datetime
 
     def __init_subclass__(cls, **kwargs):
@@ -42,8 +42,8 @@ class Schema(ABC):
         ]
 
         names_and_types = [
-            "identifier INT NOT NULL PRIMARY KEY",
-            "derived_id INT DEFAULT -1",
+            "identifier VARCHAR NOT NULL PRIMARY KEY DEFAULT uuid()",
+            "derived_id VARCHAR DEFAULT NULL",
             "create_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         ]
         enums = {}

@@ -26,7 +26,7 @@ setup(
     ],
     entry_points="""
         [console_scripts]
-        motion=motion.cli:motion
+        motion=motion.cli:motioncli
     """,
     include_package_data=True,
 )

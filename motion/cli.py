@@ -1,15 +1,21 @@
 import click
+import importlib
+import inspect
+import motion
 import os
 
 import shutil
 
+from motion import MotionScript
+from subprocess import call
+
 
 @click.group()
-def motion():
+def motioncli():
     pass
 
 
-@motion.command("create")
+@motioncli.command("create")
 @click.option(
     "--name",
     prompt="Your application name",
@@ -102,23 +108,56 @@ def create(name, author):
     click.echo("Created a project successfully.")
 
 
-@motion.command("deploy")
+@motioncli.command("deploy")
 def deploy():
     # Check that the project is created
     if not os.path.exists("mconfig.py"):
-        click.echo("Project is not created. Run `motion init` first.")
+        click.echo("Project is not created. Run `motion create` first.")
         return
 
     click.echo("Deploying your application...")
     click.echo("Deployed successfully.")
 
 
-@motion.command("run")
-def run():
+@motioncli.command("run")
+@click.argument("script_name", required=True)
+def run(script_name):
     # Check that the project is created
     if not os.path.exists("mconfig.py"):
-        click.echo("Project is not created. Run `motion init` first.")
+        click.echo("Project is not created. Run `motion create` first.")
         return
 
-    click.echo("Running your application...")
-    click.echo("Ran successfully.")
+    if not os.path.exists(os.path.join("scripts", script_name)):
+        click.echo(f"Script {script_name} does not exist.")
+        return
+
+    config_code = open("mconfig.py", "r").read() + "\nMCONFIG"
+    exec(config_code, globals(), locals())
+    mconfig = locals()["MCONFIG"]
+
+    store = motion.init(mconfig)
+
+    script_contents = open(os.path.join("scripts", script_name), "r").read()
+    exec(script_contents, globals(), locals())
+
+    # Find instances of MotionScript
+    for key, value in locals().items():
+        if (
+            inspect.isclass(value)
+            and issubclass(value, MotionScript)
+            and key != "MotionScript"
+        ):
+            # script = value(store)
+            exec(
+                script_contents
+                + "import motion; store = motion.init(MCONFIG); script = value(store); script.run()",
+                globals(),
+                locals(),
+            )
+
+    # click.echo("Running your application...")
+    # click.echo(script_contents)
+
+    # click.echo(exec(script_contents, globals(), {"MCONFIG": MCONFIG}))
+
+    # click.echo("Ran successfully.")

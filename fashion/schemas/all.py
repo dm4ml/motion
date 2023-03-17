@@ -16,10 +16,10 @@ class QuerySource(motion.MEnum):
 
 class QuerySchema(motion.Schema):
     src: QuerySource
-    query_id: int
+    query_id: str
     query: str
     text_suggestion: str
-    img_id: int
+    img_id: str
     img_score: float
     feedback: bool
 

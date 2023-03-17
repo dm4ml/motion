@@ -1,7 +1,7 @@
 from fashion.schemas import QuerySchema, CatalogSchema
 from fashion.triggers import Retrieval, SuggestIdea, scrape_everlane
 
-mconfig = {
+MCONFIG = {
     "application": {
         "name": "fashion",
         "author": "shreyashankar",
@@ -17,4 +17,6 @@ mconfig = {
         ],
         scrape_everlane: ["*/1 * * * *"],
     },
+    "datastore_prefix": "datastores",
+    "checkpoint": "0 * * * *",
 }
