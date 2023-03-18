@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 
 from fashion.triggers.utils import async_download_image
+from fp.fp import FreeProxy
 
 from bs4 import BeautifulSoup
 from fashion.schemas import Retailer
@@ -30,11 +31,36 @@ def scrape_everlane(cursor, identifier, triggered_by):
         "https://www.everlane.com/collections/womens-shoes",
     ]
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36",
+        # "referer": "https://finance.yahoo.com/",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cache-Control": "max-age=0",
     }
     product_info = []
     for url in urls:
-        r = requests.get(url=url, headers=headers)
+        proxy = FreeProxy(
+            country_id=["US"], rand=True, https=True, elite=True
+        ).get()
+        try:
+            r = requests.get(url=url, headers=headers)
+            if r.status_code != 200:
+                logging.warning(
+                    f"Request failed with status code {r.status_code}. Skipping url {url}."
+                )
+                continue
+        except Exception as e:
+            logging.warning(
+                f"Request failed with error {e}. Skipping url {url}."
+            )
+            continue
 
         soup = BeautifulSoup(r.content, "html5lib")
 

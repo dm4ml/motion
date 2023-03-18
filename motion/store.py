@@ -15,28 +15,6 @@ from motion.dbcon import Connection
 from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerElement, TriggerFn
 
-CONNECTIONS = {}
-
-
-def get_store(name: str, create: bool, memory: bool = True) -> typing.Any:
-    """Get or create a store with the given name.
-
-    Args:
-        name (str): The name of the store to get or create.
-        create (bool): Whether to create the store if it doesn't exist.
-        memory (bool, optional): Whether to use memory for the store. Defaults to True.
-
-    Returns:
-        typing.Any: The store.
-    """
-    if name not in CONNECTIONS:
-        if not create:
-            raise Exception(f"Store {name} does not exist. Set create=True.")
-
-        CONNECTIONS[name] = Store(name, memory=memory)
-
-    return CONNECTIONS[name]
-
 
 class Store(object):
     def __init__(
@@ -48,12 +26,12 @@ class Store(object):
         self.name = name
 
         self.con = duckdb.connect(":memory:")
-        if not os.path.exists(os.path.join(datastore_prefix, "db")):
-            os.makedirs(os.path.join(datastore_prefix, "db"))
+        if not os.path.exists(os.path.join(datastore_prefix, self.name)):
+            os.makedirs(os.path.join(datastore_prefix, self.name))
         else:
             try:
                 self.con.execute(
-                    f"IMPORT DATABASE '{os.path.join(datastore_prefix, 'db')}'"
+                    f"IMPORT DATABASE '{os.path.join(datastore_prefix, self.name)}'"
                 )
             except duckdb.IOException as e:
                 logging.warning(
@@ -64,7 +42,7 @@ class Store(object):
         #     duckdb.connect(":memory:")
         #     if self.memory
         #     else duckdb.connect(
-        #         os.path.join(datastore_prefix, "db", "duck.db")
+        #         os.path.join(datastore_prefix, self.name, "duck.db")
         #     )
         # )
 
@@ -81,12 +59,12 @@ class Store(object):
         self.table_columns = (
             dill.load(
                 open(
-                    os.path.join(datastore_prefix, "db", "table_columns"),
+                    os.path.join(datastore_prefix, self.name, "table_columns"),
                     "rb",
                 )
             )
             if os.path.exists(
-                os.path.join(datastore_prefix, "db", "table_columns")
+                os.path.join(datastore_prefix, self.name, "table_columns")
             )
             else {}
         )
@@ -101,7 +79,7 @@ class Store(object):
         """Checkpoint the store."""
         with self.db_write_lock:
             self.con.execute(
-                f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, 'db')}' (FORMAT PARQUET);"
+                f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, self.name)}' (FORMAT PARQUET);"
             )
 
         # TODO: checkpoint trigger objects
@@ -180,7 +158,9 @@ class Store(object):
         dill.dump(
             self.table_columns,
             open(
-                os.path.join(self.datastore_prefix, "db", "table_columns"),
+                os.path.join(
+                    self.datastore_prefix, self.name, "table_columns"
+                ),
                 "wb",
             ),
         )
@@ -202,7 +182,9 @@ class Store(object):
         dill.dump(
             self.table_columns,
             open(
-                os.path.join(self.datastore_prefix, "db", "table_columns"),
+                os.path.join(
+                    self.datastore_prefix, self.name, "table_columns"
+                ),
                 "wb",
             ),
         )

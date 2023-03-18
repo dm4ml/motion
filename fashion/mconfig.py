@@ -17,6 +17,5 @@ MCONFIG = {
         ],
         scrape_everlane: ["*/1 * * * *"],
     },
-    "datastore_prefix": "datastores",
     "checkpoint": "0 * * * *",
 }

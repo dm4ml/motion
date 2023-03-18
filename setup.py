@@ -20,9 +20,12 @@ setup(
     ],
     packages=find_packages(exclude=["tests"]),
     install_requires=[
+        "dill",
         "duckdb",
         "click",
         "croniter",
+        "fastapi",
+        "pandas",
     ],
     entry_points="""
         [console_scripts]

@@ -5,6 +5,7 @@ croniter
 duckdb
 dill
 faiss-cpu
+free-proxy
 html5lib
 numpy
 openai

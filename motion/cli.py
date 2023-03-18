@@ -1,6 +1,7 @@
 import click
 import importlib
 import inspect
+import logging
 import motion
 import os
 
@@ -108,12 +109,33 @@ def create(name, author):
     click.echo("Created a project successfully.")
 
 
-@motioncli.command("deploy")
-def deploy():
+@motioncli.command("serve")
+def serve():
     # Check that the project is created
     if not os.path.exists("mconfig.py"):
         click.echo("Project is not created. Run `motion create` first.")
         return
 
-    click.echo("Deploying your application...")
-    click.echo("Deployed successfully.")
+    # Create object from mconfig.py
+    config_code = open("mconfig.py", "r").read() + "\nMCONFIG"
+    exec(config_code, globals(), locals())
+    mconfig = locals()["MCONFIG"]
+    click.echo(f"Serving application {mconfig['application']['name']}...")
+
+    # Serve the application
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
+    motion.serve(mconfig, host="0.0.0.0", port=8000)
+    click.echo("Served successfully.")
+
+
+@motioncli.command("delete")
+@click.argument("name", required=True)
+def delete(name):
+    # Remove directory at name
+    dirname = os.path.join("~/.cache/motion", name)
+    if not os.path.exists(dirname):
+        click.echo(f"Application {name} does not exist.")
+        return
+
+    shutil.rmtree(dirname)
