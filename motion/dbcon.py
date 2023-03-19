@@ -341,16 +341,25 @@ class Connection(object):
             id_res = [i[0] for i in id_res]
             all_ids.extend(id_res)
 
+        if "identifier" not in keys:
+            keys.append("identifier")
+
         all_ids_str = [f"'{str(i)}'" for i in all_ids]
         if kwargs.get("filter_null", True):
-            return self.cur.execute(
-                f"SELECT identifier, {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
-            ).fetchdf()
+            query_str = f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
+            return (
+                self.cur.execute(query_str).fetchdf()
+                if kwargs.get("as_df", False)
+                else self.cur.execute(query_str).fetchall()
+            )
 
         else:
-            return self.cur.execute(
-                f"SELECT identifier, {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
-            ).fetchdf()
+            query_str = f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
+            return (
+                self.cur.execute(query_str).fetchdf()
+                if kwargs.get("as_df", False)
+                else self.cur.execute(query_str).fetchall()
+            )
 
     def mget(
         self,
@@ -374,15 +383,19 @@ class Connection(object):
         """
 
         all_ids_str = [f"'{str(i)}'" for i in identifiers]
+        if "identifier" not in keys:
+            keys.append("identifier")
         res = self.cur.execute(
-            f"SELECT identifier, {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
+            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
         ).fetchdf()
 
         if kwargs.get("filter_null", True):
-            return res.dropna().reset_index(drop=True)
+            res = res.dropna().reset_index(drop=True)
 
-        else:
+        if kwargs.get("as_df", False):
             return res
+
+        return res.to_dict("records")
 
     def getIdsForKey(
         self, namespace: str, key: str, value: typing.Any
@@ -405,5 +418,9 @@ class Connection(object):
         ).fetchall()
         return [r[0] for r in res]
 
-    def sql(self, stmt: str) -> pd.DataFrame:
-        return self.cur.execute(stmt).fetchdf()
+    def sql(self, stmt: str, as_df: bool = True) -> typing.Any:
+        return (
+            self.cur.execute(stmt).fetchdf()
+            if as_df
+            else self.cur.execute(stmt)
+        )

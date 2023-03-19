@@ -1,6 +1,8 @@
 import os
+import pandas as pd
 import requests
 
+from enum import Enum
 from motion.store import Store
 from motion.api import create_app
 
@@ -100,24 +102,52 @@ class ClientConnection(object):
 
     def __init__(self, name: str, server: str):
         self.name = name
-        self.server = server
+        self.server = "http://" + server
+        try:
+            response = requests.get(self.server + "/ping/")
+            if response.status_code != 200:
+                raise Exception(
+                    f"Could not successfully connect to server for {self.name}; getting status code {response.status_code}."
+                )
+        except requests.exceptions.ConnectionError:
+            raise Exception(
+                f"Could not connect to server for {self.name} at {self.server}. Please run `motion serve` first."
+            )
 
     def get(self, **kwargs):
         dest = self.server + "/get/"
-        return requests.get(dest, data=kwargs)
+        response = requests.get(dest, json=kwargs).json()
+        if kwargs.get("as_df", False):
+            return pd.DataFrame(response)
+
+        return response
 
     def mget(self, **kwargs):
         dest = self.server + "/mget/"
-        return requests.get(dest, data=kwargs)
+        response = requests.get(dest, json=kwargs).json()
+        if kwargs.get("as_df", False):
+            return pd.DataFrame(response)
+
+        return response
 
     def set(self, **kwargs):
         dest = self.server + "/set/"
-        return requests.post(dest, data=kwargs)
+
+        # Convert enums to their values
+        for key, value in kwargs["key_values"].items():
+            if isinstance(value, Enum):
+                kwargs["key_values"].update({key: value.value})
+
+        return requests.post(dest, json=kwargs).json()
 
     def getNewId(self, **kwargs):
         dest = self.server + "/get_new_id/"
-        return requests.post(dest, data=kwargs)
+        return requests.post(dest, json=kwargs).json()
 
     def sql(self, **kwargs):
         dest = self.server + "/sql/"
-        return requests.post(dest, data=kwargs)
+        response = requests.post(dest, json=kwargs).json()
+        if kwargs.get("as_df", False):
+            return pd.DataFrame(response)
+
+        return response

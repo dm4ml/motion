@@ -42,7 +42,7 @@ class Schema(ABC):
         ]
 
         names_and_types = [
-            "identifier VARCHAR NOT NULL PRIMARY KEY DEFAULT uuid()",
+            "identifier VARCHAR NOT NULL DEFAULT uuid()",  # TODO make this a primary key
             "derived_id VARCHAR DEFAULT NULL",
             "create_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         ]

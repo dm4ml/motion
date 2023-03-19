@@ -6,6 +6,6 @@
 *.next*
 *__pycache__*
 *faiss_index/*
-scratch.py
+*scratch.py
 *datastores*
 *.egg-info

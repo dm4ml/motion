@@ -11,6 +11,11 @@ from motion import MotionScript
 from subprocess import call
 
 
+MOTION_HOME = os.environ.get(
+    "MOTION_HOME", os.path.expanduser("~/.cache/motion")
+)
+
+
 @click.group()
 def motioncli():
     pass
@@ -129,11 +134,11 @@ def serve():
     click.echo("Served successfully.")
 
 
-@motioncli.command("delete")
+@motioncli.command("clear")
 @click.argument("name", required=True)
-def delete(name):
+def clear(name):
     # Remove directory at name
-    dirname = os.path.join("~/.cache/motion", name)
+    dirname = os.path.join(MOTION_HOME, "datastores", name)
     if not os.path.exists(dirname):
         click.echo(f"Application {name} does not exist.")
         return

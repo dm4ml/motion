@@ -45,11 +45,3 @@ def main():
     # import requests
 
     # print(requests.get("https://www.everlane.com/collections/womens-all-tops"))
-
-
-image = (
-    modal.Image.debian_slim()
-    .pip_install_from_requirements("requirements.txt")
-    .pip_install(["tensorflow-data-validation"])
-)
-stub = modal.Stub(image=image)
