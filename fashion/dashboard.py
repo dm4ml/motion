@@ -36,6 +36,7 @@ def run_query(query):
         identifier=created_id,
         keys=["identifier", "text_suggestion", "img_id", "img_score"],
         include_derived=True,
+        as_df=True,
     )
     results = results.loc[
         results.groupby("img_id").img_score.idxmin()
@@ -47,6 +48,7 @@ def run_query(query):
         "catalog",
         identifiers=results["img_id"].values,
         keys=["img_url", "permalink"],
+        as_df=True,
     ).merge(results, left_on="identifier", right_on="img_id")
 
     return image_results

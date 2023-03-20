@@ -6,12 +6,19 @@ from croniter import croniter
 from datetime import datetime
 from motion.trigger import TriggerElement, TriggerFn
 
+logger = logging.getLogger(__name__)
+
 
 class CronThread(threading.Thread):
     """Thread that executes a task on cron schedule."""
 
     def __init__(
-        self, cron_expression, cursor, trigger_fn: TriggerFn, checkpoint_fn
+        self,
+        cron_expression,
+        cursor,
+        trigger_fn: TriggerFn,
+        checkpoint_fn,
+        first_run_event: threading.Event,
     ):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -21,6 +28,7 @@ class CronThread(threading.Thread):
         self.checkpoint_fn = checkpoint_fn
         self.running = True
         self.first_run = True
+        self.first_run_event = first_run_event
 
     def run(self):
         while self.running:
@@ -35,30 +43,39 @@ class CronThread(threading.Thread):
                     time.sleep(delay)
                 else:
                     continue
-            else:
-                self.first_run = False
 
             # Run trigger
             trigger_elem = TriggerElement(
                 namespace=None, key=self.cron_expression, value=None
             )
 
-            self.cur.executeTrigger(
-                identifier=None,
-                trigger=self.trigger_fn,
-                trigger_elem=trigger_elem,
-            )
-            self.cur.waitForResults()
-            logging.info(
-                f"Finished waiting for background task {self.trigger_fn.name}."
-            )
+            try:
+                self.cur.executeTrigger(
+                    identifier=None,
+                    trigger=self.trigger_fn,
+                    trigger_elem=trigger_elem,
+                )
+                self.cur.waitForResults()
+                logger.info(
+                    f"Finished waiting for background task {self.trigger_fn.name}."
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error while running task {self.trigger_fn.name}: {e}"
+                )
+                continue
+
+            if self.first_run:
+                self.first_run_event.set()
+                self.first_run = False
+
             self.checkpoint_fn()
-            logging.info(
+            logger.info(
                 f"Checkpointed store from task {self.trigger_fn.name}."
             )
 
     def stop(self):
-        logging.info(f"Stopping task thread for name {self.trigger_fn.name}")
+        logger.info(f"Stopping task thread for name {self.trigger_fn.name}")
         self.running = False
 
 
@@ -81,10 +98,10 @@ class CheckpointThread(threading.Thread):
             else:
                 continue
 
-            logging.info(f"Checkpointing store {self.store.name}")
+            logger.info(f"Checkpointing store {self.store.name}")
             self.store.checkpoint()
-            logging.info(f"Finished checkpointing store {self.store.name}")
+            logger.info(f"Finished checkpointing store {self.store.name}")
 
     def stop(self):
-        logging.info(f"Stopping checkpoint thread for store {self.store.name}")
+        logger.info(f"Stopping checkpoint thread for store {self.store.name}")
         self.running = False

@@ -11,6 +11,8 @@ import typing
 from enum import Enum
 from motion.trigger import TriggerElement, TriggerFn
 
+logger = logging.getLogger(__name__)
+
 
 class Connection(object):
     def __init__(
@@ -56,7 +58,7 @@ class Connection(object):
         # new_id = self.cur.execute(
         #     f"SELECT NEXTVAL('{self.name}.{namespace}_{key}_seq')"
         # ).fetchone()[0]
-        # logging.info(f"New id for {namespace} is {new_id}")
+        # logger.info(f"New id for {namespace} is {new_id}")
         with self.write_lock:
             new_id = self.cur.execute(f"SELECT uuid();").fetchone()[0]
 
@@ -112,7 +114,7 @@ class Connection(object):
                     (identifier, *key_values.values()),
                 )
                 self.cur.execute(*query_string)
-                # logging.info(f"Inserted row {identifier} into {namespace}.")
+                # logger.info(f"Inserted row {identifier} into {namespace}.")
 
         else:
             # Delete and re-insert the row with the new value
@@ -122,7 +124,7 @@ class Connection(object):
             # self.cur.execute(
             #     f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
             # )
-            # logging.info(f"Deleted row {id} from {namespace}.")
+            # logger.info(f"Deleted row {id} from {namespace}.")
 
             # Update the row with the new value
             for key, value in key_values.items():
@@ -138,12 +140,12 @@ class Connection(object):
                 #     (identifier, *key_values.values()),
                 # )
 
-                # logging.info(
+                # logger.info(
                 #     f"INSERT INTO {self.name}.{namespace} (identifier, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))}) ON CONFLICT (identifier) DO UPDATE SET {', '.join(excluded_stmts)};"
                 # )
                 # self.cur.execute(*stmt)
 
-                # logging.info(id(self.write_lock))
+                # logger.info(id(self.write_lock))
                 self.cur.execute(
                     f"""DELETE FROM {self.name}.{namespace} WHERE identifier = '{identifier}';"""
                 )
@@ -211,7 +213,7 @@ class Connection(object):
             trigger_elem (TriggerElement): The element that triggered the trigger.
         """
         trigger_name, trigger_fn, isTransform = trigger
-        logging.info(
+        logger.info(
             f"Running trigger {trigger_name} for identifier {identifier}, key {trigger_elem.key}..."
         )
         new_connection = Connection(
@@ -239,7 +241,7 @@ class Connection(object):
                 trigger_elem.key,
             )
 
-            logging.info(
+            logger.info(
                 f"Finished running trigger {trigger_name} for identifier {identifier}."
             )
 
@@ -277,7 +279,7 @@ class Connection(object):
                 )
                 self.fit_events.append(fit_thread)
             else:
-                logging.info(
+                logger.info(
                     f"Finished running trigger {trigger_name} for identifier {identifier}."
                 )
 

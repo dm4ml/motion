@@ -15,6 +15,8 @@ from motion.dbcon import Connection
 from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerElement, TriggerFn
 
+logger = logging.getLogger(__name__)
+
 
 class Store(object):
     def __init__(
@@ -34,7 +36,7 @@ class Store(object):
                     f"IMPORT DATABASE '{os.path.join(datastore_prefix, self.name)}'"
                 )
             except duckdb.IOException as e:
-                logging.warning(
+                logger.warning(
                     f"Could not import database {name} from {datastore_prefix}. Error: {e}"
                 )
 
@@ -77,9 +79,15 @@ class Store(object):
 
     def checkpoint(self):
         """Checkpoint the store."""
-        with self.db_write_lock:
-            self.con.execute(
-                f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, self.name)}' (FORMAT PARQUET);"
+
+        try:
+            with self.db_write_lock:
+                self.con.execute(
+                    f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, self.name)}' (FORMAT PARQUET);"
+                )
+        except Exception as e:
+            logger.warning(
+                f"Could not checkpoint database {self.name}. Error: {e}"
             )
 
         # TODO: checkpoint trigger objects
@@ -132,14 +140,14 @@ class Store(object):
         tables = self.con.execute(f"SHOW TABLES;").fetchall()
         tables = [t[0] for t in tables]
         if name in tables:
-            logging.warning(
+            logger.warning(
                 f"Namespace {name} already exists in store {self.name}. Doing nothing."
             )
             return
 
         stmts = schema.formatCreateStmts(f"{self.name}.{name}")
         for stmt in stmts:
-            logging.info(stmt)
+            logger.info(stmt)
             self.con.execute(stmt)
 
         # Create sequence for id
@@ -212,7 +220,7 @@ class Store(object):
             ValueError: If there is already a trigger with the given name.
         """
         if name in self.trigger_names:
-            logging.warning(f"Trigger {name} already exists. Doing nothing.")
+            logger.warning(f"Trigger {name} already exists. Doing nothing.")
             return
 
         if inspect.isfunction(trigger):
@@ -240,11 +248,20 @@ class Store(object):
             for ns in self.table_columns
             for key in self.table_columns[ns]
         ]
+        cron_key_exists = False
         for key in keys:
             if key not in all_possible_keys and not croniter.is_valid(key):
                 raise ValueError(
                     f"Trigger {name} has invalid key {key}. Valid keys are {all_possible_keys} or a cron expression."
                 )
+
+            if croniter.is_valid(key):
+                if cron_key_exists:
+                    raise ValueError(
+                        f"Trigger {name} has more than one cron key. Only one cron key is allowed per trigger."
+                    )
+
+                cron_key_exists = True
 
         # Add the trigger to the store
         self.trigger_names[name] = keys
@@ -288,11 +305,8 @@ class Store(object):
                 self.cron_triggers[key].remove(
                     (name, fn, isinstance(fn, Trigger))
                 )
-                for t in self.cron_threads[key]:
-                    if t.trigger_fn.name == name:
-                        t.stop()
-                        t.join()
-                        self.cron_threads[key].remove(t)
+                self.cron_threads[name].stop()
+                self.cron_threads[name].join()
 
             else:
                 self.triggers[key].remove((name, fn, isinstance(fn, Trigger)))
@@ -328,15 +342,16 @@ class Store(object):
         self.cron_threads = {}
 
         for cron_expression, triggers in self.cron_triggers.items():
-            self.cron_threads[cron_expression] = []
             for trigger_fn in triggers:
+                e = threading.Event()
                 t = CronThread(
                     cron_expression,
                     self.cursor(wait_for_results=True),
                     trigger_fn,
                     self.checkpoint,
+                    e,
                 )
-                self.cron_threads[cron_expression].append(t)
+                self.cron_threads[trigger_fn.name] = t
                 t.start()
 
         # Start a thread to checkpoint the store every 5 minutes
@@ -345,16 +360,29 @@ class Store(object):
         )
         self.checkpoint_thread.start()
 
+    def waitForTrigger(self, trigger_name: str) -> None:
+        """Wait for a cron-scheduled trigger to fire.
+
+        Args:
+            trigger_name (str): The name of the trigger to wait for.
+        """
+        if trigger_name not in self.cron_threads.keys():
+            raise ValueError(
+                f"Trigger {trigger_name} does not exist as a cron-scheduled thread. Valid cron-scheduled triggers are {list(self.cron_threads.keys())}."
+            )
+
+        logger.info(f"Waiting for trigger {trigger_name} to fire...")
+        self.cron_threads[trigger_name].first_run_event.wait()
+
     def stop(self) -> None:
         """Stop the store."""
         # Stop cron triggers
-        for _, threads in self.cron_threads.items():
-            for t in threads:
-                t.stop()
-                t.join()
+        for _, t in self.cron_threads.items():
+            t.stop()
+            t.join()
 
         self.checkpoint_thread.stop()
 
         self._listening = False
 
-        logging.info("Stopped store.")
+        logger.info("Stopped store.")

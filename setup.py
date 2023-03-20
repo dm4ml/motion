@@ -26,6 +26,7 @@ setup(
         "croniter",
         "fastapi",
         "pandas",
+        "pytest",
     ],
     entry_points="""
         [console_scripts]

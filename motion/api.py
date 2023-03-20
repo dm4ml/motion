@@ -9,6 +9,8 @@ import pandas as pd
 
 from pydantic import BaseModel, Extra
 
+logger = logging.getLogger(__name__)
+
 
 class MotionGet(BaseModel, extra=Extra.allow):
     namespace: str
@@ -48,7 +50,7 @@ class MotionSql(BaseModel):
     as_df: bool = True
 
 
-def create_app(store):
+def create_app(store, testing=False):
     app = FastAPI()
 
     @app.exception_handler(RequestValidationError)
@@ -63,6 +65,7 @@ def create_app(store):
 
     @app.on_event("startup")
     async def startup():
+        app.state.testing = testing
         app.state.store = store
 
     @app.get("/get/")
@@ -109,12 +112,17 @@ def create_app(store):
         else:
             return res
 
+    @app.get("/wait_for_trigger/")
+    async def wait_for_trigger(trigger: str):
+        return app.state.store.waitForTrigger(trigger)
+
     @app.get("/ping/")
     async def root():
         return {"message": "Hello World"}
 
     @app.on_event("shutdown")
     async def shutdown():
-        app.state.store.stop()
+        if not app.state.testing:
+            app.state.store.stop()
 
     return app

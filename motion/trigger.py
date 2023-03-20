@@ -10,6 +10,8 @@ from queue import SimpleQueue
 TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
 TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
+logger = logging.getLogger(__name__)
+
 
 class Trigger(ABC):
     def __init__(self, cursor, name, version):
@@ -103,20 +105,12 @@ class Trigger(ABC):
                 fit_event,
             ) = self._fit_queue.get()
 
-            try:
-                new_state = self.fit(cursor, identifier, triggered_by)
-            except Exception as e:
-                logging.error(
-                    f"Error while fitting trigger {trigger_name}: {e}"
-                )
-                fit_event.set()
-                continue
-            # new_state = self.fit(cursor, identifier, triggered_by)
+            new_state = self.fit(cursor, identifier, triggered_by)
 
             old_version = self.version
             self.update(new_state)
 
-            logging.info(
+            logger.info(
                 f"Finished running trigger {trigger_name} for identifier {identifier} and key {triggered_by.key}."
             )
 
@@ -131,35 +125,6 @@ class Trigger(ABC):
 
             fit_event.set()
 
-    # def fitAndLogAsync(
-    #     self, cursor, trigger_name, identifier, triggered_by: TriggerElement
-    # ):
-    #     with self._fit_lock:
-    #         if self.last_fit_id >= identifier:
-    #             logging.info(
-    #                 f"Finished running trigger {trigger_name} for id {identifier}."
-    #             )
-    #             return
-
-    #         new_state = self.fit(cursor, identifier, triggered_by)
-    #         with self._state_lock:
-    #             old_version = self.version
-    #             self.update(new_state)
-    #             self._last_fit_id = identifier
-
-    #         logging.info(
-    #             f"Finished running trigger {trigger_name} for id {identifier}."
-    #         )
-
-    #     cursor.logTriggerExecution(
-    #         trigger_name,
-    #         old_version,
-    #         "fit",
-    #         triggered_by.namespace,
-    #         identifier,
-    #         triggered_by.key,
-    #     )
-
     def fitWrapper(
         self,
         cursor,
@@ -171,10 +136,5 @@ class Trigger(ABC):
         self._fit_queue.put(
             (cursor, trigger_name, identifier, triggered_by, fit_event)
         )
-        # fit_event.wait()
-        # thread = threading.Thread(
-        #     target=self.fitAndLogAsync,
-        #     args=(cursor, trigger_name, identifier, triggered_by),
-        # )
-        # thread.start()
+
         return fit_event

@@ -122,11 +122,13 @@ class Retrieval(motion.Trigger):
             "query",
             identifiers=positive_feedback_ids,
             keys=["text_suggestion", "img_id"],
+            as_df=True,
         )
         img_ids_and_blobs = cursor.mget(
             "catalog",
             identifiers=text_suggestions_and_img_ids.img_id.values,
             keys=["img_blob"],
+            as_df=True,
         )
         img_blobs_and_captions = text_suggestions_and_img_ids.merge(
             img_ids_and_blobs, left_on="img_id", right_on="identifier"

@@ -4,16 +4,18 @@ import inspect
 import logging
 import motion
 import os
+import pytest
 
 import shutil
 
 from motion import MotionScript
-from subprocess import call
+from subprocess import call, run
 
 
 MOTION_HOME = os.environ.get(
     "MOTION_HOME", os.path.expanduser("~/.cache/motion")
 )
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -128,8 +130,6 @@ def serve():
     click.echo(f"Serving application {mconfig['application']['name']}...")
 
     # Serve the application
-    logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
     motion.serve(mconfig, host="0.0.0.0", port=8000)
     click.echo("Served successfully.")
 
@@ -144,3 +144,19 @@ def clear(name):
         return
 
     shutil.rmtree(dirname)
+
+
+@motioncli.command("test", help="Run pytest with the given arguments")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--debug", is_flag=True, help="Enable debug output")
+@click.argument("args", nargs=-1)
+def test(verbose, debug, args):
+    """Run pytest with the given arguments"""
+    pytest_args = list(args)
+    if verbose:
+        pytest_args.append("-v")
+    if debug:
+        pytest_args.append("--debug")
+    # pytest.main(pytest_args)
+
+    run(["pytest", *pytest_args])

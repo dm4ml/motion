@@ -15,7 +15,7 @@ MCONFIG = {
             "query.text_suggestion",
             "query.feedback",
         ],
-        scrape_everlane: ["*/1 * * * *"],
+        scrape_everlane: ["0 * * * *"],
     },
     "checkpoint": "0 * * * *",
 }
