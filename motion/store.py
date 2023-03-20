@@ -93,7 +93,7 @@ class Store(object):
         # TODO: checkpoint trigger objects
 
     def __del__(self):
-        self.stop()
+        self.stop(wait=False)
 
     @property
     def listening(self):
@@ -140,7 +140,7 @@ class Store(object):
         tables = self.con.execute(f"SHOW TABLES;").fetchall()
         tables = [t[0] for t in tables]
         if name in tables:
-            logger.warning(
+            logger.info(
                 f"Namespace {name} already exists in store {self.name}. Doing nothing."
             )
             return
@@ -374,14 +374,17 @@ class Store(object):
         logger.info(f"Waiting for trigger {trigger_name} to fire...")
         self.cron_threads[trigger_name].first_run_event.wait()
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = False) -> None:
         """Stop the store."""
         # Stop cron triggers
         for _, t in self.cron_threads.items():
             t.stop()
-            t.join()
+            if wait:
+                t.join()
 
         self.checkpoint_thread.stop()
+        if wait:
+            self.checkpoint_thread.join()
 
         self._listening = False
 

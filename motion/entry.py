@@ -167,9 +167,12 @@ class ClientConnection(object):
                     f"Could not connect to server for {self.name} at {self.server}. Please run `motion serve` first."
                 )
 
-    def __del__(self):
+    def close(self, wait=True):
         if isinstance(self.server, FastAPI):
-            self.store.stop()
+            self.store.stop(wait=wait)
+
+    def __del__(self):
+        self.close(wait=False)
 
     def getWrapper(self, dest, **kwargs):
         if isinstance(self.server, FastAPI):
@@ -198,54 +201,24 @@ class ClientConnection(object):
         Args:
             trigger (str): The name of the trigger.
         """
-        print(f"Waiting for trigger {trigger}...")
-        # dest = self.server + "/wait_for_trigger/"
-
         return self.getWrapper("/wait_for_trigger/", trigger=trigger)
 
-        # return requests.get(dest, json={"trigger": trigger}).json()
-
     def get(self, **kwargs):
-        # dest = self.server + "/get/"
-        # response = requests.get(dest, json=kwargs).json()
-        # if kwargs.get("as_df", False):
-        #     return pd.DataFrame(response)
-
-        # return response
         return self.getWrapper("/get/", **kwargs)
 
     def mget(self, **kwargs):
-        # dest = self.server + "/mget/"
-        # response = requests.get(dest, json=kwargs).json()
-        # if kwargs.get("as_df", False):
-        #     return pd.DataFrame(response)
-
-        # return response
-
         return self.getWrapper("/mget/", **kwargs)
 
     def set(self, **kwargs):
-        # dest = self.server + "/set/"
-
         # Convert enums to their values
         for key, value in kwargs["key_values"].items():
             if isinstance(value, Enum):
                 kwargs["key_values"].update({key: value.value})
 
-        # return requests.post(dest, json=kwargs).json()
         return self.postWrapper("/set/", **kwargs)
 
     def getNewId(self, **kwargs):
-        # dest = self.server + "/get_new_id/"
-        # return requests.get(dest, json=kwargs).json()
-
         return self.getWrapper("/get_new_id/", **kwargs)
 
     def sql(self, **kwargs):
-        # dest = self.server + "/sql/"
-        # response = requests.get(dest, json=kwargs).json()
-        # if kwargs.get("as_df", False):
-        #     return pd.DataFrame(response)
-
-        # return response
         return self.getWrapper("/sql/", **kwargs)
