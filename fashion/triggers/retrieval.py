@@ -1,6 +1,5 @@
 import clip
 import faiss
-import logging
 import numpy as np
 import motion
 import torch
@@ -11,6 +10,34 @@ from PIL import Image
 
 
 class Retrieval(motion.Trigger):
+    def routes(self):
+        return [
+            motion.Route(
+                namespace="query",
+                key="text_suggestion",
+                infer=self.suggestionToImage,
+                fit=None,
+            ),
+            motion.Route(
+                namespace="closet",
+                key="img_blob",
+                infer=self.closetToImage,
+                fit=None,
+            ),
+            motion.Route(
+                namespace="catalog",
+                key="img_blob",
+                infer=None,
+                fit=self.catalogToIndex,
+            ),
+            motion.Route(
+                namespace="query",
+                key="feedback",
+                infer=None,
+                fit=self.fineTune,
+            ),
+        ]
+
     def setUp(self, cursor):
         # Set up the embedding model
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -22,146 +49,71 @@ class Retrieval(motion.Trigger):
             "model": model,
             "preprocess": preprocess,
             "k": 5,
-            "streaming_image_count": 0,
+            "streaming_image_count": 0,  # To keep track of how many catalog images we've seen. We add to the index every 10 new images.
         }
-        index = self.createIndex(cursor)
+        index = self._createIndex(cursor)
         if index:
             state.update(index)
+
         return state
 
-    def inferText(self, cursor, identifier, text):
+    def suggestionToImage(self, cursor, identifier, triggered_by):
+        text = triggered_by.value
         with torch.no_grad():
             text_inputs = clip.tokenize([text]).to(self.state["device"])
             text_features = self.state["model"].encode_text(text_inputs)
 
         # Search the FAISS index for the most similar image
-        text_features = text_features.numpy()
-        scores, indices = self.state["index"].search(
-            text_features / np.linalg.norm(text_features, axis=1),
-            self.state["k"],
+        scores, img_ids = self._searchIndex(text_features)
+        self._writeSimilarImages(
+            cursor, identifier, triggered_by, scores, img_ids
         )
-        for score, index in zip(scores[0], indices[0]):
-            img_id = self.state["index_to_id"][index]
-            new_id = cursor.duplicate("query", identifier=identifier)
-            cursor.set(
-                "query",
-                identifier=new_id,
-                key_values={
-                    "catalog_img_id": img_id,
-                    "catalog_img_score": score,
-                },
-            )
 
-    def shouldInfer(self, cursor, identifier, triggered_by):
-        # Call infer only on text suggestions or closet items
-        if triggered_by.key == "text_suggestion" or (
-            triggered_by.key == "img_blob"
-            and triggered_by.namespace == "closet"
-        ):
-            return True
+    def closetToImage(self, cursor, identifier, triggered_by):
+        # Run CLIP on the uploaded image to get the image features,
+        # then find similar images in the catalog
+        image_features = self._embedImage(
+            triggered_by.value, self.state["model"]
+        )
+        # Search the FAISS index for the most similar image
+        scores, img_ids = self._searchIndex(image_features)
+        self._writeSimilarImages(
+            cursor, identifier, triggered_by, scores, img_ids
+        )
 
-        return False
+    def catalogToIndex(self, cursor, identifier, triggered_by) -> dict:
+        image_features = self._embedImage(
+            triggered_by.value, self.state["model"]
+        )
+        cursor.set(
+            triggered_by.namespace,
+            identifier=identifier,
+            key_values={"img_embedding": image_features.squeeze().tolist()},
+        )
 
-    def infer(self, cursor, identifier, triggered_by):
-        if triggered_by.key == "text_suggestion":
-            self.inferText(cursor, identifier, triggered_by.value)
-        elif (
-            triggered_by.key == "img_blob"
-            and triggered_by.namespace == "closet"
-        ):
-            # Run CLIP on the uploaded image to get the image features,
-            # then find similar images in the catalog
-            image_features = self.embedImage(
-                triggered_by.value, self.state["model"]
-            )
-            # Search the FAISS index for the most similar image
-            # TODO(refactor)
-            image_features = image_features.numpy()
-            scores, indices = self.state["index"].search(
-                image_features / np.linalg.norm(image_features, axis=1),
-                self.state["k"],
-            )
-            for catalog_img_score, index in zip(scores[0], indices[0]):
-                catalog_img_id = self.state["index_to_id"][index]
-                new_id = cursor.duplicate(
-                    triggered_by.namespace, identifier=identifier
-                )
-                cursor.set(
-                    triggered_by.namespace,
-                    identifier=new_id,
-                    key_values={
-                        "catalog_img_id": catalog_img_id,
-                        "catalog_img_score": catalog_img_score,
-                    },
-                )
-
-    def shouldFit(self, cursor, id, triggered_by):
-        # Check if fit should be called
-        if triggered_by.key == "feedback" and triggered_by.value == True:
-            return True
-
-        elif (
-            triggered_by.namespace == "catalog"
-            and triggered_by.key == "img_blob"
-        ):
-            return True
+        # Add the normalized image to the FAISS index every 10 iterations
+        if self.state["streaming_image_count"] % 10 == 0:
+            new_state = self._createIndex(cursor)
 
         else:
-            return False
+            new_state = {}
 
-    def fit(self, cursor, identifier, triggered_by):
-        if (
-            triggered_by.namespace == "catalog"
-            and triggered_by.key == "img_blob"
-        ):
-            image_features = self.embedImage(
-                triggered_by.value, self.state["model"]
-            )
-            cursor.set(
-                "catalog",
-                identifier=identifier,
-                key_values={
-                    "img_embedding": image_features.squeeze().tolist()
-                },
-            )
-
-            # Add the normalized image to the FAISS index every 10 iterations
-            if self.state["streaming_image_count"] % 10 == 0:
-                new_state = self.createIndex(cursor)
-
-            else:
-                new_state = {}
-
-            new_state.update(
-                {
-                    "streaming_image_count": self.state[
-                        "streaming_image_count"
-                    ]
-                    + 1
-                }
-            )
-            return new_state
-
-        # Fine-tune model every 5 positive feedbacks on the most recent
-        # 100 positive feedbacks
-        if triggered_by.key == "feedback":
-            positive_feedback_ids = cursor.getIdsForKey(
-                "query", "feedback", True
-            )
-
-            if (
-                len(positive_feedback_ids) > 0
-                and len(positive_feedback_ids) % 5 == 0
-            ):
-                new_state = self.fineTune(cursor, positive_feedback_ids[-5:])
-                return new_state
-            else:
-                return {}
-
-    def fineTune(self, cursor, positive_feedback_ids):
-        logging.info(
-            f"Fine-tuning CLIP model on {len(positive_feedback_ids)} ids."
+        new_state.update(
+            {"streaming_image_count": self.state["streaming_image_count"] + 1}
         )
+        return new_state
+
+    def fineTune(self, cursor, identifier, triggered_by):
+        positive_feedback_ids = cursor.getIdsForKey("query", "feedback", True)
+
+        # Only fine-tune if we have seen at least 5 positive feedbacks
+        if (
+            len(positive_feedback_ids) % 5 != 0
+            or len(positive_feedback_ids) == 0
+        ):
+            return {}
+
+        print(f"Fine-tuning CLIP model on {len(positive_feedback_ids)} ids.")
 
         # Get image blobs and text suggestions
         text_suggestions_and_img_ids = cursor.mget(
@@ -172,7 +124,7 @@ class Retrieval(motion.Trigger):
         )
         img_ids_and_blobs = cursor.mget(
             "catalog",
-            identifiers=text_suggestions_and_img_ids.img_id.values,
+            identifiers=text_suggestions_and_img_ids.catalog_img_id.values,
             keys=["img_blob"],
             as_df=True,
         )
@@ -193,9 +145,9 @@ class Retrieval(motion.Trigger):
 
         # Re-embed all the images
         for _, row in ids_and_blobs.iterrows():
-            image_features = self.embedImage(row["img_blob"], new_model)
+            image_features = self._embedImage(row["img_blob"], new_model)
             cursor.set(
-                "catalog",
+                "catalog",  # This isn't the triggered_by namespace!
                 identifier=row["identifier"],
                 key_values={
                     "img_embedding": image_features.squeeze().tolist()
@@ -203,11 +155,35 @@ class Retrieval(motion.Trigger):
             )
 
         new_state = {"model": new_model}
-        new_state.update(self.createIndex(cursor))
+        new_state.update(self._createIndex(cursor))
 
         return new_state
 
-    def embedImage(self, img_blob, model):
+    def _searchIndex(self, features):
+        features = features.numpy()
+        scores, indices = self.state["index"].search(
+            features / np.linalg.norm(features, axis=1), self.state["k"]
+        )
+        img_ids = [self.state["index_to_id"][index] for index in indices[0]]
+        return scores[0], img_ids
+
+    def _writeSimilarImages(
+        self, cursor, identifier, triggered_by, scores, img_ids
+    ):
+        for score, img_id in zip(scores, img_ids):
+            new_id = cursor.duplicate(
+                triggered_by.namespace, identifier=identifier
+            )
+            cursor.set(
+                triggered_by.namespace,
+                identifier=new_id,
+                key_values={
+                    "catalog_img_id": img_id,
+                    "catalog_img_score": score,
+                },
+            )
+
+    def _embedImage(self, img_blob, model):
         with torch.no_grad():
             image_input = (
                 self.state["preprocess"](Image.open(BytesIO(img_blob)))
@@ -218,7 +194,7 @@ class Retrieval(motion.Trigger):
 
         return image_features
 
-    def createIndex(self, cursor):
+    def _createIndex(self, cursor):
         index = faiss.IndexFlatIP(512)
         id_embedding = cursor.sql(
             "SELECT identifier, img_embedding FROM fashion.catalog WHERE img_embedding IS NOT NULL"

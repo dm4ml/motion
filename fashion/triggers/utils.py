@@ -14,9 +14,7 @@ async def get(url, session):
             resp = await response.content.read()
             return url, resp
     except Exception as e:
-        logging.error(
-            "Unable to get url {} due to {}.".format(url, e.__class__)
-        )
+        print("Unable to get url {} due to {}.".format(url, e.__class__))
 
 
 async def async_download_image(img_urls):

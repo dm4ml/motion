@@ -17,7 +17,7 @@ class OutfitDataset(torch.utils.data.Dataset):
             for content in img_blobs
         ]
         self.captions = captions
-        logging.info("Done preprocessing images.")
+        print("Done preprocessing images.")
 
     def __getitem__(self, index):
         preprocessed_image = self.preprocessed_images[index]
@@ -51,13 +51,13 @@ def fine_tune_model(model, img_blobs, captions, batch_size=16, epochs=5):
         filter_list(captions, train_ids),
         device,
     )
-    logging.info(f"Train dataset size: {len(train_dataset)}")
+    print(f"Train dataset size: {len(train_dataset)}")
     test_dataset = OutfitDataset(
         filter_list(img_blobs, test_ids),
         filter_list(captions, test_ids),
         device,
     )
-    logging.info(f"Test dataset size: {len(test_dataset)}")
+    print(f"Test dataset size: {len(test_dataset)}")
     if device == "cpu":
         model.float()
 
@@ -140,8 +140,8 @@ def fine_tune_model(model, img_blobs, captions, batch_size=16, epochs=5):
                 )
 
         eval_loss /= step
-        logging.info(f"Train epoch {epoch} loss: {train_loss}")
-        logging.info(f"Eval epoch {epoch} loss: {eval_loss}")
+        print(f"Train epoch {epoch} loss: {train_loss}")
+        print(f"Eval epoch {epoch} loss: {eval_loss}")
         if eval_loss > best_loss:
             break
 

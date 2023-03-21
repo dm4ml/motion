@@ -51,7 +51,7 @@ def scrape_everlane(cursor, identifier, triggered_by):
         #         country_id=["US"], rand=True, https=True, elite=True
         #     ).get()
         # except Exception as e:
-        #     logging.warning(
+        #     print(
         #         f"Failed to get proxy with error {e}. Trying without proxy."
         #     )
         #     proxy = None
@@ -59,14 +59,12 @@ def scrape_everlane(cursor, identifier, triggered_by):
         try:
             r = requests.get(url=url, headers=headers)
             if r.status_code != 200:
-                logging.warning(
+                print(
                     f"Request failed with status code {r.status_code}. Skipping url {url}."
                 )
                 continue
         except Exception as e:
-            logging.warning(
-                f"Request failed with error {e}. Skipping url {url}."
-            )
+            print(f"Request failed with error {e}. Skipping url {url}.")
             continue
 
         soup = BeautifulSoup(r.content, "html5lib")
@@ -96,7 +94,7 @@ def scrape_everlane(cursor, identifier, triggered_by):
         .sample(frac=1)
         .reset_index(drop=True)
     )
-    logging.info(f"Found {len(df)} unique products.")
+    print(f"Found {len(df)} unique products.")
     df = df.head(100)
 
     # Filter out products that are already in the store
@@ -104,7 +102,7 @@ def scrape_everlane(cursor, identifier, triggered_by):
         "img_url"
     ].values
     df = df[~df["img_url"].isin(existing_img_urls)]
-    logging.info(f"Found {len(df)} new products.")
+    print(f"Found {len(df)} new products.")
 
     # Get blobs from the images
     img_urls, contents = asyncio.run(

@@ -5,14 +5,21 @@ import re
 
 
 class SuggestIdea(motion.Trigger):
+    def routes(self):
+        return [
+            motion.Route(
+                namespace="query",
+                key="query",
+                infer=self.generateSuggestions,
+                fit=None,
+            )
+        ]
+
     def setUp(self, cursor):
         # Set up the query suggestion model
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def shouldInfer(self, cursor, identifier, triggered_by):
-        return True
-
-    def infer(self, cursor, identifier, triggered_by):
+    def generateSuggestions(self, cursor, identifier, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
@@ -34,15 +41,11 @@ class SuggestIdea(motion.Trigger):
         suggestions = [s for s in suggestions if s != ""]
 
         for s in suggestions:
-            new_id = cursor.duplicate("query", identifier=identifier)
-            cursor.set(
-                "query", identifier=new_id, key_values={"text_suggestion": s}
+            new_id = cursor.duplicate(
+                triggered_by.namespace, identifier=identifier
             )
-
-    def shouldFit(self, cursor, identifier, triggered_by):
-        # Check if fit should be called
-        return False
-
-    def fit(self, cursor, identifier, triggered_by):
-        # Fine-tune or fit the query suggestion model
-        pass
+            cursor.set(
+                triggered_by.namespace,
+                identifier=new_id,
+                key_values={"text_suggestion": s},
+            )
