@@ -9,3 +9,4 @@
 *scratch.py
 *datastores*
 *.egg-info
+*.DS_Store

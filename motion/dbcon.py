@@ -10,8 +10,7 @@ import typing
 
 from enum import Enum
 from motion.trigger import TriggerElement, TriggerFn
-
-logger = logging.getLogger(__name__)
+from motion.utils import logger
 
 
 class Connection(object):

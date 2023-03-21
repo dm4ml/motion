@@ -15,7 +15,7 @@ from motion.dbcon import Connection
 from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerElement, TriggerFn
 
-logger = logging.getLogger(__name__)
+from motion.utils import logger
 
 
 class Store(object):

@@ -10,7 +10,7 @@ from queue import SimpleQueue
 TriggerElement = namedtuple("TriggerElement", ["namespace", "key", "value"])
 TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
-logger = logging.getLogger(__name__)
+from motion.utils import logger
 
 
 class Trigger(ABC):

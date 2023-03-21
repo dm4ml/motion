@@ -23,6 +23,7 @@ setup(
         "dill",
         "duckdb",
         "click",
+        "colorlog",
         "croniter",
         "fastapi",
         "pandas",

@@ -1,15 +1,14 @@
-from fastapi import FastAPI
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, Form, File, UploadFile, Body
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from urllib.parse import parse_qs
 
+import binascii
 import logging
 import pandas as pd
 
 from pydantic import BaseModel, Extra
-
-logger = logging.getLogger(__name__)
 
 
 class MotionGet(BaseModel, extra=Extra.allow):
@@ -89,7 +88,22 @@ def create_app(store, testing=False):
             return res
 
     @app.post("/set/")
-    async def set(args: MotionSet):
+    async def set(request: Request):
+        data = await request.body()
+        parsed_args = {
+            k: v[0] for k, v in parse_qs(data.decode("unicode_escape")).items()
+        }
+        if "identifier" not in parsed_args:
+            parsed_args["identifier"] = None
+
+        top_level_args = ["namespace", "identifier", "run_duplicate_triggers"]
+        args = {k: v for k, v in parsed_args.items() if k in top_level_args}
+        args["key_values"] = {
+            k: v for k, v in parsed_args.items() if k not in top_level_args
+        }
+
+        args = MotionSet(**args)
+
         cur = app.state.store.cursor()
         return cur.set(
             args.namespace,
@@ -112,9 +126,13 @@ def create_app(store, testing=False):
         else:
             return res
 
-    @app.get("/wait_for_trigger/")
-    async def wait_for_trigger(trigger: str):
-        return app.state.store.waitForTrigger(trigger)
+    @app.post("/wait_for_trigger/")
+    async def wait_for_trigger(request: Request):
+        data = await request.body()
+        trigger = parse_qs(data.decode("unicode_escape"))["trigger"][0]
+
+        app.state.store.waitForTrigger(trigger)
+        return trigger
 
     @app.get("/ping/")
     async def root():

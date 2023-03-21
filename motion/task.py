@@ -6,7 +6,7 @@ from croniter import croniter
 from datetime import datetime
 from motion.trigger import TriggerElement, TriggerFn
 
-logger = logging.getLogger(__name__)
+from motion.utils import logger
 
 
 class CronThread(threading.Thread):

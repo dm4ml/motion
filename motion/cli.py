@@ -8,14 +8,12 @@ import pytest
 
 import shutil
 
-from motion import MotionScript
 from subprocess import call, run
 
 
 MOTION_HOME = os.environ.get(
     "MOTION_HOME", os.path.expanduser("~/.cache/motion")
 )
-logger = logging.getLogger(__name__)
 
 
 @click.group()

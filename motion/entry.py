@@ -7,8 +7,9 @@ from motion.store import Store
 from motion.api import create_app
 from multiprocessing import Process
 
+import colorlog
 import logging
-import signal
+import sys
 import time
 import typing
 import uvicorn
@@ -92,19 +93,53 @@ def serve_store(store, host, port):
     uvicorn.run(app, host=host, port=port)
 
 
-def test(mconfig: dict, wait_for_triggers: list = []):
+def configureLogging(level: str):
+    # Set logging level
+    # logger = logging.getLogger("motion")
+    # logger.setLevel(level)
+
+    # logger.handlers.clear()
+    handler = logging.StreamHandler()
+    # handler.setLevel(level)
+
+    formatter = colorlog.ColoredFormatter(
+        "%(log_color)s%(asctime)s %(levelname)-8s%(reset)s %(blue)s%(message)s",
+        log_colors={
+            "DEBUG": "cyan",
+            "INFO": "green",
+            "WARNING": "yellow",
+            "ERROR": "red",
+            "CRITICAL": "bold_red",
+        },
+    )
+    handler.setFormatter(formatter)
+    logger = logging.getLogger("motion")
+    logger.addHandler(handler)
+    logger.setLevel(level)
+    logger.propagate = False
+    # logger.addHandler(handler)
+
+
+def test(
+    mconfig: dict,
+    wait_for_triggers: list = [],
+    motion_logging_level: str = "DEBUG",
+):
     """Test a motion application. This will run the application
     and then shut it down.
 
     Args:
         mconfig (dict): Config for the motion application.
         wait_for_triggers (list, optional): Defaults to [].
+        motion_logging_level (str, optional): Defaults to "DEBUG".
     """
+    configureLogging(motion_logging_level)
     store = init(mconfig)
     app = create_app(store, testing=True)
     connection = ClientConnection(
         mconfig["application"]["name"], server=app, store=store
     )
+    # configureLogging(motion_logging_level)
     for trigger in wait_for_triggers:
         connection.waitForTrigger(trigger)
 
@@ -115,7 +150,7 @@ def connect(name: str, wait_for_triggers: list = []):
     """Connect to a motion application.
 
     Args:
-        name (str): The name of the store.
+        name (str): The qname of the store.
         wait_for_triggers (list, optional): Defaults to [].
 
     Returns:
@@ -189,9 +224,9 @@ class ClientConnection(object):
     def postWrapper(self, dest, **kwargs):
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("post", dest, json=kwargs).json()
+                response = client.request("post", dest, data=kwargs).json()
         else:
-            response = requests.post(self.server + dest, json=kwargs).json()
+            response = requests.post(self.server + dest, data=kwargs).json()
 
         return response
 
@@ -201,7 +236,7 @@ class ClientConnection(object):
         Args:
             trigger (str): The name of the trigger.
         """
-        return self.getWrapper("/wait_for_trigger/", trigger=trigger)
+        return self.postWrapper("/wait_for_trigger/", trigger=trigger)
 
     def get(self, **kwargs):
         return self.getWrapper("/get/", **kwargs)
@@ -215,10 +250,14 @@ class ClientConnection(object):
             if isinstance(value, Enum):
                 kwargs["key_values"].update({key: value.value})
 
+        # Merge key_values with kwargs
+        kwargs.update(kwargs["key_values"])
+        del kwargs["key_values"]
+
         return self.postWrapper("/set/", **kwargs)
 
     def getNewId(self, **kwargs):
-        return self.getWrapper("/get_new_id/", **kwargs)
+        return self.postWrapper("/get_new_id/", **kwargs)
 
     def sql(self, **kwargs):
         return self.getWrapper("/sql/", **kwargs)
