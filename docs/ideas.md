@@ -20,6 +20,10 @@ Many times, users will want to try different experiments to see which one works 
 
 When data is ingested on a schedule, sometimes we may only want the incremental or new data to be ingested. How do we efficiently dedup the data and upsert it into the DB? Without blocking triggers from running?
 
+### 5. Integration with larger ETL framework (e.g., Dagster)
+
+We can integrate with larger ETL frameworks to make it easier to build and manage ETL pipelines. For example, we can use Dagster to manage the DAG of triggers.
+
 ## Research
 
 ### 1. Data validation for LLM model output
