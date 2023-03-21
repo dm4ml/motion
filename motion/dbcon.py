@@ -156,24 +156,21 @@ class Connection(object):
         # Run triggers
         executed = set()
         for key, value in key_values.items():
-            trigger_elem = TriggerElement(
-                namespace=namespace, key=key, value=value
+            triggered_by = TriggerElement(
+                namespace=namespace,
+                identifier=identifier,
+                key=key,
+                value=value,
             )
             for trigger in self.triggers.get(f"{namespace}.{key}", []):
                 if run_duplicate_triggers or trigger not in executed:
-                    self.executeTrigger(identifier, trigger, trigger_elem)
+                    self.executeTrigger(trigger, triggered_by)
                     executed.add(trigger)
 
         return identifier
 
     def logTriggerExecution(
-        self,
-        trigger_name,
-        trigger_version,
-        trigger_action,
-        namespace,
-        identifier,
-        trigger_key,
+        self, trigger_name, trigger_version, trigger_action, triggered_by
     ):
         """Logs a trigger execution.
 
@@ -181,9 +178,7 @@ class Connection(object):
             trigger_name (str): The name of the trigger.
             trigger_version (int): The version of the trigger.
             trigger_action (str): The action of the trigger.
-            namespace (str): The namespace of the trigger.
-            identifier (int): The id of the trigger.
-            trigger_key (str): The key of the trigger.
+            triggered_by (TriggerElement): The element that triggered the trigger.
         """
 
         self.cur.execute(
@@ -192,28 +187,26 @@ class Connection(object):
                 trigger_name,
                 trigger_version,
                 trigger_action,
-                namespace,
-                identifier,
-                trigger_key,
+                triggered_by.namespace,
+                triggered_by.identifier,
+                triggered_by.key,
             ),
         )
 
     def executeTrigger(
         self,
-        identifier: int,
         trigger: TriggerFn,
-        trigger_elem: TriggerElement,
+        triggered_by: TriggerElement,
     ):
         """Execute a trigger.
 
         Args:
-            identifier (int): The identifier of the record that triggered the trigger.
             trigger (TriggerFn): The trigger to execute.
-            trigger_elem (TriggerElement): The element that triggered the trigger.
+            triggered_by (TriggerElement): The element that triggered the trigger.
         """
         trigger_name, trigger_fn, isTransform = trigger
         logger.info(
-            f"Running trigger {trigger_name} for identifier {identifier}, key {trigger_elem.key}..."
+            f"Running trigger {trigger_name} for identifier {triggered_by.identifier}, key {triggered_by.key}..."
         )
         new_connection = Connection(
             self.name,
@@ -227,59 +220,43 @@ class Connection(object):
         if not isTransform:
             trigger_fn(
                 new_connection,
-                identifier,
-                trigger_elem,
+                triggered_by,
             )
             # Log the trigger execution
-            self.logTriggerExecution(
-                trigger_name,
-                0,
-                "function",
-                trigger_elem.namespace,
-                identifier,
-                trigger_elem.key,
-            )
+            self.logTriggerExecution(trigger_name, 0, "function", triggered_by)
 
             logger.info(
-                f"Finished running trigger {trigger_name} for identifier {identifier}."
+                f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
             )
 
         else:
-            # Execute the transform lifecycle
-            if trigger_fn.shouldInfer(
-                new_connection,
-                identifier,
-                trigger_elem,
-            ):
-                trigger_fn.infer(
-                    new_connection,
-                    identifier,
-                    trigger_elem,
-                )
-                self.logTriggerExecution(
-                    trigger_name,
-                    trigger_fn.version,
-                    "infer",
-                    trigger_elem.namespace,
-                    identifier,
-                    trigger_elem.key,
+            # Get route for key
+            route = trigger_fn.route_map.get(
+                f"{triggered_by.namespace}.{triggered_by.key}", None
+            )
+            if route is None:
+                raise ValueError(
+                    f"Route not found for {triggered_by.namespace}.{triggered_by.key}."
                 )
 
-            if trigger_fn.shouldFit(
-                new_connection,
-                identifier,
-                trigger_elem,
-            ):
+            # Execute the transform lifecycle: infer -> fit
+            if route.infer is not None:
+                route.infer(new_connection, triggered_by)
+                self.logTriggerExecution(
+                    trigger_name, trigger_fn.version, "infer", triggered_by
+                )
+
+            # Fit is asynchronous
+            if route.fit is not None:
                 fit_thread = trigger_fn.fitWrapper(
                     new_connection,
                     trigger_name,
-                    identifier,
-                    trigger_elem,
+                    triggered_by,
                 )
                 self.fit_events.append(fit_thread)
             else:
                 logger.info(
-                    f"Finished running trigger {trigger_name} for identifier {identifier}."
+                    f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
                 )
 
     def duplicate(self, namespace: str, identifier: int) -> int:

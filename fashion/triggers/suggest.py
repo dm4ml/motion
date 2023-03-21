@@ -19,7 +19,7 @@ class SuggestIdea(motion.Trigger):
         # Set up the query suggestion model
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def generateSuggestions(self, cursor, identifier, triggered_by):
+    def generateSuggestions(self, cursor, triggered_by):
         # Generate the query suggestions
         query = triggered_by.value
         prompt = (
@@ -42,7 +42,7 @@ class SuggestIdea(motion.Trigger):
 
         for s in suggestions:
             new_id = cursor.duplicate(
-                triggered_by.namespace, identifier=identifier
+                triggered_by.namespace, identifier=triggered_by.identifier
             )
             cursor.set(
                 triggered_by.namespace,

@@ -7,13 +7,12 @@ import pandas as pd
 import threading
 import typing
 
-from collections import namedtuple
 from croniter import croniter
 from enum import Enum
 from motion import Trigger
 from motion.dbcon import Connection
 from motion.task import CronThread, CheckpointThread
-from motion.trigger import TriggerElement, TriggerFn
+from motion.trigger import TriggerFn
 
 from motion.utils import logger
 
@@ -225,9 +224,9 @@ class Store(object):
 
         if inspect.isfunction(trigger):
             # Check that the function signature is correct
-            if len(inspect.signature(trigger).parameters) != 3:
+            if len(inspect.signature(trigger).parameters) != 2:
                 raise ValueError(
-                    f"Trigger function must take in 3 arguments: store connection, id, and triggered_by."
+                    f"Trigger function must take in 2 arguments: cursor and triggered_by."
                 )
 
         elif inspect.isclass(trigger):

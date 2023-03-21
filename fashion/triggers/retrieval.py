@@ -57,7 +57,7 @@ class Retrieval(motion.Trigger):
 
         return state
 
-    def suggestionToImage(self, cursor, identifier, triggered_by):
+    def suggestionToImage(self, cursor, triggered_by):
         text = triggered_by.value
         with torch.no_grad():
             text_inputs = clip.tokenize([text]).to(self.state["device"])
@@ -65,11 +65,9 @@ class Retrieval(motion.Trigger):
 
         # Search the FAISS index for the most similar image
         scores, img_ids = self._searchIndex(text_features)
-        self._writeSimilarImages(
-            cursor, identifier, triggered_by, scores, img_ids
-        )
+        self._writeSimilarImages(cursor, triggered_by, scores, img_ids)
 
-    def closetToImage(self, cursor, identifier, triggered_by):
+    def closetToImage(self, cursor, triggered_by):
         # Run CLIP on the uploaded image to get the image features,
         # then find similar images in the catalog
         image_features = self._embedImage(
@@ -77,17 +75,15 @@ class Retrieval(motion.Trigger):
         )
         # Search the FAISS index for the most similar image
         scores, img_ids = self._searchIndex(image_features)
-        self._writeSimilarImages(
-            cursor, identifier, triggered_by, scores, img_ids
-        )
+        self._writeSimilarImages(cursor, triggered_by, scores, img_ids)
 
-    def catalogToIndex(self, cursor, identifier, triggered_by) -> dict:
+    def catalogToIndex(self, cursor, triggered_by) -> dict:
         image_features = self._embedImage(
             triggered_by.value, self.state["model"]
         )
         cursor.set(
             triggered_by.namespace,
-            identifier=identifier,
+            identifier=triggered_by.identifier,
             key_values={"img_embedding": image_features.squeeze().tolist()},
         )
 
@@ -103,7 +99,7 @@ class Retrieval(motion.Trigger):
         )
         return new_state
 
-    def fineTune(self, cursor, identifier, triggered_by):
+    def fineTune(self, cursor, triggered_by):
         positive_feedback_ids = cursor.getIdsForKey("query", "feedback", True)
 
         # Only fine-tune if we have seen at least 5 positive feedbacks
@@ -167,12 +163,10 @@ class Retrieval(motion.Trigger):
         img_ids = [self.state["index_to_id"][index] for index in indices[0]]
         return scores[0], img_ids
 
-    def _writeSimilarImages(
-        self, cursor, identifier, triggered_by, scores, img_ids
-    ):
+    def _writeSimilarImages(self, cursor, triggered_by, scores, img_ids):
         for score, img_id in zip(scores, img_ids):
             new_id = cursor.duplicate(
-                triggered_by.namespace, identifier=identifier
+                triggered_by.namespace, identifier=triggered_by.identifier
             )
             cursor.set(
                 triggered_by.namespace,

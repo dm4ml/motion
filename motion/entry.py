@@ -94,13 +94,7 @@ def serve_store(store, host, port):
 
 
 def configureLogging(level: str):
-    # Set logging level
-    # logger = logging.getLogger("motion")
-    # logger.setLevel(level)
-
-    # logger.handlers.clear()
     handler = logging.StreamHandler()
-    # handler.setLevel(level)
 
     formatter = colorlog.ColoredFormatter(
         "%(log_color)s%(asctime)s %(levelname)-8s%(reset)s %(blue)s%(message)s",
@@ -116,8 +110,6 @@ def configureLogging(level: str):
     logger = logging.getLogger("motion")
     logger.addHandler(handler)
     logger.setLevel(level)
-    logger.propagate = False
-    # logger.addHandler(handler)
 
 
 def test(
@@ -139,7 +131,7 @@ def test(
     connection = ClientConnection(
         mconfig["application"]["name"], server=app, store=store
     )
-    # configureLogging(motion_logging_level)
+
     for trigger in wait_for_triggers:
         connection.waitForTrigger(trigger)
 

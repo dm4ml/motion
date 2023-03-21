@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from fashion.schemas import Retailer
 
 
-def scrape_everlane(cursor, identifier, triggered_by):
+def scrape_everlane(cursor, triggered_by):
     # Scrape the catalog and add the images to the store
     urls = [
         # "https://www.everlane.com/collections/womens-sale-2",
@@ -125,9 +125,11 @@ def scrape_everlane(cursor, identifier, triggered_by):
         cursor.set("catalog", identifier=new_id, key_values=product)
 
 
-def local_image_path_to_blob(cursor, identifier, triggered_by):
+def local_image_path_to_blob(cursor, triggered_by):
     with open(triggered_by.value, "rb") as f:
         blob = f.read()
         cursor.set(
-            triggered_by.namespace, identifier, key_values={"img_blob": blob}
+            triggered_by.namespace,
+            triggered_by.identifier,
+            key_values={"img_blob": blob},
         )

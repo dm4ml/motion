@@ -45,15 +45,17 @@ class CronThread(threading.Thread):
                     continue
 
             # Run trigger
-            trigger_elem = TriggerElement(
-                namespace=None, key=self.cron_expression, value=None
+            triggered_by = TriggerElement(
+                namespace=None,
+                identifier=None,
+                key=self.cron_expression,
+                value=None,
             )
 
             try:
                 self.cur.executeTrigger(
-                    identifier=None,
                     trigger=self.trigger_fn,
-                    trigger_elem=trigger_elem,
+                    triggered_by=triggered_by,
                 )
                 self.cur.waitForResults()
                 logger.info(

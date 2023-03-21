@@ -1,6 +1,7 @@
 from motion.trigger import Trigger
 from motion.schema import Schema, MEnum
 from motion.entry import init, serve, connect, test
+from motion.routing import Route
 
 __all__ = [
     "MEnum",
@@ -10,4 +11,5 @@ __all__ = [
     "serve",
     "connect",
     "test",
+    "Route",
 ]
