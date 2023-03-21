@@ -1,3 +1,3 @@
 from fashion.schemas.all import *
 
-__all__ = [QuerySchema, CatalogSchema, QuerySource]
+__all__ = [QuerySchema, CatalogSchema, QuerySource, ClosetSchema]

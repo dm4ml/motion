@@ -31,3 +31,10 @@ class CatalogSchema(motion.Schema):
     img_name: str
     permalink: str
     img_embedding: TypeVar("FLOAT[]")
+
+
+class ClosetSchema(motion.Schema):
+    username: str
+    img_path: str
+    img_blob: TypeVar("BLOB")
+    img_embedding: TypeVar("FLOAT[]")

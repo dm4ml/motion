@@ -50,14 +50,34 @@ class Retrieval(motion.Trigger):
             )
 
     def shouldInfer(self, cursor, identifier, triggered_by):
-        # Call infer only on text suggestions
-        if triggered_by.key == "text_suggestion":
+        # Call infer only on text suggestions or closet items
+        if triggered_by.key == "text_suggestion" or (
+            triggered_by.key == "img_blob"
+            and triggered_by.namespace == "closet"
+        ):
             return True
 
         return False
 
     def infer(self, cursor, identifier, triggered_by):
-        self.inferText(cursor, identifier, triggered_by.value)
+        if triggered_by.key == "text_suggestion":
+            self.inferText(cursor, identifier, triggered_by.value)
+        elif (
+            triggered_by.key == "img_blob"
+            and triggered_by.namespace == "closet"
+        ):
+            # Run CLIP on the uploaded image to get the image features,
+            # then put it back in the DB
+            image_features = self.embedImage(
+                triggered_by.value, self.state["model"]
+            )
+            cursor.set(
+                triggered_by.namespace,
+                identifier=identifier,
+                key_values={
+                    "img_embedding": image_features.squeeze().tolist()
+                },
+            )
 
     def shouldFit(self, cursor, id, triggered_by):
         # Check if fit should be called
@@ -74,9 +94,19 @@ class Retrieval(motion.Trigger):
             return False
 
     def fit(self, cursor, identifier, triggered_by):
-        if triggered_by.key == "img_blob":
-            self.embedImage(
-                cursor, identifier, triggered_by.value, self.state["model"]
+        if (
+            triggered_by.namespace == "catalog"
+            and triggered_by.key == "img_blob"
+        ):
+            image_features = self.embedImage(
+                triggered_by.value, self.state["model"]
+            )
+            cursor.set(
+                "catalog",
+                identifier=identifier,
+                key_values={
+                    "img_embedding": image_features.squeeze().tolist()
+                },
             )
 
             # Add the normalized image to the FAISS index every 10 iterations
@@ -147,8 +177,13 @@ class Retrieval(motion.Trigger):
 
         # Re-embed all the images
         for _, row in ids_and_blobs.iterrows():
-            self.embedImage(
-                cursor, row["identifier"], row["img_blob"], new_model
+            image_features = self.embedImage(row["img_blob"], new_model)
+            cursor.set(
+                "catalog",
+                identifier=row["identifier"],
+                key_values={
+                    "img_embedding": image_features.squeeze().tolist()
+                },
             )
 
         new_state = {"model": new_model}
@@ -156,7 +191,7 @@ class Retrieval(motion.Trigger):
 
         return new_state
 
-    def embedImage(self, cursor, identifier, img_blob, model):
+    def embedImage(self, img_blob, model):
         with torch.no_grad():
             image_input = (
                 self.state["preprocess"](Image.open(BytesIO(img_blob)))
@@ -165,11 +200,7 @@ class Retrieval(motion.Trigger):
             )
             image_features = model.encode_image(image_input)
 
-        cursor.set(
-            "catalog",
-            identifier=identifier,
-            key_values={"img_embedding": image_features.squeeze().tolist()},
-        )
+        return image_features
 
     def createIndex(self, cursor):
         index = faiss.IndexFlatIP(512)
