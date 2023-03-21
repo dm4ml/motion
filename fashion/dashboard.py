@@ -34,22 +34,27 @@ def run_query(query):
     results = cursor.get(
         "query",
         identifier=created_id,
-        keys=["identifier", "text_suggestion", "img_id", "img_score"],
+        keys=[
+            "identifier",
+            "text_suggestion",
+            "catalog_img_id",
+            "catalog_img_score",
+        ],
         include_derived=True,
         as_df=True,
     )
     results = results.loc[
-        results.groupby("img_id").img_score.idxmin()
+        results.groupby("catalog_img_id").catalog_img_score.idxmin()
     ].reset_index(drop=True)
     results.rename(columns={"identifier": "qid"}, inplace=True)
 
     # Retrieve the image url and permalink for each img_id
     image_results = cursor.mget(
         "catalog",
-        identifiers=results["img_id"].values,
+        identifiers=results["catalog_img_id"].values,
         keys=["img_url", "permalink"],
         as_df=True,
-    ).merge(results, left_on="identifier", right_on="img_id")
+    ).merge(results, left_on="identifier", right_on="catalog_img_id")
 
     return image_results
 
@@ -69,7 +74,7 @@ if query:
             f'{row["text_suggestion"]} | [Link]({row["permalink"]})'
         )
         st_cols[col_idx].button(
-            key="like_" + str(row["img_id"]),
+            key="like_" + str(row["catalog_img_id"]),
             label="Like this",
             on_click=lambda x: store.cursor().set(
                 "query",

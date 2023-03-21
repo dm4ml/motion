@@ -36,10 +36,10 @@ def test_add_item_to_closet():
         results = connection.get(
             namespace="closet",
             identifier=created_id,
-            keys=["identifier", "img_embedding"],
+            keys=["identifier", "catalog_img_score"],
             include_derived=True,
             as_df=True,
-        )
+        ).sort_values("catalog_img_score", ascending=True)
         print(f"Results for image '{image}': {results}")
 
     connection.close(wait=False)

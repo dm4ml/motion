@@ -46,7 +46,10 @@ class Retrieval(motion.Trigger):
             cursor.set(
                 "query",
                 identifier=new_id,
-                key_values={"img_id": img_id, "img_score": score},
+                key_values={
+                    "catalog_img_id": img_id,
+                    "catalog_img_score": score,
+                },
             )
 
     def shouldInfer(self, cursor, identifier, triggered_by):
@@ -67,17 +70,30 @@ class Retrieval(motion.Trigger):
             and triggered_by.namespace == "closet"
         ):
             # Run CLIP on the uploaded image to get the image features,
-            # then put it back in the DB
+            # then find similar images in the catalog
             image_features = self.embedImage(
                 triggered_by.value, self.state["model"]
             )
-            cursor.set(
-                triggered_by.namespace,
-                identifier=identifier,
-                key_values={
-                    "img_embedding": image_features.squeeze().tolist()
-                },
+            # Search the FAISS index for the most similar image
+            # TODO(refactor)
+            image_features = image_features.numpy()
+            scores, indices = self.state["index"].search(
+                image_features / np.linalg.norm(image_features, axis=1),
+                self.state["k"],
             )
+            for catalog_img_score, index in zip(scores[0], indices[0]):
+                catalog_img_id = self.state["index_to_id"][index]
+                new_id = cursor.duplicate(
+                    triggered_by.namespace, identifier=identifier
+                )
+                cursor.set(
+                    triggered_by.namespace,
+                    identifier=new_id,
+                    key_values={
+                        "catalog_img_id": catalog_img_id,
+                        "catalog_img_score": catalog_img_score,
+                    },
+                )
 
     def shouldFit(self, cursor, id, triggered_by):
         # Check if fit should be called
@@ -151,7 +167,7 @@ class Retrieval(motion.Trigger):
         text_suggestions_and_img_ids = cursor.mget(
             "query",
             identifiers=positive_feedback_ids,
-            keys=["text_suggestion", "img_id"],
+            keys=["text_suggestion", "catalog_img_id"],
             as_df=True,
         )
         img_ids_and_blobs = cursor.mget(
@@ -161,7 +177,7 @@ class Retrieval(motion.Trigger):
             as_df=True,
         )
         img_blobs_and_captions = text_suggestions_and_img_ids.merge(
-            img_ids_and_blobs, left_on="img_id", right_on="identifier"
+            img_ids_and_blobs, left_on="catalog_img_id", right_on="identifier"
         )[["img_blob", "text_suggestion"]].dropna()
 
         # Fine-tune model and update all the embeddings

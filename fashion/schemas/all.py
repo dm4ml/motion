@@ -19,8 +19,8 @@ class QuerySchema(motion.Schema):
     query_id: str
     query: str
     text_suggestion: str
-    img_id: str
-    img_score: float
+    catalog_img_id: str
+    catalog_img_score: float
     feedback: bool
 
 
@@ -37,4 +37,5 @@ class ClosetSchema(motion.Schema):
     username: str
     img_path: str
     img_blob: TypeVar("BLOB")
-    img_embedding: TypeVar("FLOAT[]")
+    catalog_img_id: str
+    catalog_img_score: str
