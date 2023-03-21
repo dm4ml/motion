@@ -21,8 +21,6 @@ def test_add_item_to_closet():
     ]
 
     for image in images:
-        # Turn image into blob
-
         created_id = connection.set(
             namespace="closet",
             identifier=None,
