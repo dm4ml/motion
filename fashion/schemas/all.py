@@ -37,5 +37,6 @@ class ClosetSchema(motion.Schema):
     username: str
     img_path: str
     img_blob: TypeVar("BLOB")
+    sd_img_blob: TypeVar("BLOB")
     catalog_img_id: str
     catalog_img_score: str

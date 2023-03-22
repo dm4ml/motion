@@ -11,8 +11,9 @@ from rich import print
 def test_add_item_to_closet():
     connection = motion.test(
         MCONFIG,
-        wait_for_triggers=["scrape_everlane"],
+        # wait_for_triggers=["scrape_everlane"],
         motion_logging_level="INFO",
+        disable_cron_triggers=True,
     )
 
     images = [
@@ -34,7 +35,7 @@ def test_add_item_to_closet():
         results = connection.get(
             namespace="closet",
             identifier=created_id,
-            keys=["identifier", "catalog_img_score"],
+            keys=["identifier", "sd_img_blob", "catalog_img_score"],
             include_derived=True,
             as_df=True,
         ).sort_values("catalog_img_score", ascending=True)

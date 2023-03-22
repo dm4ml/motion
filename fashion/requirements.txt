@@ -1,7 +1,9 @@
+accelerate
 beautifulsoup4
 clip
 cohere
 croniter
+diffusers
 duckdb
 dill
 faiss-cpu
@@ -11,7 +13,10 @@ numpy
 openai
 openai-clip
 pandas
+safetensors
+scipy
 streamlit
 torch
 torchvision
 tqdm
+transformers

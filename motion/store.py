@@ -23,6 +23,7 @@ class Store(object):
         name: str,
         datastore_prefix: str = "datastores",
         checkpoint: str = "0 * * * *",
+        disable_cron_triggers: bool = False,
     ):
         self.name = name
 
@@ -53,7 +54,8 @@ class Store(object):
         self.addLogTable()
 
         self.triggers = {}
-        self.cron_triggers = {}  # TODO(figure out how to schedule this)
+        self.cron_triggers = {}
+        self.cron_threads = {}
         self.trigger_names = {}
         self.trigger_fns = {}
 
@@ -72,6 +74,7 @@ class Store(object):
 
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
+        self.disable_cron_triggers = disable_cron_triggers
 
         # Set listening to false
         self._listening = False
@@ -134,17 +137,39 @@ class Store(object):
             name (str): The name of the namespace.
             schema (typing.Any): The schema of the namespace.
         """
+        stmts = schema.formatCreateStmts(f"{self.name}.{name}")
 
         # Check if namespace already exists
         tables = self.con.execute(f"SHOW TABLES;").fetchall()
         tables = [t[0] for t in tables]
         if name in tables:
+            description = self.con.execute(
+                f"DESCRIBE {self.name}.{name};"
+            ).fetchdf()
+            create_table_stmt = stmts[-1]
+
+            for column_name, column_type in zip(
+                description["column_name"].values,
+                description["column_type"].values,
+            ):
+                if (
+                    column_name == "identifier"
+                    or column_name == "derived_id"
+                    or column_name == "create_at"
+                ):
+                    continue
+
+                # Make sure column name and type match create table stmt
+                if f"{column_name} {column_type}" not in create_table_stmt:
+                    logger.error(
+                        f"Your current schema for namespace {name} does not match the schema in the database. Please clear the database with `motion clear {self.name}` and try again."
+                    )
+
             logger.info(
                 f"Namespace {name} already exists in store {self.name}. Doing nothing."
             )
             return
 
-        stmts = schema.formatCreateStmts(f"{self.name}.{name}")
         for stmt in stmts:
             logger.info(stmt)
             self.con.execute(stmt)
@@ -251,7 +276,7 @@ class Store(object):
         for key in keys:
             if key not in all_possible_keys and not croniter.is_valid(key):
                 raise ValueError(
-                    f"Trigger {name} has invalid key {key}. Valid keys are {all_possible_keys} or a cron expression."
+                    f"Trigger {name} has invalid key {key}. Valid keys are {all_possible_keys} or a cron expression. If your schemas have changed, you may need to clear your application by running `motion clear {self.name}`."
                 )
 
             if croniter.is_valid(key):
@@ -340,18 +365,19 @@ class Store(object):
         self._listening = True
         self.cron_threads = {}
 
-        for cron_expression, triggers in self.cron_triggers.items():
-            for trigger_fn in triggers:
-                e = threading.Event()
-                t = CronThread(
-                    cron_expression,
-                    self.cursor(wait_for_results=True),
-                    trigger_fn,
-                    self.checkpoint,
-                    e,
-                )
-                self.cron_threads[trigger_fn.name] = t
-                t.start()
+        if not self.disable_cron_triggers:
+            for cron_expression, triggers in self.cron_triggers.items():
+                for trigger_fn in triggers:
+                    e = threading.Event()
+                    t = CronThread(
+                        cron_expression,
+                        self.cursor(wait_for_results=True),
+                        trigger_fn,
+                        self.checkpoint,
+                        e,
+                    )
+                    self.cron_threads[trigger_fn.name] = t
+                    t.start()
 
         # Start a thread to checkpoint the store every 5 minutes
         self.checkpoint_thread = CheckpointThread(
@@ -365,6 +391,11 @@ class Store(object):
         Args:
             trigger_name (str): The name of the trigger to wait for.
         """
+        if self.disable_cron_triggers:
+            raise ValueError(
+                f"Cannot wait for trigger {trigger_name} because cron triggers are disabled."
+            )
+
         if trigger_name not in self.cron_threads.keys():
             raise ValueError(
                 f"Trigger {trigger_name} does not exist as a cron-scheduled thread. Valid cron-scheduled triggers are {list(self.cron_threads.keys())}."
@@ -376,14 +407,16 @@ class Store(object):
     def stop(self, wait: bool = False) -> None:
         """Stop the store."""
         # Stop cron triggers
-        for _, t in self.cron_threads.items():
-            t.stop()
-            if wait:
-                t.join()
 
-        self.checkpoint_thread.stop()
-        if wait:
-            self.checkpoint_thread.join()
+        if self._listening:
+            for _, t in self.cron_threads.items():
+                t.stop()
+                if wait:
+                    t.join()
+
+            self.checkpoint_thread.stop()
+            if wait:
+                self.checkpoint_thread.join()
 
         self._listening = False
 

@@ -44,7 +44,7 @@ class Schema(ABC):
         names_and_types = [
             "identifier VARCHAR NOT NULL DEFAULT uuid()",  # TODO make this a primary key
             "derived_id VARCHAR DEFAULT NULL",
-            "create_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+            "create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
         ]
         enums = {}
 
@@ -54,11 +54,12 @@ class Schema(ABC):
                 int,
                 float,
                 date,
-                datetime,
             ] or isinstance(field.type, typing.TypeVar):
                 names_and_types.append(
                     f"{field.name} {field.type.__name__.split('.')[-1].upper()}"
                 )
+            elif field.type == datetime:
+                names_and_types.append(f"{field.name} DATETIME")
             elif field.type == str:
                 names_and_types.append(f"{field.name} VARCHAR")
             elif field.type == bool:

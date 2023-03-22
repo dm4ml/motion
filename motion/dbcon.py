@@ -5,6 +5,7 @@ call within trigger lifecycle methods.
 import duckdb
 import logging
 import pandas as pd
+import pyarrow as pa
 import threading
 import typing
 
@@ -306,7 +307,12 @@ class Connection(object):
             ).fetchone()
             res_dict = {k: v for k, v in zip(keys, res)}
             res_dict.update({"identifier": identifier})
-            return res_dict
+
+            return (
+                pd.Series(res_dict).to_frame().T
+                if kwargs.get("as_df", False)
+                else res_dict
+            )
 
         # Recursively get derived ids
         id_res = self.cur.execute(
@@ -325,22 +331,7 @@ class Connection(object):
         if "identifier" not in keys:
             keys.append("identifier")
 
-        all_ids_str = [f"'{str(i)}'" for i in all_ids]
-        if kwargs.get("filter_null", True):
-            query_str = f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)}) AND {' AND '.join([f'{k} IS NOT NULL' for k in keys])}"
-            return (
-                self.cur.execute(query_str).fetchdf()
-                if kwargs.get("as_df", False)
-                else self.cur.execute(query_str).fetchall()
-            )
-
-        else:
-            query_str = f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
-            return (
-                self.cur.execute(query_str).fetchdf()
-                if kwargs.get("as_df", False)
-                else self.cur.execute(query_str).fetchall()
-            )
+        return self.mget(namespace, all_ids, keys, **kwargs)
 
     def mget(
         self,
@@ -368,11 +359,12 @@ class Connection(object):
             keys.append("identifier")
         res = self.cur.execute(
             f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
-        ).fetchdf()
+        ).fetch_arrow_table()
 
         if kwargs.get("filter_null", True):
-            res = res.dropna().reset_index(drop=True)
+            res = pa.compute.drop_null(res).combine_chunks()
 
+        res = res.to_pandas()
         if kwargs.get("as_df", False):
             return res
 
@@ -401,7 +393,7 @@ class Connection(object):
 
     def sql(self, stmt: str, as_df: bool = True) -> typing.Any:
         return (
-            self.cur.execute(stmt).fetchdf()
+            self.cur.execute(stmt).fetch_arrow_table().to_pandas()
             if as_df
-            else self.cur.execute(stmt)
+            else self.cur.execute(stmt).fetchall()
         )

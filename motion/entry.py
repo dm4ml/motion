@@ -8,7 +8,10 @@ from motion.api import create_app
 from multiprocessing import Process
 
 import colorlog
+import io
+import json
 import logging
+import pyarrow as pa
 import sys
 import time
 import typing
@@ -24,13 +27,12 @@ MOTION_HOME = os.environ.get(
 logger = logging.getLogger(__name__)
 
 
-def init(mconfig: dict) -> Store:
+def init(mconfig: dict, disable_cron_triggers: bool = False) -> Store:
     """Initialize the motion store.
 
     Args:
         mconfig (dict): The motion configuration.
-        memory (bool): Whether to use memory or not.
-        datastore_prefix (str): The prefix for the datastore.
+        disable_cron_triggers (bool, optional): Whether to disable cron triggers. Used during testing. Defaults to False.
 
     Returns:
         Store: The motion store.
@@ -52,6 +54,7 @@ def init(mconfig: dict) -> Store:
         name,
         datastore_prefix=os.path.join(MOTION_HOME, "datastores"),
         checkpoint=checkpoint,
+        disable_cron_triggers=disable_cron_triggers,
     )
 
     # Create namespaces
@@ -121,6 +124,7 @@ def configureLogging(level: str):
 def test(
     mconfig: dict,
     wait_for_triggers: list = [],
+    disable_cron_triggers: bool = False,
     motion_logging_level: str = "DEBUG",
 ):
     """Test a motion application. This will run the application
@@ -129,10 +133,16 @@ def test(
     Args:
         mconfig (dict): Config for the motion application.
         wait_for_triggers (list, optional): Defaults to [].
+        disable_cron_triggers (bool, optional): Defaults to False.
         motion_logging_level (str, optional): Defaults to "DEBUG".
     """
+    if wait_for_triggers and disable_cron_triggers:
+        raise ValueError(
+            "Cannot wait for triggers if cron triggers are disabled."
+        )
+
     configureLogging(motion_logging_level)
-    store = init(mconfig)
+    store = init(mconfig, disable_cron_triggers=disable_cron_triggers)
     app = create_app(store, testing=True)
     connection = ClientConnection(
         mconfig["application"]["name"], server=app, store=store
@@ -210,23 +220,32 @@ class ClientConnection(object):
     def getWrapper(self, dest, **kwargs):
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("get", dest, json=kwargs).json()
+                response = client.request("get", dest, json=kwargs)
         else:
-            response = requests.get(self.server + dest, json=kwargs).json()
+            response = requests.get(self.server + dest, json=kwargs)
 
-        if kwargs.get("as_df", False):
-            return pd.DataFrame(response)
+        if response.status_code != 200:
+            raise Exception(response.content)
 
-        return response
+        with io.BytesIO(response.content) as data:
+            if response.headers["content-type"] == "application/octet-stream":
+                df = pd.read_parquet(data, engine="pyarrow")
+                return df
+
+            if response.headers["content-type"] == "application/json":
+                return json.loads(response.content)
 
     def postWrapper(self, dest, **kwargs):
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("post", dest, data=kwargs).json()
+                response = client.request("post", dest, data=kwargs)
         else:
-            response = requests.post(self.server + dest, data=kwargs).json()
+            response = requests.post(self.server + dest, data=kwargs)
 
-        return response
+        if response.status_code != 200:
+            raise Exception(response.content)
+
+        return response.json()
 
     def waitForTrigger(self, trigger: str):
         """Wait for a trigger to fire.
@@ -237,10 +256,16 @@ class ClientConnection(object):
         return self.postWrapper("/wait_for_trigger/", trigger=trigger)
 
     def get(self, **kwargs):
-        return self.getWrapper("/get/", **kwargs)
+        response = self.getWrapper("/get/", **kwargs)
+        if not kwargs.get("as_df", False):
+            return response.to_dict(orient="records")
+        return response
 
     def mget(self, **kwargs):
-        return self.getWrapper("/mget/", **kwargs)
+        response = self.getWrapper("/mget/", **kwargs)
+        if not kwargs.get("as_df", False):
+            return response.to_dict(orient="records")
+        return response
 
     def set(self, **kwargs):
         # Convert enums to their values

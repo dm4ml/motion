@@ -1,12 +1,21 @@
-from fastapi import FastAPI, Request, status, Form, File, UploadFile, Body
+from fastapi import (
+    FastAPI,
+    Request,
+    Response,
+    status,
+    Form,
+    File,
+    UploadFile,
+    Body,
+)
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from urllib.parse import parse_qs
 
 import binascii
 import logging
 import pandas as pd
+import pyarrow as pa
 
 from pydantic import BaseModel, Extra
 
@@ -49,6 +58,14 @@ class MotionSql(BaseModel):
     as_df: bool = True
 
 
+def df_to_json_response(df):
+    # response = pa.serialize(df).to_buffer()
+    return Response(
+        df.to_parquet(engine="pyarrow", index=False),
+        media_type="application/octet-stream",
+    )
+
+
 def create_app(store, testing=False):
     app = FastAPI()
 
@@ -57,9 +74,10 @@ def create_app(store, testing=False):
         request: Request, exc: RequestValidationError
     ):
         detail = exc.errors()[0]["msg"]
-        return JSONResponse(
+        return Response(
+            {"detail": detail},
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": detail},
+            media_type="application/json",
         )
 
     @app.on_event("startup")
@@ -70,11 +88,14 @@ def create_app(store, testing=False):
     @app.get("/get/")
     async def get(args: MotionGet):
         cur = app.state.store.cursor()
+
         res = cur.get(**args.kwargs)
-        if isinstance(res, pd.DataFrame):
-            return res.to_dict("records")
-        else:
-            return res
+
+        # Check if the result is a pandas df
+        if not isinstance(res, pd.DataFrame):
+            res = pd.DataFrame(res)
+
+        return df_to_json_response(res)
 
     @app.get("/mget/")
     async def mget(args: MotionMget):
@@ -82,10 +103,10 @@ def create_app(store, testing=False):
         res = cur.mget(
             **args.kwargs,
         )
-        if isinstance(res, pd.DataFrame):
-            return res.to_dict("records")
-        else:
-            return res
+        if not isinstance(res, pd.DataFrame):
+            res = pd.DataFrame(res)
+
+        return df_to_json_response(res)
 
     @app.post("/set/")
     async def set(request: Request):
@@ -122,9 +143,9 @@ def create_app(store, testing=False):
         cur = app.state.store.cursor()
         res = cur.sql(args.query, args.as_df)
         if isinstance(res, pd.DataFrame):
-            return res.to_dict("records")
+            return df_to_json_response(res)
         else:
-            return res
+            return Response(res, media_type="application/json")
 
     @app.post("/wait_for_trigger/")
     async def wait_for_trigger(request: Request):
