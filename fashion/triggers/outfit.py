@@ -38,12 +38,12 @@ class ExtractOutfit(motion.Trigger):
         img_blob = triggered_by.value
 
         # Convert the image blob to a PIL image
-        image = (
-            Image.open(BytesIO(img_blob)).convert("RGB").resize((768, 512))
-        )  # SD params
-        prompt = "a photo of a woman wearing a nice outfit, with background removed, HD"
+        image = Image.open(BytesIO(img_blob)).convert("RGB")  # SD params
+        image.thumbnail((512, 512), Image.ANTIALIAS)
+
+        prompt = "a photo of an outfit with no background"
         images = self.state["model"](
-            prompt=prompt, image=image, strength=0.75, guidance_scale=7.5
+            prompt=prompt, image=image, strength=0.5, guidance_scale=7.5
         ).images
 
         # Convert PIL image to image blob

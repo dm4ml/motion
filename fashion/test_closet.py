@@ -5,6 +5,9 @@ from fashion.schemas import QuerySource
 from mconfig import MCONFIG
 from rich import print
 
+from PIL import Image
+from io import BytesIO
+
 # Test that for simple queries, the results make some sense
 
 
@@ -22,6 +25,8 @@ def test_add_item_to_closet():
     ]
 
     for image in images:
+        # Write bytes directly? This might mean, using pydantic
+        # then converting to dataframe, then converting to bytes
         created_id = connection.set(
             namespace="closet",
             identifier=None,
@@ -39,7 +44,15 @@ def test_add_item_to_closet():
             include_derived=True,
             as_df=True,
         ).sort_values("catalog_img_score", ascending=True)
-        print(f"Results for image '{image}': {results}")
+        # Convert sd_image_blob to image
+
+        img = Image.open(
+            BytesIO(results["sd_img_blob"].values[0]),
+        )
+        img.save(
+            os.path.join("images", f"sd_generated_{image}.png"),
+            format=img.format,
+        )
 
     connection.close(wait=False)
 
