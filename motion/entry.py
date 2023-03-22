@@ -72,12 +72,18 @@ def init(mconfig: dict) -> Store:
     return store
 
 
-def serve(mconfig: dict, host="0.0.0.0", port=8000):
+def serve(
+    mconfig: dict, host="0.0.0.0", port=8000, motion_logging_level="INFO"
+):
     """Serve a motion application.
 
     Args:
         mconfig (dict): The motion configuration.
+        host (str, optional): The host to serve on. Defaults to "0.0.0.0".
+        port (int, optional): The port to serve on. Defaults to 8000.
+        motion_logging_level (str, optional): The logging level for motion.
     """
+    configureLogging(motion_logging_level)
     store = init(mconfig)
     serve_store(store, host, port)
 
@@ -249,7 +255,7 @@ class ClientConnection(object):
         return self.postWrapper("/set/", **kwargs)
 
     def getNewId(self, **kwargs):
-        return self.postWrapper("/get_new_id/", **kwargs)
+        return self.getWrapper("/get_new_id/", **kwargs)
 
     def sql(self, **kwargs):
         return self.getWrapper("/sql/", **kwargs)

@@ -1,7 +1,7 @@
 import random
 
 
-def sample_prompt_generator(cursor):
+def sample_prompt_generator(cursor, triggered_by):
     # Emit sample prompts to the DB
     all_prompts = [
         "What should I wear to a wedding?",
@@ -13,7 +13,9 @@ def sample_prompt_generator(cursor):
 
     rand_idx = random.randint(0, len(all_prompts) - 1)
 
-    new_id = cursor.getNewId("catalog")
+    new_id = cursor.getNewId("chat")
     cursor.set(
-        "chat", identifier=new_id, key_values={"prompt": all_prompts[rand_idx]}
+        "chat",
+        identifier=new_id,
+        key_values={"prompt": all_prompts[rand_idx]},
     )

@@ -44,57 +44,10 @@ def create(name, author):
         click.echo(f"Directory {name} already exists.")
         return
 
-    os.mkdir(name)
-
-    # Create directory structure
-    # shutil.copytree(os.path.join(os.path.dirname(__file__), "example"), name)
-
-    os.mkdir(os.path.join(name, "schemas"))
-    with open(os.path.join(name, "schemas", "__init__.py"), "w") as f:
-        f.write(
-            open(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "exampleproj/schemas/__init__.txt",
-                ),
-                "r",
-            )
-            .read()
-            .replace("{0}", name)
-        )
-    with open(os.path.join(name, "schemas", "chat.py"), "w") as f:
-        f.write(
-            open(
-                os.path.join(
-                    os.path.dirname(__file__), "exampleproj/schemas/chat.py"
-                ),
-                "r",
-            ).read()
-        )
-
-    os.mkdir(os.path.join(name, "triggers"))
-    with open(os.path.join(name, "triggers", "__init__.py"), "w") as f:
-        f.write(
-            open(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "exampleproj/triggers/__init__.txt",
-                ),
-                "r",
-            )
-            .read()
-            .replace("{0}", name)
-        )
-    with open(os.path.join(name, "triggers", "chatbot.py"), "w") as f:
-        f.write(
-            open(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "exampleproj/triggers/chatbot.py",
-                ),
-                "r",
-            ).read()
-        )
+    # Copy over the example project
+    shutil.copytree(
+        os.path.join(os.path.dirname(__file__), "exampleproj"), name
+    )
 
     # Create store setup file
     with open(os.path.join(name, "mconfig.py"), "w") as f:
@@ -102,7 +55,7 @@ def create(name, author):
             open(
                 os.path.join(
                     os.path.dirname(__file__),
-                    "exampleproj/config.txt",
+                    "exampleproj/mconfig.py",
                 ),
                 "r",
             )
@@ -115,7 +68,16 @@ def create(name, author):
 
 
 @motioncli.command("serve")
-def serve():
+@click.argument("host", required=False, default="0.0.0.0")
+@click.argument("port", required=False, default=8000)
+@click.option(
+    "logging_level",
+    "--logging-level",
+    "-l",
+    default="INFO",
+    help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
+)
+def serve(host, port, logging_level):
     # Check that the project is created
     if not os.path.exists("mconfig.py"):
         click.echo("Project is not created. Run `motion create` first.")
@@ -123,13 +85,19 @@ def serve():
 
     # Create object from mconfig.py
     config_code = open("mconfig.py", "r").read() + "\nMCONFIG"
-    exec(config_code, globals(), locals())
+
+    import sys
+
+    sys.path.append(os.getcwd())
+
+    exec(config_code)
     mconfig = locals()["MCONFIG"]
     click.echo(f"Serving application {mconfig['application']['name']}...")
 
     # Serve the application
-    motion.serve(mconfig, host="0.0.0.0", port=8000)
-    click.echo("Served successfully.")
+    motion.serve(
+        mconfig, host=host, port=port, motion_logging_level=logging_level
+    )
 
 
 @motioncli.command("clear")

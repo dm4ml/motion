@@ -4,14 +4,21 @@ import os
 
 
 class Chatbot(motion.Trigger):
+    def routes(self):
+        return [
+            motion.Route(
+                namespace="chat",
+                key="prompt",
+                infer=self.getCompletion,
+                fit=None,
+            )
+        ]
+
     def setUp(self, cursor):
         # Set up the LLM
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def shouldInfer(self, cursor, identifier, triggered_by):
-        return True
-
-    def infer(self, cursor, identifier, triggered_by):
+    def getCompletion(self, cursor, triggered_by):
         # Generate the completion from the LLM
         prompt = triggered_by.value
         response = self.state["cohere"].generate(
@@ -27,14 +34,6 @@ class Chatbot(motion.Trigger):
         completion = response[0].text
         cursor.set(
             triggered_by.namespace,  # "chat"
-            identifier=identifier,
+            identifier=triggered_by.identifier,
             key_values={"completion": completion},
         )
-
-    def shouldFit(self, cursor, identifier, triggered_by):
-        # Check if fit should be called
-        return False
-
-    def fit(self, cursor, identifier, triggered_by):
-        # Fine-tune or fit the model
-        pass

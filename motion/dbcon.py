@@ -98,6 +98,9 @@ class Connection(object):
             key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
             run_duplicate_triggers (bool, optional): Whether to run duplicate triggers. Defaults to False.
         """
+        if namespace is None:
+            raise ValueError("Namespace cannot be None.")
+
         if not identifier:
             identifier = self.getNewId(namespace)
 
