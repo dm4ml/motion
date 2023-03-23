@@ -27,12 +27,15 @@ MOTION_HOME = os.environ.get(
 logger = logging.getLogger(__name__)
 
 
-def init(mconfig: dict, disable_cron_triggers: bool = False) -> Store:
+def init(
+    mconfig: dict, disable_cron_triggers: bool = False, prod: bool = False
+) -> Store:
     """Initialize the motion store.
 
     Args:
         mconfig (dict): The motion configuration.
         disable_cron_triggers (bool, optional): Whether to disable cron triggers. Used during testing. Defaults to False.
+        prod (bool, optional): Whether to run in production mode. Defaults to False.
 
     Returns:
         Store: The motion store.
@@ -55,6 +58,7 @@ def init(mconfig: dict, disable_cron_triggers: bool = False) -> Store:
         datastore_prefix=os.path.join(MOTION_HOME, "datastores"),
         checkpoint=checkpoint,
         disable_cron_triggers=disable_cron_triggers,
+        prod=prod,
     )
 
     # Create namespaces
@@ -90,7 +94,7 @@ def serve(
         motion_logging_level (str, optional): The logging level for motion.
     """
     configureLogging(motion_logging_level)
-    store = init(mconfig)
+    store = init(mconfig, prod=True)
     serve_store(store, host, port)
 
 
@@ -199,6 +203,7 @@ class ClientConnection(object):
         if isinstance(server, FastAPI):
             self.server = server
             self.store = store
+            self.session_id = self.store.session_id
 
         else:
             self.server = "http://" + server
@@ -212,6 +217,7 @@ class ClientConnection(object):
                 raise Exception(
                     f"Could not connect to server for {self.name} at {self.server}. Please run `motion serve` first."
                 )
+            self.session_id = requests.get(self.server + "/session_id/").json()
 
     def close(self, wait=True):
         if isinstance(self.server, FastAPI):

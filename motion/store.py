@@ -6,6 +6,7 @@ import os
 import pandas as pd
 import threading
 import typing
+import uuid
 
 from croniter import croniter
 from enum import Enum
@@ -24,8 +25,10 @@ class Store(object):
         datastore_prefix: str = "datastores",
         checkpoint: str = "0 * * * *",
         disable_cron_triggers: bool = False,
+        prod: bool = False,
     ):
         self.name = name
+        self.session_id = "PROD" if prod else uuid.uuid4()
 
         self.con = duckdb.connect(":memory:")
         if not os.path.exists(os.path.join(datastore_prefix, self.name)):
@@ -120,6 +123,7 @@ class Store(object):
             self.table_columns,
             self.triggers,
             self.db_write_lock,
+            self.session_id,
             wait_for_results,
         )
 
@@ -127,7 +131,7 @@ class Store(object):
         """Creates a table to store trigger logs."""
 
         self.con.execute(
-            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier VARCHAR, trigger_key VARCHAR)"
+            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, session_id VARCHAR, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier VARCHAR, trigger_key VARCHAR)"
         )
 
     def addNamespace(self, name: str, schema: typing.Any) -> None:

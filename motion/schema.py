@@ -26,6 +26,7 @@ class Schema(BaseModel, extra=Extra.allow):
     identifier: str
     derived_id: str
     create_at: datetime
+    session_id: str
 
     @classmethod
     def formatCreateStmts(cls, table_name: str) -> typing.List[str]:
@@ -39,12 +40,14 @@ class Schema(BaseModel, extra=Extra.allow):
             if not f.name == "identifier"
             and not f.name == "create_at"
             and not f.name == "derived_id"
+            and not f.name == "session_id"
         ]
 
         names_and_types = [
             "identifier VARCHAR NOT NULL DEFAULT uuid()",  # TODO make this a primary key
             "derived_id VARCHAR DEFAULT NULL",
             "create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            "session_id VARCHAR NOT NULL",
         ]
         enums = {}
 

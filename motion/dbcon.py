@@ -22,6 +22,7 @@ class Connection(object):
         table_columns,
         triggers,
         write_lock,
+        session_id,
         wait_for_results=False,
     ):
         self.name = name
@@ -29,6 +30,7 @@ class Connection(object):
         self.table_columns = table_columns
         self.triggers = triggers
         self.write_lock = write_lock
+        self.session_id = session_id
         self.wait_for_results = wait_for_results
         self.fit_events = []
 
@@ -113,8 +115,8 @@ class Connection(object):
         if not self.exists(namespace, identifier):
             with self.write_lock:
                 query_string = (
-                    f"INSERT INTO {self.name}.{namespace} (identifier, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))})",
-                    (identifier, *key_values.values()),
+                    f"INSERT INTO {self.name}.{namespace} (identifier, session_id, {', '.join(key_values.keys())}) VALUES (?, ?, {', '.join(['?'] * len(key_values.keys()))})",
+                    (identifier, self.session_id, *key_values.values()),
                 )
                 self.cur.execute(*query_string)
                 # logger.info(f"Inserted row {identifier} into {namespace}.")
@@ -186,8 +188,9 @@ class Connection(object):
         """
 
         self.cur.execute(
-            f"INSERT INTO {self.name}.logs(trigger_name, trigger_version, trigger_action, namespace, identifier, trigger_key) VALUES (?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {self.name}.logs(session_id, trigger_name, trigger_version, trigger_action, namespace, identifier, trigger_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
+                self.session_id,
                 trigger_name,
                 trigger_version,
                 trigger_action,
@@ -218,6 +221,7 @@ class Connection(object):
             self.table_columns,
             self.triggers,
             self.write_lock,
+            self.session_id,
             self.wait_for_results,
         )
 

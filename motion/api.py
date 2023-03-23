@@ -151,6 +151,10 @@ def create_app(store, testing=False):
     async def root():
         return {"message": "Hello World"}
 
+    @app.get("/session_id/")
+    async def session_id():
+        return app.state.store.session_id
+
     @app.on_event("shutdown")
     async def shutdown():
         if not app.state.testing:

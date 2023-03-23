@@ -18,10 +18,11 @@ def test_add_item_to_closet(strength: float):
 
     connection = motion.test(
         test_config,
-        # wait_for_triggers=["scrape_everlane"],
+        wait_for_triggers=["scrape_everlane"],
         motion_logging_level="INFO",
-        disable_cron_triggers=True,
+        # disable_cron_triggers=True,
     )
+    print(connection.session_id)
 
     images = [
         "jumpsuit.JPG",
@@ -61,5 +62,5 @@ def test_add_item_to_closet(strength: float):
     connection.close(wait=False)
 
 
-for i in [0.2, 0.5, 0.8]:
+for i in [0.2]:
     test_add_item_to_closet(i)
