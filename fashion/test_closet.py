@@ -11,9 +11,13 @@ from io import BytesIO
 # Test that for simple queries, the results make some sense
 
 
-def test_add_item_to_closet():
+def test_add_item_to_closet(strength: float):
+    test_config = motion.update_params(
+        MCONFIG, {"ExtractOutfit": {"strength": strength}}
+    )
+
     connection = motion.test(
-        MCONFIG,
+        test_config,
         # wait_for_triggers=["scrape_everlane"],
         motion_logging_level="INFO",
         disable_cron_triggers=True,
@@ -50,11 +54,12 @@ def test_add_item_to_closet():
             BytesIO(results["sd_img_blob"].values[0]),
         )
         img.save(
-            os.path.join("images", f"sd_generated_{image[:-3]}.png"),
+            os.path.join("images", f"sd_generated_{image[:-4]}.png"),
             format=img.format,
         )
 
     connection.close(wait=False)
 
 
-test_add_item_to_closet()
+for i in [0.2, 0.5, 0.8]:
+    test_add_item_to_closet(i)

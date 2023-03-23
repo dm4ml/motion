@@ -43,7 +43,10 @@ class ExtractOutfit(motion.Trigger):
 
         prompt = "a photo of an outfit with black background, HD"
         images = self.state["model"](
-            prompt=prompt, image=image, strength=0.5, guidance_scale=7.5
+            prompt=prompt,
+            image=image,
+            strength=self.params["strength"],
+            guidance_scale=7.5,
         ).images
 
         # Convert PIL image to image blob

@@ -15,8 +15,22 @@ TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 from motion.utils import logger
 
 
+class Params(dict):
+    def __init__(self, trigger_name, *args, **kwargs):
+        self.trigger_name = trigger_name
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            raise KeyError(
+                f"Key `{key}` not found in {self.trigger_name} params."
+            )
+
+
 class Trigger(ABC):
-    def __init__(self, cursor, name, version):
+    def __init__(self, cursor, name, version, params={}):
         self.name = name
 
         # Validate number of arguments in each trigger and set up routes
@@ -31,6 +45,9 @@ class Trigger(ABC):
             r.validate(self)
             seen_keys.add(f"{r.namespace}.{r.key}")
         self.route_map = {f"{r.namespace}.{r.key}": r for r in self.routes()}
+
+        # Set up params dictionary
+        self._params = Params(self.name, params)
 
         # Set up initial state
         if len(inspect.signature(self.setUp).parameters) != 1:
@@ -59,6 +76,10 @@ class Trigger(ABC):
     @abstractmethod
     def setUp(self, cursor):
         pass
+
+    @property
+    def params(self):
+        return self._params
 
     @property
     def state(self):

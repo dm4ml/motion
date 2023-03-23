@@ -63,10 +63,13 @@ def init(mconfig: dict, disable_cron_triggers: bool = False) -> Store:
 
     # Create triggers
     for trigger, keys in mconfig["triggers"].items():
+        params = mconfig.get("trigger_params", {}).get(trigger, {})
+
         store.addTrigger(
             name=trigger.__name__,
             keys=keys,
             trigger=trigger,
+            params=params,
         )
 
     # Start store

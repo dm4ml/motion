@@ -226,6 +226,7 @@ class Store(object):
         name: str,
         keys: typing.List[str],
         trigger: typing.Union[typing.Callable, type],
+        params: typing.Dict[str, typing.Any] = {},
     ) -> None:
         """Adds a trigger to the store.
 
@@ -239,6 +240,7 @@ class Store(object):
             of the row that triggered the trigger, a reference to the element
             that triggered it, and a reference to the store object (in this
             order). If class, must implement the Transform interface.
+            params (typing.Dict[str, typing.Any], optional): Parameters to pass
 
         Raises:
             ValueError: If there is already a trigger with the given name.
@@ -294,8 +296,9 @@ class Store(object):
             f"SELECT MAX(trigger_version) FROM {self.name}.logs WHERE trigger_name = '{name}';"
         ).fetchone()
         version = version[0] if version[0] else 0
+
         trigger_exec = (
-            trigger(self.cursor(bypass_listening=True), name, version)
+            trigger(self.cursor(bypass_listening=True), name, version, params)
             if inspect.isclass(trigger)
             else trigger
         )
