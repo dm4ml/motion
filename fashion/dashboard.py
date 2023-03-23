@@ -7,7 +7,9 @@ from schemas import QuerySource
 
 @st.cache_resource
 def setup_database():
-    store = motion.init(MCONFIG)
+    store = motion.init(
+        MCONFIG, session_id="620f3434-116b-4a17-9ecd-e0808d399bac"
+    )
     return store
 
 
