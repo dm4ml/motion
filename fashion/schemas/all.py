@@ -38,4 +38,4 @@ class ClosetSchema(motion.Schema):
     img_blob: bytes
     sd_img_blob: bytes
     catalog_img_id: str
-    catalog_img_score: str
+    catalog_img_score: float

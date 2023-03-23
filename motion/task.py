@@ -46,8 +46,8 @@ class CronThread(threading.Thread):
 
             # Run trigger
             triggered_by = TriggerElement(
-                namespace=None,
-                identifier=None,
+                namespace="SCHEDULED",
+                identifier="SCHEDULED",
                 key=self.cron_expression,
                 value=None,
             )
@@ -101,7 +101,7 @@ class CheckpointThread(threading.Thread):
                 continue
 
             logger.info(f"Checkpointing store {self.store.name}")
-            self.store.checkpoint()
+            self.store.checkpoint_pa()
             logger.info(f"Finished checkpointing store {self.store.name}")
 
     def stop(self):

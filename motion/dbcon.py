@@ -6,9 +6,13 @@ import duckdb
 import logging
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
+import pytz
 import threading
 import typing
+import uuid
 
+from datetime import datetime
 from enum import Enum
 from motion.trigger import TriggerElement, TriggerFn
 from motion.utils import logger
@@ -18,7 +22,8 @@ class Connection(object):
     def __init__(
         self,
         name,
-        db_con,
+        namespaces,
+        log_table,
         table_columns,
         triggers,
         write_lock,
@@ -26,7 +31,8 @@ class Connection(object):
         wait_for_results=False,
     ):
         self.name = name
-        self.cur = db_con.cursor()
+        self.namespaces = namespaces
+        self.log_table = log_table
         self.table_columns = table_columns
         self.triggers = triggers
         self.write_lock = write_lock
@@ -43,7 +49,7 @@ class Connection(object):
             t.wait()
         self.fit_events = []
 
-    def getNewId(self, namespace: str, key: str = "identifier") -> int:
+    def getNewId(self, namespace: str, key: str = "identifier") -> str:
         """Get a new id for a namespace.
 
         Args:
@@ -51,24 +57,15 @@ class Connection(object):
             key (str, optional): The key to get the new id for. Defaults to "id".
 
         Returns:
-            int: The new id.
+            str: The new id.
         """
-
-        # self.cur.execute(
-        #     f"CREATE SEQUENCE IF NOT EXISTS {self.name}.{namespace}_{key}_seq;"
-        # )
-        # new_id = self.cur.execute(
-        #     f"SELECT NEXTVAL('{self.name}.{namespace}_{key}_seq')"
-        # ).fetchone()[0]
-        # logger.info(f"New id for {namespace} is {new_id}")
-        with self.write_lock:
-            new_id = self.cur.execute(f"SELECT uuid();").fetchone()[0]
+        new_id = str(uuid.uuid4())
 
         # Check if the id already exists
         if self.exists(namespace, new_id):
             return self.getNewId(namespace, key)
 
-        return str(new_id)
+        return new_id
 
     def exists(self, namespace: str, identifier: int) -> bool:
         """Determine if a record exists in a namespace.
@@ -80,10 +77,14 @@ class Connection(object):
         Returns:
             bool: True if the record exists, False otherwise.
         """
-        elem = self.cur.execute(
-            f"SELECT identifier FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
-        ).fetchone()
-        return elem is not None
+
+        # Check if identifier exists in pyarrow table
+        table = self.namespaces[namespace]
+        condition = pc.equal(table["identifier"], identifier)
+        mask = pc.filter(table["identifier"], condition)
+        result = len(mask) > 0
+
+        return result
 
     def set(
         self,
@@ -104,60 +105,51 @@ class Connection(object):
         if namespace is None:
             raise ValueError("Namespace cannot be None.")
 
+        exists = True
         if not identifier:
             identifier = self.getNewId(namespace)
+            exists = False
+
+        if exists:
+            exists = self.exists(namespace, identifier)
 
         # Convert enums to their values
         for key, value in key_values.items():
             if isinstance(value, Enum):
                 key_values.update({key: value.value})
 
-        if not self.exists(namespace, identifier):
-            with self.write_lock:
-                query_string = (
-                    f"INSERT INTO {self.name}.{namespace} (identifier, session_id, {', '.join(key_values.keys())}) VALUES (?, ?, {', '.join(['?'] * len(key_values.keys()))})",
-                    (identifier, self.session_id, *key_values.values()),
+        # Insert or update based on identifier
+        with self.write_lock:
+            table = self.namespaces[namespace]
+
+            if not exists:
+                new_row_dict = {n: None for n in table.schema.names}
+                new_row_dict.update(
+                    {
+                        "identifier": identifier,
+                        "create_at": pd.Timestamp.now(),
+                        "session_id": self.session_id,
+                    }
                 )
-                self.cur.execute(*query_string)
-                # logger.info(f"Inserted row {identifier} into {namespace}.")
+                new_row_dict.update(key_values)
+                new_row_df = pd.DataFrame(new_row_dict, index=[0])
 
-        else:
-            # Delete and re-insert the row with the new value
-            old_row = self.cur.execute(
-                f"SELECT * FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
-            ).fetch_df()
-            # self.cur.execute(
-            #     f"DELETE FROM {self.name}.{namespace} WHERE id = ?;", (id,)
-            # )
-            # logger.info(f"Deleted row {id} from {namespace}.")
+                new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
+                final_table = pa.concat_tables([table, new_row])
+                self.namespaces[namespace] = final_table
 
-            # Update the row with the new value
-            for key, value in key_values.items():
-                old_row.at[0, key] = value
+            else:
+                condition = pc.equal(table["identifier"], identifier)
+                row = pc.filter(table, condition).to_pandas()
 
-            with self.write_lock:
-                # excluded_stmts = [
-                #     f"{key} = excluded.{key}" for key in key_values.keys()
-                # ]
+                for key, value in key_values.items():
+                    row.at[0, key] = value
 
-                # stmt = (
-                #     f"INSERT INTO {self.name}.{namespace} (identifier, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))}) ON CONFLICT (identifier) DO UPDATE SET {', '.join(excluded_stmts)};",
-                #     (identifier, *key_values.values()),
-                # )
+                new_row = pa.Table.from_pandas(row, schema=table.schema)
 
-                # logger.info(
-                #     f"INSERT INTO {self.name}.{namespace} (identifier, {', '.join(key_values.keys())}) VALUES (?, {', '.join(['?'] * len(key_values.keys()))}) ON CONFLICT (identifier) DO UPDATE SET {', '.join(excluded_stmts)};"
-                # )
-                # self.cur.execute(*stmt)
-
-                # logger.info(id(self.write_lock))
-                self.cur.execute(
-                    f"""DELETE FROM {self.name}.{namespace} WHERE identifier = '{identifier}';"""
-                )
-                # TODO(shreyashankar): duckdb occasionally errors here
-                self.cur.execute(
-                    f"""INSERT INTO {self.name}.{namespace} SELECT * FROM old_row;""",
-                )
+                filtered_table = pc.filter(table, pc.invert(condition))
+                final_table = pa.concat_tables([filtered_table, new_row])
+                self.namespaces[namespace] = final_table
 
         # Run triggers
         executed = set()
@@ -187,18 +179,23 @@ class Connection(object):
             triggered_by (TriggerElement): The element that triggered the trigger.
         """
 
-        self.cur.execute(
-            f"INSERT INTO {self.name}.logs(session_id, trigger_name, trigger_version, trigger_action, namespace, identifier, trigger_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                self.session_id,
-                trigger_name,
-                trigger_version,
-                trigger_action,
-                triggered_by.namespace,
-                triggered_by.identifier,
-                triggered_by.key,
-            ),
+        # Append to the log table
+        new_row = {
+            "executed_time": pd.Timestamp.now(),
+            "session_id": self.session_id,
+            "trigger_name": trigger_name,
+            "trigger_version": trigger_version,
+            "trigger_action": trigger_action,
+            "namespace": triggered_by.namespace,
+            "identifier": triggered_by.identifier,
+            "trigger_key": triggered_by.key,
+        }
+        new_row = pa.Table.from_pandas(
+            pd.DataFrame(new_row, index=[0]), schema=self.log_table.schema
         )
+
+        with self.write_lock:
+            self.log_table = pa.concat_tables([self.log_table, new_row])
 
     def executeTrigger(
         self,
@@ -217,7 +214,8 @@ class Connection(object):
         )
         new_connection = Connection(
             self.name,
-            self.cur,
+            self.namespaces,
+            self.log_table,
             self.table_columns,
             self.triggers,
             self.write_lock,
@@ -280,9 +278,21 @@ class Connection(object):
         new_id = self.getNewId(namespace)
 
         with self.write_lock:
-            self.cur.execute(
-                f"INSERT INTO {self.name}.{namespace} SELECT '{new_id}' AS identifier, '{identifier}' AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
-            )
+            # self.cur.execute(
+            #     f"INSERT INTO {self.name}.{namespace} SELECT '{new_id}' AS identifier, '{identifier}' AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
+            # )
+            table = self.namespaces[namespace]
+            condition = pc.equal(table["identifier"], identifier)
+
+            row = pc.filter(table, condition).to_pandas()
+            row.at[0, "identifier"] = new_id
+            row.at[0, "derived_id"] = identifier
+
+            new_row = pa.Table.from_pandas(row, schema=table.schema)
+
+            # filtered_table = pc.filter(table, pc.invert(condition))
+            final_table = pa.concat_tables([table, new_row])
+            self.namespaces[namespace] = final_table
 
         return new_id
 
@@ -305,9 +315,14 @@ class Connection(object):
             typing.Any: The values for the keys.
         """
 
+        con = duckdb.connect()
+        scanner = pa.dataset.Scanner.from_dataset(
+            pa.dataset.dataset(self.namespaces[namespace])
+        )
+
         if not kwargs.get("include_derived", False):
-            res = self.cur.execute(
-                f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
+            res = con.execute(
+                f"SELECT {', '.join(keys)} FROM scanner WHERE identifier = '{identifier}'"
             ).fetchone()
             res_dict = {k: v for k, v in zip(keys, res)}
             res_dict.update({"identifier": identifier})
@@ -319,15 +334,15 @@ class Connection(object):
             )
 
         # Recursively get derived ids
-        id_res = self.cur.execute(
-            f"SELECT identifier FROM {self.name}.{namespace} WHERE derived_id = '{identifier}'"
+        id_res = con.execute(
+            f"SELECT identifier FROM scanner WHERE derived_id = '{identifier}'"
         ).fetchall()
         id_res = [i[0] for i in id_res]
         all_ids = [identifier] + id_res
         while len(id_res) > 0:
             id_res_str = [f"'{str(i)}'" for i in id_res]
-            id_res = self.cur.execute(
-                f"SELECT identifier FROM {self.name}.{namespace} WHERE derived_id IN ({', '.join(id_res_str)})"
+            id_res = con.execute(
+                f"SELECT identifier FROM scanner WHERE derived_id IN ({', '.join(id_res_str)})"
             ).fetchall()
             id_res = [i[0] for i in id_res]
             all_ids.extend(id_res)
@@ -358,11 +373,16 @@ class Connection(object):
             pd.DataFrame: The values for the key.
         """
 
+        con = duckdb.connect()
+        scanner = pa.dataset.Scanner.from_dataset(
+            pa.dataset.dataset(self.namespaces[namespace])
+        )
+
         all_ids_str = [f"'{str(i)}'" for i in identifiers]
         if "identifier" not in keys:
             keys.append("identifier")
-        res = self.cur.execute(
-            f"SELECT {', '.join(keys)} FROM {self.name}.{namespace} WHERE identifier IN ({', '.join(all_ids_str)})"
+        res = con.execute(
+            f"SELECT {', '.join(keys)} FROM scanner WHERE identifier IN ({', '.join(all_ids_str)})"
         ).fetch_arrow_table()
 
         if kwargs.get("filter_null", True):
@@ -387,17 +407,27 @@ class Connection(object):
         Returns:
             typing.List[int]: The ids for the key-value pair.
         """
+        con = duckdb.connect()
+        scanner = pa.dataset.Scanner.from_dataset(
+            pa.dataset.dataset(self.namespaces[namespace])
+        )
+        # table = self.namespaces[namespace]
 
-        # Otherwise, just return all the ids
-        res = self.cur.execute(
-            f"SELECT identifier FROM {self.name}.{namespace} WHERE {key} = ?",
+        res = con.execute(
+            f"SELECT identifier FROM scanner WHERE {key} = ?",
             (value,),
         ).fetchall()
         return [r[0] for r in res]
 
     def sql(self, stmt: str, as_df: bool = True) -> typing.Any:
+        con = duckdb.connect()
+
+        # Create a table for each namespace
+        for namespace, table in self.namespaces.items():
+            locals()[namespace] = table
+
         return (
-            self.cur.execute(stmt).fetch_arrow_table().to_pandas()
+            con.execute(stmt).fetch_arrow_table().to_pandas()
             if as_df
-            else self.cur.execute(stmt).fetchall()
+            else con.execute(stmt).fetchall()
         )

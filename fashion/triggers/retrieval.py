@@ -144,7 +144,7 @@ class Retrieval(motion.Trigger):
         )
 
         ids_and_blobs = cursor.sql(
-            "SELECT identifier, img_blob FROM fashion.catalog WHERE img_embedding IS NOT NULL"
+            "SELECT identifier, img_blob FROM catalog WHERE img_embedding IS NOT NULL"
         )
 
         # Re-embed all the images
@@ -199,7 +199,7 @@ class Retrieval(motion.Trigger):
     def _createIndex(self, cursor):
         index = faiss.IndexFlatIP(512)
         id_embedding = cursor.sql(
-            "SELECT identifier, img_embedding FROM fashion.catalog WHERE img_embedding IS NOT NULL"
+            "SELECT identifier, img_embedding FROM catalog WHERE img_embedding IS NOT NULL"
         )
         if len(id_embedding) == 0:
             return

@@ -63,7 +63,7 @@ def init(
 
     # Create namespaces
     for namespace, schema in mconfig["namespaces"].items():
-        store.addNamespace(namespace, schema)
+        store.addNamespace_pa(namespace, schema)
 
     # Create triggers
     for trigger, keys in mconfig["triggers"].items():

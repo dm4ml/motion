@@ -98,7 +98,7 @@ def scrape_everlane(cursor, triggered_by):
     df = df.head(100)
 
     # Filter out products that are already in the store
-    existing_img_urls = cursor.sql("SELECT img_url FROM fashion.catalog")[
+    existing_img_urls = cursor.sql("SELECT img_url FROM catalog")[
         "img_url"
     ].values
     df = df[~df["img_url"].isin(existing_img_urls)]

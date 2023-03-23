@@ -4,13 +4,17 @@ import inspect
 import logging
 import os
 import pandas as pd
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 import threading
 import typing
 import uuid
 
 from croniter import croniter
 from enum import Enum
-from motion import Trigger
+from motion import Trigger, Schema
 from motion.dbcon import Connection
 from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerFn
@@ -28,53 +32,7 @@ class Store(object):
         prod: bool = False,
     ):
         self.name = name
-        self.session_id = "PROD" if prod else uuid.uuid4()
-
-        self.con = duckdb.connect(":memory:")
-        if not os.path.exists(os.path.join(datastore_prefix, self.name)):
-            os.makedirs(os.path.join(datastore_prefix, self.name))
-        else:
-            try:
-                self.con.execute(
-                    f"IMPORT DATABASE '{os.path.join(datastore_prefix, self.name)}'"
-                )
-            except duckdb.IOException as e:
-                logger.warning(
-                    f"Could not import database {name} from {datastore_prefix}. Error: {e}. Not a big deal, don't worry."
-                )
-
-        # self.con = (
-        #     duckdb.connect(":memory:")
-        #     if self.memory
-        #     else duckdb.connect(
-        #         os.path.join(datastore_prefix, self.name, "duck.db")
-        #     )
-        # )
-
-        self.db_write_lock = threading.Lock()
-
-        self.con.execute(f"CREATE SCHEMA IF NOT EXISTS {name}")
-        self.addLogTable()
-
-        self.triggers = {}
-        self.cron_triggers = {}
-        self.cron_threads = {}
-        self.trigger_names = {}
-        self.trigger_fns = {}
-
-        self.table_columns = (
-            dill.load(
-                open(
-                    os.path.join(datastore_prefix, self.name, "table_columns"),
-                    "rb",
-                )
-            )
-            if os.path.exists(
-                os.path.join(datastore_prefix, self.name, "table_columns")
-            )
-            else {}
-        )
-
+        self.session_id = "PROD" if prod else str(uuid.uuid4())
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
         self.disable_cron_triggers = disable_cron_triggers
@@ -82,20 +40,27 @@ class Store(object):
         # Set listening to false
         self._listening = False
 
-    def checkpoint(self):
-        """Checkpoint the store."""
+        # self.con = duckdb.connect(":memory:")
+        if not os.path.exists(os.path.join(datastore_prefix, self.name)):
+            os.makedirs(os.path.join(datastore_prefix, self.name))
 
-        try:
-            with self.db_write_lock:
-                self.con.execute(
-                    f"EXPORT DATABASE '{os.path.join(self.datastore_prefix, self.name)}' (FORMAT PARQUET);"
-                )
-        except Exception as e:
-            logger.warning(
-                f"Could not checkpoint database {self.name}. Error: {e}"
-            )
+        self.db_write_lock = threading.Lock()
 
-        # TODO: checkpoint trigger objects
+        # Try loading from checkpoint
+        (
+            self.namespaces,
+            self.table_columns,
+            self.log_table,
+        ) = self.loadFromCheckpoint_pa()
+        if self.log_table is None:
+            self.addLogTable_pa()
+
+        # Set up triggers
+        self.triggers = {}
+        self.cron_triggers = {}
+        self.cron_threads = {}
+        self.trigger_names = {}
+        self.trigger_fns = {}
 
     def __del__(self):
         self.stop(wait=False)
@@ -119,7 +84,8 @@ class Store(object):
 
         return Connection(
             self.name,
-            self.con,
+            self.namespaces,
+            self.log_table,
             self.table_columns,
             self.triggers,
             self.db_write_lock,
@@ -127,103 +93,113 @@ class Store(object):
             wait_for_results,
         )
 
-    def addLogTable(self):
-        """Creates a table to store trigger logs."""
+    def checkpoint_pa(self):
+        """Checkpoint store object."""
+        # try:
+        # Save namespaces
+        base_path = os.path.join(self.datastore_prefix, self.name)
+        for namespace in self.namespaces:
+            os.makedirs(os.path.join(base_path, namespace), exist_ok=True)
+            ds.write_dataset(
+                self.namespaces[namespace],
+                base_dir=os.path.join(base_path, namespace),
+                format="parquet",
+                partitioning=["session_id"],
+                existing_data_behavior="delete_matching",
+                schema=self.namespaces[namespace].schema,
+            )
 
-        self.con.execute(
-            f"CREATE TABLE IF NOT EXISTS {self.name}.logs(executed_time DATETIME DEFAULT CURRENT_TIMESTAMP, session_id VARCHAR, trigger_name VARCHAR, trigger_version INTEGER, trigger_action VARCHAR, namespace VARCHAR, identifier VARCHAR, trigger_key VARCHAR)"
-        )
+        # Save logs
+        pq.write_table(self.log_table, os.path.join(base_path, "logs.parquet"))
 
-    def addNamespace(self, name: str, schema: typing.Any) -> None:
-        """Add a namespace to the store.
+        # TODO: checkpoint trigger objects
 
-        Args:
-            name (str): The name of the namespace.
-            schema (typing.Any): The schema of the namespace.
-        """
-        stmts = schema.formatCreateStmts(f"{self.name}.{name}")
+    def loadFromCheckpoint_pa(self):
+        """Load store object from checkpoint."""
+        try:
+            namespaces = {}
+            table_columns = {}
 
-        # Check if namespace already exists
-        tables = self.con.execute(f"SHOW TABLES;").fetchall()
-        tables = [t[0] for t in tables]
-        if name in tables:
-            description = self.con.execute(
-                f"DESCRIBE {self.name}.{name};"
-            ).fetchdf()
-            create_table_stmt = stmts[-1]
-
-            for column_name, column_type in zip(
-                description["column_name"].values,
-                description["column_type"].values,
-            ):
-                if (
-                    column_name == "identifier"
-                    or column_name == "derived_id"
-                    or column_name == "create_at"
-                ):
+            base_path = os.path.join(self.datastore_prefix, self.name)
+            # Iterate through all folders in base_path
+            for namespace in os.listdir(base_path):
+                if namespace == "logs.parquet":
                     continue
 
-                # Make sure column name and type match create table stmt
-                if f"{column_name} {column_type}" not in create_table_stmt:
-                    logger.error(
-                        f"Your current schema for namespace {name} does not match the schema in the database. Please clear the database with `motion clear {self.name}` and try again."
-                    )
+                dataset = ds.dataset(os.path.join(base_path, namespace))
 
-            logger.info(
-                f"Namespace {name} already exists in store {self.name}. Doing nothing."
+                # Load session_id partition
+                table = dataset.to_table(
+                    filter=ds.field("session_id") == self.session_id
+                )
+                namespaces[namespace] = table
+
+                # Load table columns
+                table_columns[namespace] = table.schema.names
+                table_columns[namespace].remove("identifier")
+                table_columns[namespace].remove("derived_id")
+
+                logger.info(
+                    f"Loaded namespace {namespace} from checkpoint with {table.num_rows} existing rows in session."
+                )
+
+            # Load logs
+            log_table = pq.read_table(os.path.join(base_path, "logs.parquet"))
+
+            return namespaces, table_columns, log_table
+
+        except Exception as e:
+            logger.warning(
+                f"Could not load database {self.name} from checkpoint. Error: {e}"
             )
-            return
+            return {}, {}, None
 
-        for stmt in stmts:
-            logger.info(stmt)
-            self.con.execute(stmt)
+        # TODO: load trigger objects
 
-        # Create sequence for id
-        # self.con.execute(f"CREATE SEQUENCE {self.name}.{name}_id_seq;")
+    def addLogTable_pa(self):
+        """Creates a table to store trigger logs."""
 
-        # Store column names
-        self.table_columns[name] = (
-            self.con.execute(f"DESCRIBE {self.name}.{name};")
-            .fetchdf()["column_name"]
-            .tolist()
-        )
-        self.table_columns[name].remove("identifier")
-        self.table_columns[name].remove("derived_id")
-
-        # Persist
-        dill.dump(
-            self.table_columns,
-            open(
-                os.path.join(
-                    self.datastore_prefix, self.name, "table_columns"
+        schema = pa.schema(
+            [
+                pa.field(
+                    "executed_time",
+                    pa.timestamp("ns"),
+                    nullable=False,
                 ),
-                "wb",
-            ),
+                pa.field("session_id", pa.string(), nullable=False),
+                pa.field("trigger_name", pa.string(), nullable=False),
+                pa.field("trigger_version", pa.int64(), nullable=False),
+                pa.field("trigger_action", pa.string(), nullable=False),
+                pa.field("namespace", pa.string(), nullable=False),
+                pa.field("identifier", pa.string(), nullable=False),
+                pa.field("trigger_key", pa.string(), nullable=False),
+            ]
         )
+        # Create table with schema
+        self.log_table = schema.empty_table()
 
-    def deleteNamespace(self, name: str) -> None:
-        """Delete a namespace from the store.
-        TODO(shreya): Error checking
+    def addNamespace_pa(self, name: str, schema: Schema) -> None:
+        """_Add a namespace to the store.
 
         Args:
             name (str): The name of the namespace.
+            schema (motion.Schema): The schema of the namespace.
         """
-        self.con.execute(f"DROP TABLE {self.name}.{name};")
-        # self.con.execute(f"DROP SEQUENCE {self.name}.{name}_id_seq;")
+        pa_schema = schema.formatPaSchema(name)
 
-        # Remove column names
-        del self.table_columns[name]
+        if name in self.namespaces:
+            if self.namespaces[name].schema != pa_schema:
+                logger.error(
+                    f"Namespace {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
+                )
 
-        # Persist
-        dill.dump(
-            self.table_columns,
-            open(
-                os.path.join(
-                    self.datastore_prefix, self.name, "table_columns"
-                ),
-                "wb",
-            ),
-        )
+        else:
+            logger.info(f"Adding namespace {name} with schema {pa_schema}")
+            self.namespaces[name] = pa_schema.empty_table()
+
+            self.table_columns[name] = self.namespaces[name].schema.names
+            self.table_columns[name].remove("identifier")
+            self.table_columns[name].remove("derived_id")
 
     def addTrigger(
         self,
@@ -296,10 +272,14 @@ class Store(object):
         # Add the trigger to the store
         self.trigger_names[name] = keys
 
-        version = self.con.execute(
-            f"SELECT MAX(trigger_version) FROM {self.name}.logs WHERE trigger_name = '{name}';"
-        ).fetchone()
-        version = version[0] if version[0] else 0
+        version = pc.max(
+            pc.filter(
+                self.log_table["trigger_version"],
+                pc.equal(self.log_table["trigger_name"], name),
+            )
+        ).as_py()
+
+        version = version if version is not None else 0
 
         trigger_exec = (
             trigger(self.cursor(bypass_listening=True), name, version, params)
@@ -380,7 +360,7 @@ class Store(object):
                         cron_expression,
                         self.cursor(wait_for_results=True),
                         trigger_fn,
-                        self.checkpoint,
+                        self.checkpoint_pa,
                         e,
                     )
                     self.cron_threads[trigger_fn.name] = t
