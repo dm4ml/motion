@@ -1,5 +1,5 @@
 import motion
-from typing import TypeVar
+from typing import List
 
 
 class Retailer(motion.MEnum):
@@ -27,16 +27,15 @@ class QuerySchema(motion.Schema):
 class CatalogSchema(motion.Schema):
     retailer: Retailer
     img_url: str
-    img_blob: TypeVar("BLOB")
+    img_blob: bytes
     img_name: str
     permalink: str
-    img_embedding: TypeVar("FLOAT[]")
+    img_embedding: List[float]
 
 
 class ClosetSchema(motion.Schema):
     username: str
-    img_path: str
-    img_blob: TypeVar("BLOB")
-    sd_img_blob: TypeVar("BLOB")
+    img_blob: bytes
+    sd_img_blob: bytes
     catalog_img_id: str
     catalog_img_score: str

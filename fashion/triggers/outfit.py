@@ -41,7 +41,7 @@ class ExtractOutfit(motion.Trigger):
         image = Image.open(BytesIO(img_blob)).convert("RGB")  # SD params
         image.thumbnail((512, 512), Image.ANTIALIAS)
 
-        prompt = "a photo of an outfit with no background"
+        prompt = "a photo of an outfit with black background, HD"
         images = self.state["model"](
             prompt=prompt, image=image, strength=0.5, guidance_scale=7.5
         ).images

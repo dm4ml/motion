@@ -25,14 +25,14 @@ def test_add_item_to_closet():
     ]
 
     for image in images:
-        # Write bytes directly? This might mean, using pydantic
-        # then converting to dataframe, then converting to bytes
+        blob = open(os.path.join("images", image), "rb").read()
+
         created_id = connection.set(
             namespace="closet",
             identifier=None,
             key_values={
                 "username": "shreya",
-                "img_path": os.path.join("images", image),
+                "img_blob": blob,
             },
         )
 
@@ -50,7 +50,7 @@ def test_add_item_to_closet():
             BytesIO(results["sd_img_blob"].values[0]),
         )
         img.save(
-            os.path.join("images", f"sd_generated_{image}.png"),
+            os.path.join("images", f"sd_generated_{image[:-3]}.png"),
             format=img.format,
         )
 

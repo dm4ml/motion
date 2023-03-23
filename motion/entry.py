@@ -235,12 +235,14 @@ class ClientConnection(object):
             if response.headers["content-type"] == "application/json":
                 return json.loads(response.content)
 
-    def postWrapper(self, dest, **kwargs):
+    def postWrapper(self, dest, data, files=None):
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("post", dest, data=kwargs)
+                response = client.request("post", dest, data=data, files=files)
         else:
-            response = requests.post(self.server + dest, data=kwargs)
+            response = requests.post(
+                self.server + dest, data=data, files=files
+            )
 
         if response.status_code != 200:
             raise Exception(response.content)
@@ -253,7 +255,9 @@ class ClientConnection(object):
         Args:
             trigger (str): The name of the trigger.
         """
-        return self.postWrapper("/wait_for_trigger/", trigger=trigger)
+        return self.postWrapper(
+            "/wait_for_trigger/", data={"trigger": trigger}
+        )
 
     def get(self, **kwargs):
         response = self.getWrapper("/get/", **kwargs)
@@ -273,11 +277,31 @@ class ClientConnection(object):
             if isinstance(value, Enum):
                 kwargs["key_values"].update({key: value.value})
 
-        # Merge key_values with kwargs
-        kwargs.update(kwargs["key_values"])
-        del kwargs["key_values"]
+        args = {
+            "args": json.dumps(
+                {k: v for k, v in kwargs.items() if k != "key_values"}
+            )
+        }
 
-        return self.postWrapper("/set/", **kwargs)
+        # Turn key-values into a dataframe
+        df = pd.DataFrame(kwargs["key_values"], index=[0])
+
+        # Convert to parquet stream
+        memory_buffer = io.BytesIO()
+        df.to_parquet(memory_buffer, engine="pyarrow", index=False)
+        memory_buffer.seek(0)
+
+        return self.postWrapper(
+            "/set/",
+            data=args,
+            files={
+                "file": (
+                    "key_values",
+                    memory_buffer,
+                    "application/octet-stream",
+                )
+            },
+        )
 
     def getNewId(self, **kwargs):
         return self.getWrapper("/get_new_id/", **kwargs)

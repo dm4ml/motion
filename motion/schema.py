@@ -1,8 +1,8 @@
-import dataclasses
-from dataclasses import dataclass
 from datetime import date, datetime
 from abc import ABC
+from collections import namedtuple
 from enum import Enum
+from pydantic import BaseModel, Extra
 
 import inspect
 import pickle
@@ -15,23 +15,23 @@ class MEnum(Enum):
         return [e.value for e in cls]
 
 
-@dataclass(kw_only=True)
-class Schema(ABC):
+Field = namedtuple("Field", ["name", "type_"])
+
+
+def type_to_name(t):
+    return t.__name__.split(".")[-1].upper()
+
+
+class Schema(BaseModel, extra=Extra.allow):
     identifier: str
     derived_id: str
     create_at: datetime
 
-    def __init_subclass__(cls, **kwargs):
-        return dataclass(cls, kw_only=True, **kwargs)
-
-    def __post_init__(self):
-        # Check id, ts are not None
-        if self.identifier is None or self.create_at is None:
-            raise ValueError("identifier and create_at must be defined.")
-
     @classmethod
     def formatCreateStmts(cls, table_name: str) -> typing.List[str]:
-        fields = dataclasses.fields(cls)
+        # Get fields
+
+        fields = [Field(key, val) for key, val in cls.__annotations__.items()]
 
         user_defined_fields = [
             f
@@ -50,23 +50,41 @@ class Schema(ABC):
 
         for field in user_defined_fields:
             # If type is int, string, float, bool, date, datetime, convert directly to SQL
-            if field.type in [
+            if field.type_ in [
                 int,
                 float,
                 date,
-            ] or isinstance(field.type, typing.TypeVar):
+            ]:
                 names_and_types.append(
-                    f"{field.name} {field.type.__name__.split('.')[-1].upper()}"
+                    f"{field.name} {type_to_name(field.type_)}"
                 )
-            elif field.type == datetime:
+
+            elif field.type_ == datetime:
                 names_and_types.append(f"{field.name} DATETIME")
-            elif field.type == str:
+            elif field.type_ == str:
                 names_and_types.append(f"{field.name} VARCHAR")
-            elif field.type == bool:
+            elif field.type_ == bool:
                 names_and_types.append(f"{field.name} BOOLEAN")
-            elif inspect.isclass(field.type) and issubclass(field.type, MEnum):
-                enums[field.name] = [f"'{v}'" for v in field.type.list()]
+            elif inspect.isclass(field.type_) and issubclass(
+                field.type_, MEnum
+            ):
+                enums[field.name] = [f"'{v}'" for v in field.type_.list()]
                 names_and_types.append(f"{field.name} {field.name}")
+            elif field.type_ == bytes:
+                names_and_types.append(f"{field.name} BLOB")
+            elif typing.get_origin(field.type_) == list:
+                t = typing.get_args(field.type_)[0]
+
+                if t == str:
+                    names_and_types.append(f"{field.name} VARCHAR[]")
+                elif t == int:
+                    names_and_types.append(f"{field.name} INT[]")
+                elif t == float:
+                    names_and_types.append(f"{field.name} FLOAT[]")
+                elif t == bool:
+                    names_and_types.append(f"{field.name} BOOLEAN[]")
+                else:
+                    raise ValueError(f"Unsupported type {t} in list.")
             else:
                 # Use bytes object to store pickled object
                 names_and_types.append(f"{field.name} BLOB")

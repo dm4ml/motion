@@ -9,6 +9,7 @@ from fastapi import (
     Body,
 )
 from fastapi.exceptions import RequestValidationError
+from io import BytesIO
 from pydantic import ValidationError
 from urllib.parse import parse_qs
 
@@ -17,7 +18,7 @@ import logging
 import pandas as pd
 import pyarrow as pa
 
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, Json
 
 
 class MotionGet(BaseModel, extra=Extra.allow):
@@ -41,10 +42,9 @@ class MotionMget(BaseModel):
         return self.__dict__
 
 
-class MotionSet(BaseModel):
+class MotionSetNoKV(BaseModel):
     namespace: str
     identifier: str = None
-    key_values: dict
     run_duplicate_triggers: bool = False
 
 
@@ -69,16 +69,16 @@ def df_to_json_response(df):
 def create_app(store, testing=False):
     app = FastAPI()
 
-    @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
-        detail = exc.errors()[0]["msg"]
-        return Response(
-            {"detail": detail},
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            media_type="application/json",
-        )
+    # @app.exception_handler(RequestValidationError)
+    # async def validation_exception_handler(
+    #     request: Request, exc: RequestValidationError
+    # ):
+    #     detail = exc.errors()[0]["msg"]
+    #     return Response(
+    #         {"detail": detail},
+    #         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    #         media_type="application/json",
+    #     )
 
     @app.on_event("startup")
     async def startup():
@@ -109,28 +109,20 @@ def create_app(store, testing=False):
         return df_to_json_response(res)
 
     @app.post("/set/")
-    async def set(request: Request):
-        data = await request.body()
-        parsed_args = {
-            k: v[0] for k, v in parse_qs(data.decode("unicode_escape")).items()
-        }
-        if "identifier" not in parsed_args:
-            parsed_args["identifier"] = None
-
-        top_level_args = ["namespace", "identifier", "run_duplicate_triggers"]
-        args = {k: v for k, v in parsed_args.items() if k in top_level_args}
-        args["key_values"] = {
-            k: v for k, v in parsed_args.items() if k not in top_level_args
-        }
-
-        args = MotionSet(**args)
+    async def set(args: Json[MotionSetNoKV], file: UploadFile = File(...)):
+        args = args.dict()
+        content = await file.read()
+        with BytesIO(content) as f:
+            if file.content_type == "application/octet-stream":
+                df = pd.read_parquet(f, engine="pyarrow")
+                args["key_values"] = df.to_dict(orient="records")[0]
 
         cur = app.state.store.cursor()
         return cur.set(
-            args.namespace,
-            args.identifier,
-            args.key_values,
-            args.run_duplicate_triggers,
+            args["namespace"],
+            args["identifier"],
+            args["key_values"],
+            args["run_duplicate_triggers"],
         )
 
     @app.get("/get_new_id/")

@@ -8,7 +8,6 @@ from fashion.triggers import (
     SuggestIdea,
     ExtractOutfit,
     scrape_everlane,
-    local_image_path_to_blob,
 )
 
 MCONFIG = {
@@ -32,7 +31,6 @@ MCONFIG = {
             "closet.sd_img_blob",
         ],
         scrape_everlane: ["0 * * * *"],
-        local_image_path_to_blob: ["closet.img_path"],
     },
     "checkpoint": "0 * * * *",
 }

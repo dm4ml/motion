@@ -37,7 +37,7 @@ class Store(object):
                 )
             except duckdb.IOException as e:
                 logger.warning(
-                    f"Could not import database {name} from {datastore_prefix}. Error: {e}"
+                    f"Could not import database {name} from {datastore_prefix}. Error: {e}. Not a big deal, don't worry."
                 )
 
         # self.con = (

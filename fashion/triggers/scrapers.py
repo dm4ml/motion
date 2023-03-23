@@ -123,13 +123,3 @@ def scrape_everlane(cursor, triggered_by):
             }
         )
         cursor.set("catalog", identifier=new_id, key_values=product)
-
-
-def local_image_path_to_blob(cursor, triggered_by):
-    with open(triggered_by.value, "rb") as f:
-        blob = f.read()
-        cursor.set(
-            triggered_by.namespace,
-            triggered_by.identifier,
-            key_values={"img_blob": blob},
-        )
