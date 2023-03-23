@@ -15,6 +15,7 @@ import pyarrow as pa
 import sys
 import time
 import typing
+import uuid
 import uvicorn
 
 from fastapi.testclient import TestClient
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def init(
-    mconfig: dict, disable_cron_triggers: bool = False, prod: bool = False
+    mconfig: dict, disable_cron_triggers: bool = False, session_id: str = None
 ) -> Store:
     """Initialize the motion store.
 
@@ -53,12 +54,15 @@ def init(
         mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
     )
 
+    if session_id is None:
+        session_id = str(uuid.uuid4())
+
     store = Store(
         name,
+        session_id=session_id,
         datastore_prefix=os.path.join(MOTION_HOME, "datastores"),
         checkpoint=checkpoint,
         disable_cron_triggers=disable_cron_triggers,
-        prod=prod,
     )
 
     # Create namespaces
@@ -94,7 +98,7 @@ def serve(
         motion_logging_level (str, optional): The logging level for motion.
     """
     configureLogging(motion_logging_level)
-    store = init(mconfig, prod=True)
+    store = init(mconfig, session_id="PRODUCTION")
     serve_store(store, host, port)
 
 
@@ -133,6 +137,7 @@ def test(
     wait_for_triggers: list = [],
     disable_cron_triggers: bool = False,
     motion_logging_level: str = "DEBUG",
+    session_id: str = None,
 ):
     """Test a motion application. This will run the application
     and then shut it down.
@@ -142,6 +147,7 @@ def test(
         wait_for_triggers (list, optional): Defaults to [].
         disable_cron_triggers (bool, optional): Defaults to False.
         motion_logging_level (str, optional): Defaults to "DEBUG".
+        session_id (str, optional): Defaults to None.
     """
     if wait_for_triggers and disable_cron_triggers:
         raise ValueError(
@@ -149,7 +155,11 @@ def test(
         )
 
     configureLogging(motion_logging_level)
-    store = init(mconfig, disable_cron_triggers=disable_cron_triggers)
+    store = init(
+        mconfig,
+        disable_cron_triggers=disable_cron_triggers,
+        session_id=session_id,
+    )
     app = create_app(store, testing=True)
     connection = ClientConnection(
         mconfig["application"]["name"], server=app, store=store

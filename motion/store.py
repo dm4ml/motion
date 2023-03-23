@@ -26,13 +26,13 @@ class Store(object):
     def __init__(
         self,
         name: str,
+        session_id: str,
         datastore_prefix: str = "datastores",
         checkpoint: str = "0 * * * *",
         disable_cron_triggers: bool = False,
-        prod: bool = False,
     ):
         self.name = name
-        self.session_id = "PROD" if prod else str(uuid.uuid4())
+        self.session_id = session_id
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
         self.disable_cron_triggers = disable_cron_triggers
@@ -104,7 +104,9 @@ class Store(object):
                 self.namespaces[namespace],
                 base_dir=os.path.join(base_path, namespace),
                 format="parquet",
-                partitioning=["session_id"],
+                partitioning=ds.partitioning(
+                    pa.schema([("session_id", pa.string())]), flavor="hive"
+                ),
                 existing_data_behavior="delete_matching",
                 schema=self.namespaces[namespace].schema,
             )
@@ -126,12 +128,23 @@ class Store(object):
                 if namespace == "logs.parquet":
                     continue
 
-                dataset = ds.dataset(os.path.join(base_path, namespace))
+                dataset = ds.dataset(
+                    os.path.join(base_path, namespace),
+                    format="parquet",
+                    partitioning="hive",
+                )
 
                 # Load session_id partition
-                table = dataset.to_table(
-                    filter=ds.field("session_id") == self.session_id
-                )
+                try:
+                    table = dataset.to_table(
+                        filter=pc.equal(
+                            ds.field("session_id"), self.session_id
+                        )
+                    )
+                except pa.ArrowInvalid as e:
+                    # If no session_id partition exists, move on
+                    continue
+
                 namespaces[namespace] = table
 
                 # Load table columns
@@ -163,7 +176,7 @@ class Store(object):
             [
                 pa.field(
                     "executed_time",
-                    pa.timestamp("ns"),
+                    pa.timestamp("us"),
                     nullable=False,
                 ),
                 pa.field("session_id", pa.string(), nullable=False),
@@ -188,10 +201,23 @@ class Store(object):
         pa_schema = schema.formatPaSchema(name)
 
         if name in self.namespaces:
-            if self.namespaces[name].schema != pa_schema:
-                logger.error(
-                    f"Namespace {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
-                )
+            pa_schema_names = pa_schema.names
+            pa_schema_types = pa_schema.types
+
+            for old_name, old_type in zip(
+                self.namespaces[name].schema.names,
+                self.namespaces[name].schema.types,
+            ):
+                if old_name == "session_id":
+                    continue
+                name_idx = pa_schema_names.index(old_name)
+                if not old_type.equals(pa_schema_types[name_idx]):
+                    print(old_name)
+                    print(old_type)
+                    print(pa_schema_types[name_idx])
+                    logger.error(
+                        f"Namespace {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
+                    )
 
         else:
             logger.info(f"Adding namespace {name} with schema {pa_schema}")

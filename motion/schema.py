@@ -32,7 +32,7 @@ TYPE_TO_PA_TYPE = {
     float: pa.float64(),
     bool: pa.bool_(),
     date: pa.date32(),
-    datetime: pa.timestamp("ns"),
+    datetime: pa.timestamp("us"),
     bytes: pa.binary(),
 }
 
@@ -92,7 +92,7 @@ class Schema(BaseModel, extra=Extra.allow):
             pa.field("identifier", pa.string(), nullable=False),
             pa.field(
                 "create_at",
-                pa.timestamp("ns"),
+                pa.timestamp("us"),
                 nullable=False,
             ),
             pa.field("derived_id", pa.string()),

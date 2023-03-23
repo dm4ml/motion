@@ -30,7 +30,7 @@ MCONFIG = {
             "query.feedback",
             "closet.sd_img_blob",
         ],
-        scrape_everlane: ["0 * * * *"],
+        scrape_everlane: ["* * * * *"],
     },
     "trigger_params": {ExtractOutfit: {"strength": 0.5}},
     "checkpoint": "0 * * * *",

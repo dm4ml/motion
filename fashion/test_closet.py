@@ -20,7 +20,7 @@ def test_add_item_to_closet(strength: float):
         test_config,
         wait_for_triggers=["scrape_everlane"],
         motion_logging_level="INFO",
-        # disable_cron_triggers=True,
+        session_id="620f3434-116b-4a17-9ecd-e0808d399bac",
     )
     print(connection.session_id)
 
