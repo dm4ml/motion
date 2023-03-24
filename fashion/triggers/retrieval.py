@@ -70,14 +70,6 @@ class Retrieval(motion.Trigger):
     def closetToImage(self, cursor, triggered_by):
         # Run CLIP on the uploaded image to get the image features,
         # then find similar images in the catalog
-        # df = cursor.get(
-        #     namespace=triggered_by.namespace,
-        #     identifier=triggered_by.identifier,
-        #     keys=[triggered_by.key],
-        #     as_df=True,
-        # )
-        # print(df)
-
         image_features = self._embedImage(
             triggered_by.value, self.state["model"]
         )

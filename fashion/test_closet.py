@@ -1,5 +1,6 @@
 import motion
 import os
+import wandb
 
 from fashion.schemas import QuerySource
 from mconfig import MCONFIG
@@ -23,6 +24,16 @@ def test_add_item_to_closet(strength: float):
         session_id="620f3434-116b-4a17-9ecd-e0808d399bac",
     )
     print(connection.session_id)
+
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="fashion-testcloset",
+        # track hyperparameters and run metadata
+        config={
+            "strength": strength,
+            "session_id": connection.session_id,
+        },
+    )
 
     images = [
         "jumpsuit.JPG",
@@ -54,9 +65,17 @@ def test_add_item_to_closet(strength: float):
         img = Image.open(
             BytesIO(results["sd_img_blob"].values[0]),
         )
-        img.save(
-            os.path.join("images", f"sd_generated_{image[:-4]}.png"),
-            format=img.format,
+        # img.save(
+        #     os.path.join("images", f"sd_generated_{image[:-4]}.png"),
+        #     format=img.format,
+        # )
+        wandb.log(
+            {
+                "sd_generated_{image[:-4]}": wandb.Image(img),
+                "image_scores": wandb.Table(
+                    dataframe=results[["identifier", "catalog_img_score"]]
+                ),
+            }
         )
 
     connection.close(wait=False)
