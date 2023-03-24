@@ -69,11 +69,11 @@ class Schema(BaseModel, extra=Extra.allow):
     session_id: str
 
     @classmethod
-    def formatPaSchema(cls, namespace: str) -> pa.Schema:
-        """Formats a pyarrow schema for the given namespace.
+    def formatPaSchema(cls, relation: str) -> pa.Schema:
+        """Formats a pyarrow schema for the given relation.
 
         Args:
-            table_name (str): Name of namespace.
+            table_name (str): Name of relation.
 
         Returns:
             pa.Schema: Schema for table based on annotations.
@@ -103,7 +103,7 @@ class Schema(BaseModel, extra=Extra.allow):
             try:
                 arrow_type = get_arrow_type(field.type_)
             except TypeError as e:
-                raise TypeError(f"Error in {namespace}.{field.name}: {e}")
+                raise TypeError(f"Error in {relation}.{field.name}: {e}")
             pa_fields.append(pa.field(field.name, arrow_type))
 
         schema = pa.schema(pa_fields)

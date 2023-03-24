@@ -22,7 +22,7 @@ class Connection(object):
     def __init__(
         self,
         name,
-        namespaces,
+        relations,
         log_table,
         table_columns,
         triggers,
@@ -31,7 +31,7 @@ class Connection(object):
         wait_for_results=False,
     ):
         self.name = name
-        self.namespaces = namespaces
+        self.relations = relations
         self.log_table = log_table
         self.table_columns = table_columns
         self.triggers = triggers
@@ -49,11 +49,11 @@ class Connection(object):
             t.wait()
         self.fit_events = []
 
-    def getNewId(self, namespace: str, key: str = "identifier") -> str:
-        """Get a new id for a namespace.
+    def getNewId(self, relation: str, key: str = "identifier") -> str:
+        """Get a new id for a relation.
 
         Args:
-            namespace (str): The namespace to get the new id for.
+            relation (str): The relation to get the new id for.
             key (str, optional): The key to get the new id for. Defaults to "id".
 
         Returns:
@@ -62,16 +62,16 @@ class Connection(object):
         new_id = str(uuid.uuid4())
 
         # Check if the id already exists
-        if self.exists(namespace, new_id):
-            return self.getNewId(namespace, key)
+        if self.exists(relation, new_id):
+            return self.getNewId(relation, key)
 
         return new_id
 
-    def exists(self, namespace: str, identifier: int) -> bool:
-        """Determine if a record exists in a namespace.
+    def exists(self, relation: str, identifier: int) -> bool:
+        """Determine if a record exists in a relation.
 
         Args:
-            namespace (str): The namespace to check.
+            relation (str): The relation to check.
             identifier (int): The primary key of the record.
 
         Returns:
@@ -79,7 +79,7 @@ class Connection(object):
         """
 
         # Check if identifier exists in pyarrow table
-        table = self.namespaces[namespace]
+        table = self.relations[relation]
         condition = pc.equal(table["identifier"], identifier)
         mask = pc.filter(table["identifier"], condition)
         result = len(mask) > 0
@@ -88,30 +88,30 @@ class Connection(object):
 
     def set(
         self,
-        namespace: str,
+        relation: str,
         identifier: str,
         key_values: typing.Dict[str, typing.Any],
         run_duplicate_triggers: bool = False,
     ) -> str:
-        """Set multiple values for a key in a namespace.
+        """Set multiple values for a key in a relation.
         TODO(shreyashankar): Handle complex types.
 
         Args:
-            namespace (str): The namespace to set the value in.
+            relation (str): The relation to set the value in.
             identifier (str): The id of the record to set the value for.
             key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
             run_duplicate_triggers (bool, optional): Whether to run duplicate triggers. Defaults to False.
         """
-        if namespace is None:
-            raise ValueError("Namespace cannot be None.")
+        if relation is None:
+            raise ValueError("relation cannot be None.")
 
         exists = True
         if not identifier:
-            identifier = self.getNewId(namespace)
+            identifier = self.getNewId(relation)
             exists = False
 
         if exists:
-            exists = self.exists(namespace, identifier)
+            exists = self.exists(relation, identifier)
 
         # Convert enums to their values
         for key, value in key_values.items():
@@ -120,7 +120,7 @@ class Connection(object):
 
         # Insert or update based on identifier
         with self.write_lock:
-            table = self.namespaces[namespace]
+            table = self.relations[relation]
 
             if not exists:
                 new_row_dict = {n: None for n in table.schema.names}
@@ -136,7 +136,7 @@ class Connection(object):
 
                 new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
                 final_table = pa.concat_tables([table, new_row])
-                self.namespaces[namespace] = final_table
+                self.relations[relation] = final_table
 
             else:
                 condition = pc.equal(table["identifier"], identifier)
@@ -149,18 +149,18 @@ class Connection(object):
 
                 filtered_table = pc.filter(table, pc.invert(condition))
                 final_table = pa.concat_tables([filtered_table, new_row])
-                self.namespaces[namespace] = final_table
+                self.relations[relation] = final_table
 
         # Run triggers
         executed = set()
         for key, value in key_values.items():
             triggered_by = TriggerElement(
-                namespace=namespace,
+                relation=relation,
                 identifier=identifier,
                 key=key,
                 value=value,
             )
-            for trigger in self.triggers.get(f"{namespace}.{key}", []):
+            for trigger in self.triggers.get(f"{relation}.{key}", []):
                 if run_duplicate_triggers or trigger not in executed:
                     self.executeTrigger(trigger, triggered_by)
                     executed.add(trigger)
@@ -186,7 +186,7 @@ class Connection(object):
             "trigger_name": trigger_name,
             "trigger_version": trigger_version,
             "trigger_action": trigger_action,
-            "namespace": triggered_by.namespace,
+            "relation": triggered_by.relation,
             "identifier": triggered_by.identifier,
             "trigger_key": triggered_by.key,
         }
@@ -214,7 +214,7 @@ class Connection(object):
         )
         new_connection = Connection(
             self.name,
-            self.namespaces,
+            self.relations,
             self.log_table,
             self.table_columns,
             self.triggers,
@@ -238,11 +238,11 @@ class Connection(object):
         else:
             # Get route for key
             route = trigger_fn.route_map.get(
-                f"{triggered_by.namespace}.{triggered_by.key}", None
+                f"{triggered_by.relation}.{triggered_by.key}", None
             )
             if route is None:
                 raise ValueError(
-                    f"Route not found for {triggered_by.namespace}.{triggered_by.key}."
+                    f"Route not found for {triggered_by.relation}.{triggered_by.key}."
                 )
 
             # Execute the transform lifecycle: infer -> fit
@@ -265,23 +265,23 @@ class Connection(object):
                     f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
                 )
 
-    def duplicate(self, namespace: str, identifier: int) -> int:
-        """Duplicate a record in a namespace. Doesn't run triggers.
+    def duplicate(self, relation: str, identifier: int) -> int:
+        """Duplicate a record in a relation. Doesn't run triggers.
 
         Args:
-            namespace (str): The namespace to duplicate the record in.
+            relation (str): The relation to duplicate the record in.
             identifier (int): The identifier of the record to duplicate.
 
         Returns:
             int: The new identifier of the duplicated record.
         """
-        new_id = self.getNewId(namespace)
+        new_id = self.getNewId(relation)
 
         with self.write_lock:
             # self.cur.execute(
-            #     f"INSERT INTO {self.name}.{namespace} SELECT '{new_id}' AS identifier, '{identifier}' AS derived_id, {', '.join(self.table_columns[namespace])} FROM {self.name}.{namespace} WHERE identifier = '{identifier}'"
+            #     f"INSERT INTO {self.name}.{relation} SELECT '{new_id}' AS identifier, '{identifier}' AS derived_id, {', '.join(self.table_columns[relation])} FROM {self.name}.{relation} WHERE identifier = '{identifier}'"
             # )
-            table = self.namespaces[namespace]
+            table = self.relations[relation]
             condition = pc.equal(table["identifier"], identifier)
 
             row = pc.filter(table, condition).to_pandas()
@@ -292,18 +292,18 @@ class Connection(object):
 
             # filtered_table = pc.filter(table, pc.invert(condition))
             final_table = pa.concat_tables([table, new_row])
-            self.namespaces[namespace] = final_table
+            self.relations[relation] = final_table
 
         return new_id
 
     def get(
-        self, namespace: str, identifier: int, keys: typing.List[str], **kwargs
+        self, relation: str, identifier: int, keys: typing.List[str], **kwargs
     ) -> typing.Any:
-        """Get values for an identifier's keys in a namespace.
+        """Get values for an identifier's keys in a relation.
         TODO: Handle complex types.
 
         Args:
-            namespace (str): The namespace to get the value from.
+            relation (str): The relation to get the value from.
             identifier (int): The identifier of the record to get the value for.
             keys (typing.List[str]): The keys to get the values for.
 
@@ -317,7 +317,7 @@ class Connection(object):
 
         con = duckdb.connect()
         scanner = pa.dataset.Scanner.from_dataset(
-            pa.dataset.dataset(self.namespaces[namespace])
+            pa.dataset.dataset(self.relations[relation])
         )
 
         if not kwargs.get("include_derived", False):
@@ -350,20 +350,20 @@ class Connection(object):
         if "identifier" not in keys:
             keys.append("identifier")
 
-        return self.mget(namespace, all_ids, keys, **kwargs)
+        return self.mget(relation, all_ids, keys, **kwargs)
 
     def mget(
         self,
-        namespace: str,
+        relation: str,
         identifiers: typing.List[str],
         keys: typing.List[str],
         **kwargs,
     ) -> pd.DataFrame:
-        """Get multiple values for keys in a namespace.
+        """Get multiple values for keys in a relation.
         TODO: Handle complex types.
 
         Args:
-            namespace (str): The namespace to get the value from.
+            relation (str): The relation to get the value from.
             identifiers (typing.List[int]): The ids of the records to get the value for.
             keys (typing.List[str]): The keys to get the values for.
             filter_null (bool, optional): Whether to filter out null values.  Defaults to True.
@@ -375,7 +375,7 @@ class Connection(object):
 
         con = duckdb.connect()
         scanner = pa.dataset.Scanner.from_dataset(
-            pa.dataset.dataset(self.namespaces[namespace])
+            pa.dataset.dataset(self.relations[relation])
         )
 
         all_ids_str = [f"'{str(i)}'" for i in identifiers]
@@ -395,12 +395,12 @@ class Connection(object):
         return res.to_dict("records")
 
     def getIdsForKey(
-        self, namespace: str, key: str, value: typing.Any
+        self, relation: str, key: str, value: typing.Any
     ) -> typing.List[int]:
-        """Get ids for a key-value pair in a namespace.
+        """Get ids for a key-value pair in a relation.
 
         Args:
-            namespace (str): The namespace to get the value from.
+            relation (str): The relation to get the value from.
             key (str): The key to get the values for.
             value (typing.Any): The value to get the ids for.
 
@@ -409,9 +409,9 @@ class Connection(object):
         """
         con = duckdb.connect()
         scanner = pa.dataset.Scanner.from_dataset(
-            pa.dataset.dataset(self.namespaces[namespace])
+            pa.dataset.dataset(self.relations[relation])
         )
-        # table = self.namespaces[namespace]
+        # table = self.relations[relation]
 
         res = con.execute(
             f"SELECT identifier FROM scanner WHERE {key} = ?",
@@ -422,9 +422,9 @@ class Connection(object):
     def sql(self, stmt: str, as_df: bool = True) -> typing.Any:
         con = duckdb.connect()
 
-        # Create a table for each namespace
-        for namespace, table in self.namespaces.items():
-            locals()[namespace] = table
+        # Create a table for each relation
+        for relation, table in self.relations.items():
+            locals()[relation] = table
 
         return (
             con.execute(stmt).fetch_arrow_table().to_pandas()

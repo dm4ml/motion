@@ -46,7 +46,7 @@ class CronThread(threading.Thread):
 
             # Run trigger
             triggered_by = TriggerElement(
-                namespace="SCHEDULED",
+                relation="SCHEDULED",
                 identifier="SCHEDULED",
                 key=self.cron_expression,
                 value=None,

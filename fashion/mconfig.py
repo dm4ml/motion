@@ -16,7 +16,7 @@ MCONFIG = {
         "author": "shreyashankar",
         "version": "0.1",
     },
-    "namespaces": {
+    "relations": {
         "query": QuerySchema,
         "catalog": CatalogSchema,
         "closet": ClosetSchema,

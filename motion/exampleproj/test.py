@@ -24,15 +24,15 @@ def test_ask_chatbot():
     ]
 
     for prompt in all_prompts:
-        new_id = connection.getNewId(namespace="chat")
+        new_id = connection.getNewId(relation="chat")
         # Must specify kw for every arg in .set and .get
         connection.set(
-            namespace="chat",
+            relation="chat",
             identifier=new_id,
             key_values={"prompt": prompt},
         )
         result = connection.get(
-            namespace="chat", identifier=new_id, keys=["completion"]
+            relation="chat", identifier=new_id, keys=["completion"]
         )
         print(f"Prompt: {prompt} and result: {result}")
 

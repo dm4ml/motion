@@ -5,7 +5,7 @@ import inspect
 
 
 class Route(BaseModel):
-    namespace: str
+    relation: str
     key: str
     infer: Union[Callable, None]
     fit: Union[Callable, None]

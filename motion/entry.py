@@ -65,9 +65,9 @@ def init(
         disable_cron_triggers=disable_cron_triggers,
     )
 
-    # Create namespaces
-    for namespace, schema in mconfig["namespaces"].items():
-        store.addNamespace_pa(namespace, schema)
+    # Create relations
+    for relation, schema in mconfig["relations"].items():
+        store.addrelation_pa(relation, schema)
 
     # Create triggers
     for trigger, keys in mconfig["triggers"].items():

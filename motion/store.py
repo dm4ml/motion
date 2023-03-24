@@ -48,7 +48,7 @@ class Store(object):
 
         # Try loading from checkpoint
         (
-            self.namespaces,
+            self.relations,
             self.table_columns,
             self.log_table,
         ) = self.loadFromCheckpoint_pa()
@@ -84,7 +84,7 @@ class Store(object):
 
         return Connection(
             self.name,
-            self.namespaces,
+            self.relations,
             self.log_table,
             self.table_columns,
             self.triggers,
@@ -96,19 +96,19 @@ class Store(object):
     def checkpoint_pa(self):
         """Checkpoint store object."""
         # try:
-        # Save namespaces
+        # Save relations
         base_path = os.path.join(self.datastore_prefix, self.name)
-        for namespace in self.namespaces:
-            os.makedirs(os.path.join(base_path, namespace), exist_ok=True)
+        for relation in self.relations:
+            os.makedirs(os.path.join(base_path, relation), exist_ok=True)
             ds.write_dataset(
-                self.namespaces[namespace],
-                base_dir=os.path.join(base_path, namespace),
+                self.relations[relation],
+                base_dir=os.path.join(base_path, relation),
                 format="parquet",
                 partitioning=ds.partitioning(
                     pa.schema([("session_id", pa.string())]), flavor="hive"
                 ),
                 existing_data_behavior="delete_matching",
-                schema=self.namespaces[namespace].schema,
+                schema=self.relations[relation].schema,
             )
 
         # Save logs
@@ -119,17 +119,17 @@ class Store(object):
     def loadFromCheckpoint_pa(self):
         """Load store object from checkpoint."""
         try:
-            namespaces = {}
+            relations = {}
             table_columns = {}
 
             base_path = os.path.join(self.datastore_prefix, self.name)
             # Iterate through all folders in base_path
-            for namespace in os.listdir(base_path):
-                if namespace == "logs.parquet":
+            for relation in os.listdir(base_path):
+                if relation == "logs.parquet":
                     continue
 
                 dataset = ds.dataset(
-                    os.path.join(base_path, namespace),
+                    os.path.join(base_path, relation),
                     format="parquet",
                     partitioning="hive",
                 )
@@ -145,21 +145,21 @@ class Store(object):
                     # If no session_id partition exists, move on
                     continue
 
-                namespaces[namespace] = table
+                relations[relation] = table
 
                 # Load table columns
-                table_columns[namespace] = table.schema.names
-                table_columns[namespace].remove("identifier")
-                table_columns[namespace].remove("derived_id")
+                table_columns[relation] = table.schema.names
+                table_columns[relation].remove("identifier")
+                table_columns[relation].remove("derived_id")
 
                 logger.info(
-                    f"Loaded namespace {namespace} from checkpoint with {table.num_rows} existing rows in session."
+                    f"Loaded relation {relation} from checkpoint with {table.num_rows} existing rows in session."
                 )
 
             # Load logs
             log_table = pq.read_table(os.path.join(base_path, "logs.parquet"))
 
-            return namespaces, table_columns, log_table
+            return relations, table_columns, log_table
 
         except Exception as e:
             logger.warning(
@@ -183,7 +183,7 @@ class Store(object):
                 pa.field("trigger_name", pa.string(), nullable=False),
                 pa.field("trigger_version", pa.int64(), nullable=False),
                 pa.field("trigger_action", pa.string(), nullable=False),
-                pa.field("namespace", pa.string(), nullable=False),
+                pa.field("relation", pa.string(), nullable=False),
                 pa.field("identifier", pa.string(), nullable=False),
                 pa.field("trigger_key", pa.string(), nullable=False),
             ]
@@ -191,22 +191,22 @@ class Store(object):
         # Create table with schema
         self.log_table = schema.empty_table()
 
-    def addNamespace_pa(self, name: str, schema: Schema) -> None:
-        """_Add a namespace to the store.
+    def addrelation_pa(self, name: str, schema: Schema) -> None:
+        """_Add a relation to the store.
 
         Args:
-            name (str): The name of the namespace.
-            schema (motion.Schema): The schema of the namespace.
+            name (str): The name of the relation.
+            schema (motion.Schema): The schema of the relation.
         """
         pa_schema = schema.formatPaSchema(name)
 
-        if name in self.namespaces:
+        if name in self.relations:
             pa_schema_names = pa_schema.names
             pa_schema_types = pa_schema.types
 
             for old_name, old_type in zip(
-                self.namespaces[name].schema.names,
-                self.namespaces[name].schema.types,
+                self.relations[name].schema.names,
+                self.relations[name].schema.types,
             ):
                 if old_name == "session_id":
                     continue
@@ -216,14 +216,14 @@ class Store(object):
                     print(old_type)
                     print(pa_schema_types[name_idx])
                     logger.error(
-                        f"Namespace {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
+                        f"relation {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
                     )
 
         else:
-            logger.info(f"Adding namespace {name} with schema {pa_schema}")
-            self.namespaces[name] = pa_schema.empty_table()
+            logger.info(f"Adding relation {name} with schema {pa_schema}")
+            self.relations[name] = pa_schema.empty_table()
 
-            self.table_columns[name] = self.namespaces[name].schema.names
+            self.table_columns[name] = self.relations[name].schema.names
             self.table_columns[name].remove("identifier")
             self.table_columns[name].remove("derived_id")
 
@@ -239,7 +239,7 @@ class Store(object):
         Args:
             name (str): Trigger name.
             keys (typing.List[str]): Names of the keys to triger on. Formatted
-            as "namespace.key" or cron expression. Trigger executes if there is
+            as "relation.key" or cron expression. Trigger executes if there is
             a addition to any of the keys, or on the cron schedule.
             trigger (typing.Union[typing.Callable, type]): Function or class to
             execute when the trigger is fired. If function, must take in the id
@@ -351,17 +351,17 @@ class Store(object):
         del self.trigger_names[name]
         del self.trigger_fns[name]
 
-    def getTriggersForKey(self, namespace: str, key: str) -> typing.List[str]:
+    def getTriggersForKey(self, relation: str, key: str) -> typing.List[str]:
         """Get the list of triggers for a given key.
 
         Args:
-            namespace (str): The namespace to get the triggers for.
+            relation (str): The relation to get the triggers for.
             key (str): The key to get the triggers for.
 
         Returns:
             typing.List[str]: The list of triggers for the given key.
         """
-        names_and_fns = self.triggers.get(f"{namespace}.{key}", [])
+        names_and_fns = self.triggers.get(f"{relation}.{key}", [])
         return [t[0] for t in names_and_fns]
 
     def getTriggersForAllKeys(self) -> typing.Dict[str, typing.List[str]]:

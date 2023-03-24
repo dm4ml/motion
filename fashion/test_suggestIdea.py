@@ -24,7 +24,7 @@ def test_place_queries():
 
     for query in place_queries:
         created_id = connection.set(
-            namespace="query",
+            relation="query",
             identifier=None,
             key_values={
                 "query": query,
@@ -34,7 +34,7 @@ def test_place_queries():
 
         # Retrieve the results
         results = connection.get(
-            namespace="query",
+            relation="query",
             identifier=created_id,
             keys=[
                 "identifier",
@@ -47,7 +47,7 @@ def test_place_queries():
         )
 
         image_url_results = connection.mget(
-            namespace="catalog",
+            relation="catalog",
             identifiers=list(results["catalog_img_id"].values),
             keys=["img_url", "permalink"],
             as_df=True,

@@ -7,7 +7,7 @@ class Chatbot(motion.Trigger):
     def routes(self):
         return [
             motion.Route(
-                namespace="chat",
+                relation="chat",
                 key="prompt",
                 infer=self.getCompletion,
                 fit=None,
@@ -33,7 +33,7 @@ class Chatbot(motion.Trigger):
         )
         completion = response[0].text
         cursor.set(
-            triggered_by.namespace,  # "chat"
+            triggered_by.relation,  # "chat"
             identifier=triggered_by.identifier,
             key_values={"completion": completion},
         )

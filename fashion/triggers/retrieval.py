@@ -13,25 +13,25 @@ class Retrieval(motion.Trigger):
     def routes(self):
         return [
             motion.Route(
-                namespace="query",
+                relation="query",
                 key="text_suggestion",
                 infer=self.suggestionToImage,
                 fit=None,
             ),
             motion.Route(
-                namespace="closet",
+                relation="closet",
                 key="sd_img_blob",
                 infer=self.closetToImage,
                 fit=None,
             ),
             motion.Route(
-                namespace="catalog",
+                relation="catalog",
                 key="img_blob",
                 infer=None,
                 fit=self.catalogToIndex,
             ),
             motion.Route(
-                namespace="query",
+                relation="query",
                 key="feedback",
                 infer=None,
                 fit=self.fineTune,
@@ -82,7 +82,7 @@ class Retrieval(motion.Trigger):
             triggered_by.value, self.state["model"]
         )
         cursor.set(
-            triggered_by.namespace,
+            triggered_by.relation,
             identifier=triggered_by.identifier,
             key_values={"img_embedding": image_features.squeeze().tolist()},
         )
@@ -143,7 +143,7 @@ class Retrieval(motion.Trigger):
         for _, row in ids_and_blobs.iterrows():
             image_features = self._embedImage(row["img_blob"], new_model)
             cursor.set(
-                "catalog",  # This isn't the triggered_by namespace!
+                "catalog",  # This isn't the triggered_by relation!
                 identifier=row["identifier"],
                 key_values={
                     "img_embedding": image_features.squeeze().tolist()
@@ -166,10 +166,10 @@ class Retrieval(motion.Trigger):
     def _writeSimilarImages(self, cursor, triggered_by, scores, img_ids):
         for score, img_id in zip(scores, img_ids):
             new_id = cursor.duplicate(
-                triggered_by.namespace, identifier=triggered_by.identifier
+                triggered_by.relation, identifier=triggered_by.identifier
             )
             cursor.set(
-                triggered_by.namespace,
+                triggered_by.relation,
                 identifier=new_id,
                 key_values={
                     "catalog_img_id": img_id,

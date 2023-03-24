@@ -12,7 +12,7 @@ class ExtractOutfit(motion.Trigger):
     def routes(self):
         return [
             motion.Route(
-                namespace="closet",
+                relation="closet",
                 key="img_blob",
                 infer=self.removeBackgroundAndEnhance,
                 fit=None,
@@ -56,7 +56,7 @@ class ExtractOutfit(motion.Trigger):
 
         # Put the image blob in the database
         cursor.set(
-            namespace=triggered_by.namespace,
+            relation=triggered_by.relation,
             identifier=triggered_by.identifier,
             key_values={"sd_img_blob": bytes_value},
         )

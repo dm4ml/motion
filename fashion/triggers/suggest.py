@@ -8,7 +8,7 @@ class SuggestIdea(motion.Trigger):
     def routes(self):
         return [
             motion.Route(
-                namespace="query",
+                relation="query",
                 key="query",
                 infer=self.generateSuggestions,
                 fit=None,
@@ -42,10 +42,10 @@ class SuggestIdea(motion.Trigger):
 
         for s in suggestions:
             new_id = cursor.duplicate(
-                triggered_by.namespace, identifier=triggered_by.identifier
+                triggered_by.relation, identifier=triggered_by.identifier
             )
             cursor.set(
-                triggered_by.namespace,
+                triggered_by.relation,
                 identifier=new_id,
                 key_values={"text_suggestion": s},
             )

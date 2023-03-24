@@ -8,7 +8,7 @@ from collections import namedtuple
 from queue import SimpleQueue
 
 TriggerElement = namedtuple(
-    "TriggerElement", ["namespace", "identifier", "key", "value"]
+    "TriggerElement", ["relation", "identifier", "key", "value"]
 )
 TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
@@ -37,14 +37,14 @@ class Trigger(ABC):
         route_list = self.routes()
         seen_keys = set()
         for r in route_list:
-            if f"{r.namespace}.{r.key}" in seen_keys:
+            if f"{r.relation}.{r.key}" in seen_keys:
                 raise ValueError(
-                    f"Duplicate route {r.namespace}.{r.key} in trigger {name}."
+                    f"Duplicate route {r.relation}.{r.key} in trigger {name}."
                 )
 
             r.validate(self)
-            seen_keys.add(f"{r.namespace}.{r.key}")
-        self.route_map = {f"{r.namespace}.{r.key}": r for r in self.routes()}
+            seen_keys.add(f"{r.relation}.{r.key}")
+        self.route_map = {f"{r.relation}.{r.key}": r for r in self.routes()}
 
         # Set up params dictionary
         self._params = Params(self.name, params)
@@ -108,7 +108,7 @@ class Trigger(ABC):
             ) = self._fit_queue.get()
 
             new_state = self.route_map.get(
-                f"{triggered_by.namespace}.{triggered_by.key}"
+                f"{triggered_by.relation}.{triggered_by.key}"
             ).fit(cursor, triggered_by)
 
             old_version = self.version

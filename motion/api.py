@@ -22,7 +22,7 @@ from pydantic import BaseModel, Extra, Json
 
 
 class MotionGet(BaseModel, extra=Extra.allow):
-    namespace: str
+    relation: str
     identifier: str
     keys: list
 
@@ -32,7 +32,7 @@ class MotionGet(BaseModel, extra=Extra.allow):
 
 
 class MotionMget(BaseModel):
-    namespace: str
+    relation: str
     identifiers: list
     keys: list
     kwargs: dict = {}
@@ -43,13 +43,13 @@ class MotionMget(BaseModel):
 
 
 class MotionSetNoKV(BaseModel):
-    namespace: str
+    relation: str
     identifier: str = None
     run_duplicate_triggers: bool = False
 
 
 class MotionGetNewId(BaseModel):
-    namespace: str
+    relation: str
     key: str = "identifier"
 
 
@@ -119,7 +119,7 @@ def create_app(store, testing=False):
 
         cur = app.state.store.cursor()
         return cur.set(
-            args["namespace"],
+            args["relation"],
             args["identifier"],
             args["key_values"],
             args["run_duplicate_triggers"],
@@ -128,7 +128,7 @@ def create_app(store, testing=False):
     @app.get("/get_new_id/")
     async def get_new_id(args: MotionGetNewId):
         cur = app.state.store.cursor()
-        return cur.getNewId(args.namespace, args.key)
+        return cur.getNewId(args.relation, args.key)
 
     @app.get("/sql/")
     async def sql(args: MotionSql):

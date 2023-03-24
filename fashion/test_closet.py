@@ -44,7 +44,7 @@ def test_add_item_to_closet(strength: float):
         blob = open(os.path.join("images", image), "rb").read()
 
         created_id = connection.set(
-            namespace="closet",
+            relation="closet",
             identifier=None,
             key_values={
                 "username": "shreya",
@@ -54,7 +54,7 @@ def test_add_item_to_closet(strength: float):
 
         # Retrieve the results
         results = connection.get(
-            namespace="closet",
+            relation="closet",
             identifier=created_id,
             keys=["identifier", "sd_img_blob", "catalog_img_score"],
             include_derived=True,
