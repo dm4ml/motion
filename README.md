@@ -57,5 +57,3 @@ const getresponse = await fetch('http://localhost:8000/js/get/', {
   }),
 });
 ```
-
-```
