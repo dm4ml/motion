@@ -78,6 +78,8 @@ def create(name, author):
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
 def serve(host, port, logging_level):
+    """Serves a motion application."""
+
     # Check that the project is created
     if not os.path.exists("mconfig.py"):
         click.echo("Project is not created. Run `motion create` first.")
@@ -103,6 +105,7 @@ def serve(host, port, logging_level):
 @motioncli.command("clear")
 @click.argument("name", required=True)
 def clear(name):
+    """Removes the datastore for the given application."""
     # Remove directory at name
     dirname = os.path.join(MOTION_HOME, "datastores", name)
     if not os.path.exists(dirname):
@@ -117,7 +120,7 @@ def clear(name):
 @click.option("--debug", is_flag=True, help="Enable debug output")
 @click.argument("args", nargs=-1)
 def test(verbose, debug, args):
-    """Run pytest with the given arguments"""
+    """Run pytest with the given arguments."""
     pytest_args = list(args)
     if verbose:
         pytest_args.append("-v")

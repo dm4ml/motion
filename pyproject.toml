@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "motion"
+version = "0.1.0"
+description = "A trigger-based framework for creating and executing ML pipelines."
+authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
+readme = "README.md"
+packages = [{include = "motion"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+dill = "^0.3.6"
+duckdb = "^0.7.1"
+click = "^8.1.3"
+colorlog = "^6.7.0"
+croniter = "^1.3.8"
+fastapi = "^0.95.0"
+pandas = "^1.5.3"
+pytest = "^7.2.2"
+pyarrow = "^11.0.0"
+numpy = "^1.24.2"
+requests = "^2.28.2"
+uvicorn = "^0.21.1"
+httpx = "^0.23.3"
+
+[tool.poetry.scripts]
+motion = "motion.cli:motioncli"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
