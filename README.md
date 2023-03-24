@@ -17,8 +17,7 @@ Run `motion serve` to start the API server from your application directory.
 
 Writing a get request:
 
-```
-js
+```js
 
 const identifier = await fetch('http://localhost:8000/js/set/', {
   method: 'POST',
@@ -36,8 +35,7 @@ This should return an identifier, like "cb1f1cd1-67d3-40b5-88a1-25e0ba1b0663".
 
 You can then use this identifier to get the result:
 
-```
-js
+```js
 
 const getresponse = await fetch('http://localhost:8000/js/get/', {
   method: 'GET',
