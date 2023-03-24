@@ -20,3 +20,4 @@ torch
 torchvision
 tqdm
 transformers
+wandb

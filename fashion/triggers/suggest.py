@@ -9,7 +9,7 @@ class SuggestIdea(motion.Trigger):
         return [
             motion.Route(
                 relation="query",
-                key="query",
+                key="prompt",
                 infer=self.generateSuggestions,
                 fit=None,
             )

@@ -2,6 +2,7 @@
 Database connection, with functions that a users is allowed to
 call within trigger lifecycle methods.
 """
+import collections
 import duckdb
 import logging
 import pandas as pd
@@ -133,8 +134,16 @@ class Connection(object):
                 )
                 new_row_dict.update(key_values)
                 new_row_df = pd.DataFrame(new_row_dict, index=[0])
-
                 new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
+
+                # Check schemas match
+                if collections.Counter(
+                    new_row.schema.names
+                ) != collections.Counter(new_row_df.columns.values):
+                    raise ValueError(
+                        f"One of the keys you are trying to set is not a valid key in the relation {relation}. Please double check your keys."
+                    )
+
                 final_table = pa.concat_tables([table, new_row])
                 self.relations[relation] = final_table
 

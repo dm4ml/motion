@@ -2,7 +2,6 @@ import motion
 import os
 import wandb
 
-from fashion.schemas import QuerySource
 from mconfig import MCONFIG
 from rich import print
 

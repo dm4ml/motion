@@ -9,15 +9,8 @@ class Retailer(motion.MEnum):
     EVERLANE = "Everlane"
 
 
-class QuerySource(motion.MEnum):
-    OFFLINE = "Offline"
-    ONLINE = "Online"
-
-
 class QuerySchema(motion.Schema):
-    src: QuerySource
-    query_id: str
-    query: str
+    prompt: str
     text_suggestion: str
     catalog_img_id: str
     catalog_img_score: float

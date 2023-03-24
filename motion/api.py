@@ -1,5 +1,6 @@
 from fastapi import (
     FastAPI,
+    HTTPException,
     Request,
     Response,
     status,
@@ -7,6 +8,7 @@ from fastapi import (
     File,
     UploadFile,
     Body,
+    APIRouter,
 )
 from fastapi.exceptions import RequestValidationError
 from io import BytesIO
@@ -45,6 +47,13 @@ class MotionMget(BaseModel):
 class MotionSetNoKV(BaseModel):
     relation: str
     identifier: str = None
+    run_duplicate_triggers: bool = False
+
+
+class MotionSet(BaseModel):
+    relation: str
+    identifier: str = None
+    key_values: dict
     run_duplicate_triggers: bool = False
 
 
@@ -108,8 +117,10 @@ def create_app(store, testing=False):
 
         return df_to_json_response(res)
 
-    @app.post("/set/")
-    async def set(args: Json[MotionSetNoKV], file: UploadFile = File(...)):
+    @app.post("/set_no_kv/")
+    async def set_no_kv(
+        args: Json[MotionSetNoKV], file: UploadFile = File(...)
+    ):
         args = args.dict()
         content = await file.read()
         with BytesIO(content) as f:
@@ -124,6 +135,12 @@ def create_app(store, testing=False):
             args["key_values"],
             args["run_duplicate_triggers"],
         )
+
+    # {
+    #     "relation": "query",
+    #     "identifier": None,
+    #     ""
+    # }
 
     @app.get("/get_new_id/")
     async def get_new_id(args: MotionGetNewId):
@@ -160,4 +177,58 @@ def create_app(store, testing=False):
         if not app.state.testing:
             app.state.store.stop()
 
+    router = APIRouter(prefix="/js")
+
+    @router.post("/set/")
+    async def routerset(args: MotionSet):
+        cur = app.state.store.cursor()
+        try:
+            identifier = cur.set(
+                args.relation,
+                args.identifier,
+                args.key_values,
+                args.run_duplicate_triggers,
+            )
+            return Response(identifier, media_type="application/json")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/get/")
+    async def routerget(args: MotionGet):
+        cur = app.state.store.cursor()
+
+        try:
+            res = cur.get(**args.kwargs)
+            return res
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/mget/")
+    async def routermget(args: MotionMget):
+        cur = app.state.store.cursor()
+        try:
+            res = cur.mget(**args.kwargs)
+            return res
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/get_new_id/")
+    async def routerget_new_id(args: MotionGetNewId):
+        cur = app.state.store.cursor()
+        try:
+            res = cur.getNewId(args.relation, args.key)
+            return res
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/sql/")
+    async def routersql(args: MotionSql):
+        cur = app.state.store.cursor()
+        try:
+            res = cur.sql(args.query, as_df=False)
+            return res
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    app.include_router(router)
     return app

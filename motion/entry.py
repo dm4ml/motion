@@ -311,7 +311,7 @@ class ClientConnection(object):
         memory_buffer.seek(0)
 
         return self.postWrapper(
-            "/set/",
+            "/set_no_kv/",
             data=args,
             files={
                 "file": (

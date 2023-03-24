@@ -22,7 +22,7 @@ MCONFIG = {
         "closet": ClosetSchema,
     },
     "triggers": {
-        SuggestIdea: ["query.query"],
+        SuggestIdea: ["query.prompt"],
         ExtractOutfit: ["closet.img_blob"],
         Retrieval: [
             "catalog.img_blob",

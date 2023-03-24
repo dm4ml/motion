@@ -1,6 +1,5 @@
 import motion
 
-from fashion.schemas import QuerySource
 from mconfig import MCONFIG
 
 # Test that for simple queries, the results make some sense
@@ -27,8 +26,7 @@ def test_place_queries():
             relation="query",
             identifier=None,
             key_values={
-                "query": query,
-                "src": QuerySource.ONLINE,
+                "prompt": query,
             },
         )
 
