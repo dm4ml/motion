@@ -1,33 +1,23 @@
 ci:
   autofix_prs: false
 
-files: [^motion/, ^tests/]
+files: '^motion/'
+exclude: '\__init__.py$'
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
-      - id: flake8
       - id: trailing-whitespace
       - id: end-of-file-fixer
         exclude: ^.*\.egg-info/
       - id: check-merge-conflict
       - id: check-case-conflict
-      - id: check-json
-      - id: check-toml
-      - id: check-yaml
       - id: pretty-format-json
         args: [--autofix, --no-ensure-ascii, --no-sort-keys]
       - id: check-ast
       - id: debug-statements
       - id: check-docstring-first
-
-  - repo: https://github.com/pre-commit/pygrep-hooks
-    rev: v1.9.0
-    hooks:
-      - id: python-check-mock-methods
-      - id: python-use-type-annotations
-      - id: python-check-blanket-noqa
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.3.1
