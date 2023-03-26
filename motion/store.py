@@ -1,7 +1,4 @@
-import dill
-import duckdb
 import inspect
-import logging
 import os
 import pandas as pd
 import pyarrow as pa
@@ -10,16 +7,13 @@ import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 import threading
 import typing
-import uuid
 
 from croniter import croniter
-from enum import Enum
 from motion import Trigger, Schema
 from motion.cursor import Cursor
 from motion.task import CronThread, CheckpointThread
-from motion.trigger import TriggerFn
 
-from motion.utils import logger
+from motion.utils import logger, TriggerElement, TriggerFn
 
 
 class Store(object):
@@ -30,9 +24,9 @@ class Store(object):
         datastore_prefix: str = "datastores",
         checkpoint: str = "0 * * * *",
         disable_cron_triggers: bool = False,
-    ):
+    ) -> None:
         self.name = name
-        self.session_id = session_id
+        self.session_id: str = session_id
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
         self.disable_cron_triggers = disable_cron_triggers
@@ -56,22 +50,22 @@ class Store(object):
             self.addLogTable_pa()
 
         # Set up triggers
-        self.triggers = {}
-        self.cron_triggers = {}
-        self.cron_threads = {}
-        self.trigger_names = {}
-        self.trigger_fns = {}
+        self.triggers: typing.Dict[str, typing.List[TriggerFn]] = {}
+        self.cron_triggers: typing.Dict[str, typing.List[TriggerFn]] = {}
+        self.cron_threads: typing.Dict[str, CronThread] = {}
+        self.trigger_names: typing.Dict[str, typing.List[str]] = {}
+        self.trigger_fns: typing.Dict[str, typing.Callable] = {}
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.stop(wait=False)
 
     @property
-    def listening(self):
+    def listening(self) -> bool:
         return self._listening
 
     def cursor(
         self, bypass_listening: bool = False, wait_for_results: bool = False
-    ):
+    ) -> Cursor:
         """Generates a new cursor for the database, with triggers and all.
 
         Returns:
@@ -92,9 +86,8 @@ class Store(object):
             wait_for_results=wait_for_results,
         )
 
-    def checkpoint_pa(self):
+    def checkpoint_pa(self) -> None:
         """Checkpoint store object."""
-        # try:
         # Save relations
         base_path = os.path.join(self.datastore_prefix, self.name)
         for relation in self.relations:
@@ -115,7 +108,7 @@ class Store(object):
 
         # TODO: checkpoint trigger objects
 
-    def loadFromCheckpoint_pa(self):
+    def loadFromCheckpoint_pa(self) -> typing.Tuple[dict, dict, pa.Table]:
         """Load store object from checkpoint."""
         try:
             relations = {}
@@ -168,7 +161,7 @@ class Store(object):
 
         # TODO: load trigger objects
 
-    def addLogTable_pa(self):
+    def addLogTable_pa(self) -> None:
         """Creates a table to store trigger logs."""
 
         schema = pa.schema(
@@ -339,13 +332,15 @@ class Store(object):
         for key in keys:
             if croniter.is_valid(key):
                 self.cron_triggers[key].remove(
-                    (name, fn, isinstance(fn, Trigger))
+                    TriggerFn(name, fn, isinstance(fn, Trigger))
                 )
                 self.cron_threads[name].stop()
                 self.cron_threads[name].join()
 
             else:
-                self.triggers[key].remove((name, fn, isinstance(fn, Trigger)))
+                self.triggers[key].remove(
+                    TriggerFn(name, fn, isinstance(fn, Trigger))
+                )
 
         del self.trigger_names[name]
         del self.trigger_fns[name]
@@ -369,7 +364,10 @@ class Store(object):
         Returns:
             typing.Dict[str, typing.List[str]]: The list of triggers for all keys.
         """
-        return {k: self.getTriggersForKey(k) for k in self.triggers.keys()}
+        return {
+            k: self.getTriggersForKey(k.split(".")[0], k.split(".")[1])
+            for k in self.triggers.keys()
+        }
 
     def start(self) -> None:
         """Start the store."""
@@ -393,7 +391,7 @@ class Store(object):
 
         # Start a thread to checkpoint the store every 5 minutes
         self.checkpoint_thread = CheckpointThread(
-            self, self.checkpoint_interval
+            self.name, self.checkpoint_pa, self.checkpoint_interval
         )
         self.checkpoint_thread.start()
 

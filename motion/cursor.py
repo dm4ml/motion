@@ -16,8 +16,7 @@ import uuid
 
 from datetime import datetime
 from enum import Enum
-from motion.trigger import TriggerElement, TriggerFn
-from motion.utils import logger
+from motion.utils import logger, TriggerElement, TriggerFn
 
 
 class Cursor(object):
@@ -28,32 +27,32 @@ class Cursor(object):
         relations: typing.Dict[str, pa.Table],
         log_table: pa.Table,
         table_columns: typing.Dict[str, typing.List[str]],
-        triggers: typing.Dict[str, TriggerElement],
+        triggers: typing.Dict[str, typing.List[TriggerFn]],
         write_lock: threading.Lock,
         session_id: str,
         wait_for_results: bool = False,
         triggers_to_run_on_duplicate: typing.Dict[
             TriggerFn, TriggerElement
         ] = {},
-        spawned_by: TriggerElement = None,
+        spawned_by: TriggerElement = None,  # type: ignore
     ):
         self.name = name
-        self.relations = relations
+        self.relations: typing.Dict[str, pa.Table] = relations
         self.log_table = log_table
         self.table_columns = table_columns
         self.triggers = triggers
         self.write_lock = write_lock
         self.session_id = session_id
         self.wait_for_results = wait_for_results
-        self.fit_events = []
+        self.fit_events: typing.List[threading.Event] = []
         self.triggers_to_run_on_duplicate = triggers_to_run_on_duplicate
         self.spawned_by = spawned_by
 
-    def __del__(self):
+    def __del__(self) -> None:
         if self.wait_for_results:
             self.waitForResults()
 
-    def waitForResults(self):
+    def waitForResults(self) -> None:
         for t in self.fit_events:
             t.wait()
         self.fit_events = []
@@ -76,17 +75,21 @@ class Cursor(object):
 
         return new_id
 
-    def exists(self, relation: str, identifier: int) -> bool:
+    def exists(
+        self,
+        relation: str,
+        identifier: str,
+    ) -> bool:
         """Determine if a record exists in a relation.
 
         Args:
             relation (str): The relation to check.
-            identifier (int): The primary key of the record.
+            identifier (str): The primary key of the record.
 
         Returns:
             bool: True if the record exists, False otherwise.
         """
-        if relation not in self.relations:
+        if relation not in self.relations.keys():
             raise KeyError(f"relation {relation} does not exist.")
 
         # Check if identifier exists in pyarrow table
@@ -142,9 +145,9 @@ class Cursor(object):
                 new_row_dict = {n: None for n in table.schema.names}
                 new_row_dict.update(
                     {
-                        "identifier": identifier,
-                        "create_at": pd.Timestamp.now(),
-                        "session_id": self.session_id,
+                        "identifier": identifier,  # type: ignore
+                        "create_at": pd.Timestamp.now(),  # type: ignore
+                        "session_id": self.session_id,  # type: ignore
                     }
                 )
                 new_row_dict.update(key_values)
@@ -176,7 +179,7 @@ class Cursor(object):
                 self.relations[relation] = final_table
 
         # Get all triggers to run
-        triggers_to_run = {}
+        triggers_to_run: typing.Dict[TriggerFn, TriggerElement] = {}
         for key, value in key_values.items():
             if f"{relation}.{key}" not in self.triggers:
                 continue
@@ -207,8 +210,12 @@ class Cursor(object):
         return identifier
 
     def logTriggerExecution(
-        self, trigger_name, trigger_version, trigger_action, triggered_by
-    ):
+        self,
+        trigger_name: str,
+        trigger_version: int,
+        trigger_action: str,
+        triggered_by: TriggerElement,
+    ) -> None:
         """Logs a trigger execution.
 
         Args:
@@ -244,7 +251,7 @@ class Cursor(object):
         triggers_to_run_on_duplicate: typing.Dict[
             TriggerFn, TriggerElement
         ] = {},
-    ):
+    ) -> None:
         """Execute a trigger.
 
         Args:
@@ -268,7 +275,7 @@ class Cursor(object):
         triggers_to_run_on_duplicate: typing.Dict[
             TriggerFn, TriggerElement
         ] = {},
-    ):
+    ) -> None:
         """Execute a trigger.
 
         Args:
@@ -335,15 +342,15 @@ class Cursor(object):
                     f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
                 )
 
-    def duplicate(self, *, relation: str, identifier: int) -> int:
+    def duplicate(self, *, relation: str, identifier: str) -> str:
         """Duplicate a record in a relation. Doesn't run triggers.
 
         Args:
             relation (str): The relation to duplicate the record in.
-            identifier (int): The identifier of the record to duplicate.
+            identifier (str): The identifier of the record to duplicate.
 
         Returns:
-            int: The new identifier of the duplicated record.
+            str: The new identifier of the duplicated record.
         """
         new_id = self.getNewId(relation)
 
@@ -393,16 +400,16 @@ class Cursor(object):
         self,
         *,
         relation: str,
-        identifier: int,
+        identifier: str,
         keys: typing.List[str],
-        **kwargs,
+        **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation.
         TODO: Handle complex types.
 
         Args:
             relation (str): The relation to get the value from.
-            identifier (int): The identifier of the record to get the value for.
+            identifier (str): The identifier of the record to get the value for.
             keys (typing.List[str]): The keys to get the values for.
 
         Keyword Args:
@@ -412,11 +419,6 @@ class Cursor(object):
         Returns:
             typing.Any: The values for the keys.
         """
-
-        if not self.exists(relation, identifier):
-            raise ValueError(
-                f"Identifier {identifier} not found in relation {relation}."
-            )
 
         if keys == ["*"]:
             keys = self.relations[relation].schema.names
@@ -437,6 +439,11 @@ class Cursor(object):
             res = con.execute(
                 f"SELECT {', '.join(keys)} FROM scanner WHERE identifier = '{identifier}'"
             ).fetchone()
+
+            if not res:
+                raise ValueError(
+                    f"Identifier {identifier} not found in relation {relation}."
+                )
 
             res_dict = {k: v for k, v in zip(keys, res)}
             res_dict.update({"identifier": identifier})
@@ -504,7 +511,7 @@ class Cursor(object):
         relation: str,
         identifiers: typing.List[str],
         keys: typing.List[str],
-        **kwargs,
+        **kwargs: typing.Any,
     ) -> pd.DataFrame:
         """Get multiple values for keys in a relation.
         TODO: Handle complex types.

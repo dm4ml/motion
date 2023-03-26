@@ -7,7 +7,7 @@ class GetRequest(BaseModel, extra=Extra.allow):
     keys: list
 
     @property
-    def kwargs(self):
+    def kwargs(self) -> dict:
         return self.__dict__
 
 
@@ -17,20 +17,21 @@ class MgetRequest(BaseModel, extra=Extra.allow):
     keys: list
 
     @property
-    def kwargs(self):
+    def kwargs(self) -> dict:
         return self.__dict__
 
 
 class PartialSetRequest(BaseModel):
     relation: str
-    identifier: str = None
+    identifier: str = ""
 
 
 class SetRequest(BaseModel):
     relation: str
-    identifier: str = None
+    identifier: str = ""
     key_values: dict
 
 
 class SqlRequest(BaseModel, extra=Extra.allow):
     query: str
+    as_df: bool = True

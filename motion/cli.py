@@ -17,7 +17,7 @@ MOTION_HOME = os.environ.get(
 
 
 @click.group()
-def motioncli():
+def motioncli() -> None:
     pass
 
 
@@ -32,7 +32,7 @@ def motioncli():
     prompt="Your name",
     help="Author name.",
 )
-def create(name, author):
+def create(name: str, author: str) -> None:
     """Creates a new application."""
     # Return error if name is not valid
     name = name.strip().lower()
@@ -77,7 +77,7 @@ def create(name, author):
     default="INFO",
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
-def serve(host, port, logging_level):
+def serve(host: str, port: int, logging_level: str) -> None:
     """Serves a motion application."""
 
     # Check that the project is created
@@ -104,7 +104,7 @@ def serve(host, port, logging_level):
 
 @motioncli.command("clear")
 @click.argument("name", required=True)
-def clear(name):
+def clear(name: str) -> None:
     """Removes the datastore for the given application."""
     # Remove directory at name
     dirname = os.path.join(MOTION_HOME, "datastores", name)
@@ -119,7 +119,7 @@ def clear(name):
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--debug", is_flag=True, help="Enable debug output")
 @click.argument("args", nargs=-1)
-def test(verbose, debug, args):
+def test(verbose: bool, debug: bool, args: tuple) -> None:
     """Run pytest with the given arguments."""
     pytest_args = list(args)
     if verbose:

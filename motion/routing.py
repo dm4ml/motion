@@ -3,6 +3,8 @@ from typing import Callable, Union
 
 import inspect
 
+from motion.trigger import Trigger
+
 
 class Route(BaseModel):
     relation: str
@@ -10,7 +12,7 @@ class Route(BaseModel):
     infer: Union[Callable, None]
     fit: Union[Callable, None]
 
-    def validate(self, trigger_object):
+    def validateTrigger(self, trigger_object: Trigger) -> None:
         if self.infer is not None:
             if getattr(trigger_object, self.infer.__name__, None) is None:
                 raise ValueError(
@@ -30,5 +32,5 @@ class Route(BaseModel):
 
             if len(inspect.signature(self.fit).parameters) != 2:
                 raise ValueError(
-                    f"Fit method {self.infer.__name__} should have 2 arguments: cursor and triggered_by."
+                    f"Fit method {self.fit.__name__} should have 2 arguments: cursor and triggered_by."
                 )

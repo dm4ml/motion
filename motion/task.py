@@ -1,12 +1,12 @@
-import logging
 import threading
 import time
+import typing
 
 from croniter import croniter
 from datetime import datetime
-from motion.trigger import TriggerElement, TriggerFn
+from motion.cursor import Cursor
 
-from motion.utils import logger
+from motion.utils import logger, TriggerElement, TriggerFn
 
 
 class CronThread(threading.Thread):
@@ -14,12 +14,12 @@ class CronThread(threading.Thread):
 
     def __init__(
         self,
-        cron_expression,
-        cursor,
+        cron_expression: str,
+        cursor: Cursor,
         trigger_fn: TriggerFn,
-        checkpoint_fn,
+        checkpoint_fn: typing.Callable,
         first_run_event: threading.Event,
-    ):
+    ) -> None:
         threading.Thread.__init__(self)
         self.daemon = True
         self.cron_expression = cron_expression
@@ -30,7 +30,7 @@ class CronThread(threading.Thread):
         self.first_run = True
         self.first_run_event = first_run_event
 
-    def run(self):
+    def run(self) -> None:
         while self.running:
             next_time = croniter(
                 self.cron_expression, datetime.now()
@@ -77,20 +77,26 @@ class CronThread(threading.Thread):
                 f"Checkpointed store from task {self.trigger_fn.name}."
             )
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info(f"Stopping task thread for name {self.trigger_fn.name}")
         self.running = False
 
 
 class CheckpointThread(threading.Thread):
-    def __init__(self, store, cron_expression):
+    def __init__(
+        self,
+        store_name: str,
+        checkpoint_fn: typing.Callable,
+        cron_expression: str,
+    ) -> None:
         threading.Thread.__init__(self)
+        self.name = store_name
         self.daemon = True
-        self.store = store
+        self.checkpoint_fn = checkpoint_fn
         self.running = True
         self.cron_expression = cron_expression
 
-    def run(self):
+    def run(self) -> None:
         while self.running:
             next_time = croniter(
                 self.cron_expression, datetime.now()
@@ -101,10 +107,10 @@ class CheckpointThread(threading.Thread):
             else:
                 continue
 
-            logger.info(f"Checkpointing store {self.store.name}")
-            self.store.checkpoint_pa()
-            logger.info(f"Finished checkpointing store {self.store.name}")
+            logger.info(f"Checkpointing store {self.name}")
+            self.checkpoint_fn()
+            logger.info(f"Finished checkpointing store {self.name}")
 
-    def stop(self):
-        logger.info(f"Stopping checkpoint thread for store {self.store.name}")
+    def stop(self) -> None:
+        logger.info(f"Stopping checkpoint thread for store {self.name}")
         self.running = False

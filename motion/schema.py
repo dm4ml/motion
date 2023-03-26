@@ -15,14 +15,14 @@ import typing
 
 class MEnum(Enum):
     @classmethod
-    def list(cls):
+    def list(cls) -> list:
         return [e.value for e in cls]
 
 
 Field = namedtuple("Field", ["name", "type_"])
 
 
-def type_to_name(t):
+def type_to_name(t: type) -> str:
     return t.__name__.split(".")[-1].upper()
 
 
@@ -37,7 +37,7 @@ TYPE_TO_PA_TYPE = {
 }
 
 
-def get_arrow_type(t):
+def get_arrow_type(t: type) -> pa.DataType:
     if t in TYPE_TO_PA_TYPE.keys():
         return TYPE_TO_PA_TYPE[t]
 

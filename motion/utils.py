@@ -1,13 +1,13 @@
 import copy
-import dataclasses
 import logging
+from collections import namedtuple
 
 logger = logging.getLogger(__name__)
 
-
-def dataclass_to_sql(dataclass):
-    fields = dataclasses.fields(dataclass)
-    return ", ".join([f"{field.name} {field.type}" for field in fields])
+TriggerElement = namedtuple(
+    "TriggerElement", ["relation", "identifier", "key", "value"]
+)
+TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 
 
 def update_params(mconfig: dict, params: dict) -> dict:
