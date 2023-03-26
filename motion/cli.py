@@ -1,19 +1,14 @@
-import click
-import importlib
-import inspect
-import logging
-import motion
+from __future__ import annotations
+
 import os
-import pytest
-
 import shutil
+from subprocess import run
 
-from subprocess import call, run
+import click
 
+import motion
 
-MOTION_HOME = os.environ.get(
-    "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-)
+MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
 
 @click.group()
@@ -45,9 +40,7 @@ def create(name: str, author: str) -> None:
         return
 
     # Copy over the example project
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "exampleproj"), name
-    )
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "exampleproj"), name)
 
     # Create store setup file
     with open(os.path.join(name, "mconfig.py"), "w") as f:
@@ -57,7 +50,6 @@ def create(name: str, author: str) -> None:
                     os.path.dirname(__file__),
                     "exampleproj/mconfig.py",
                 ),
-                "r",
             )
             .read()
             .replace("{0}", name)
@@ -86,7 +78,7 @@ def serve(host: str, port: int, logging_level: str) -> None:
         return
 
     # Create object from mconfig.py
-    config_code = open("mconfig.py", "r").read() + "\nMCONFIG"
+    config_code = open("mconfig.py").read() + "\nMCONFIG"
 
     import sys
 
@@ -97,9 +89,7 @@ def serve(host: str, port: int, logging_level: str) -> None:
     click.echo(f"Serving application {mconfig['application']['name']}...")
 
     # Serve the application
-    motion.serve(
-        mconfig, host=host, port=port, motion_logging_level=logging_level
-    )
+    motion.serve(mconfig, host=host, port=port, motion_logging_level=logging_level)
 
 
 @motioncli.command("clear")

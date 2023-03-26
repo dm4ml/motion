@@ -1,14 +1,15 @@
+from __future__ import annotations
+
+import logging
 import os
-
-from motion.client import ClientConnection
-from motion.store import Store
-from motion.api import create_app
-
+import uuid
 
 import colorlog
-import logging
-import uuid
 import uvicorn
+
+from motion.api import create_app
+from motion.client import ClientConnection
+from motion.store import Store
 
 
 def init(
@@ -33,16 +34,12 @@ def init(
     except Exception as e:
         raise Exception("Motion config must have application name and author.")
 
-    checkpoint = (
-        mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
-    )
+    checkpoint = mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
 
     if session_id == "":
         session_id = str(uuid.uuid4())
 
-    MOTION_HOME = os.environ.get(
-        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-    )
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
     store = Store(
         name,
@@ -94,9 +91,7 @@ def serve(
 
 def serve_store(store: Store, host: str, port: int) -> None:
     # Log that the server is running
-    MOTION_HOME = os.environ.get(
-        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-    )
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     with open(os.path.join(MOTION_HOME, "logs", store.name), "a") as f:
@@ -144,9 +139,7 @@ def test(
         session_id (str, optional): Defaults to None.
     """
     if wait_for_triggers and disable_cron_triggers:
-        raise ValueError(
-            "Cannot wait for triggers if cron triggers are disabled."
-        )
+        raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
 
     configureLogging(motion_logging_level)
     store = init(
@@ -175,13 +168,11 @@ def connect(name: str, wait_for_triggers: list = []) -> ClientConnection:
         Store: The motion store.
     """
     #  Check logs
-    MOTION_HOME = os.environ.get(
-        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-    )
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     try:
-        with open(os.path.join(MOTION_HOME, "logs", name), "r") as f:
+        with open(os.path.join(MOTION_HOME, "logs", name)) as f:
             server = f.read().split(" ")[-1]
     except FileNotFoundError:
         raise Exception(

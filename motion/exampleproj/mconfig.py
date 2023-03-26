@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from schemas import Chat
 from triggers import Chatbot, sample_prompt_generator
 

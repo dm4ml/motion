@@ -1,15 +1,14 @@
+from __future__ import annotations
+
 import inspect
-import logging
+import sys
 import threading
 import typing
-import sys
-
 from abc import ABC, abstractmethod
-from collections import namedtuple
-from motion.cursor import Cursor
 from queue import SimpleQueue
 
-from motion.utils import logger, TriggerElement, TriggerFn
+from motion.cursor import Cursor
+from motion.utils import TriggerElement, logger
 
 
 class CustomDict(dict):
@@ -34,9 +33,7 @@ class CustomDict(dict):
 
 
 class Trigger(ABC):
-    def __init__(
-        self, cursor: Cursor, name: str, version: int, params: dict = {}
-    ):
+    def __init__(self, cursor: Cursor, name: str, version: int, params: dict = {}):
         self.name = name
 
         # Validate number of arguments in each trigger and set up routes
@@ -62,9 +59,7 @@ class Trigger(ABC):
 
         # Set up initial state
         if len(inspect.signature(self.setUp).parameters) != 1:
-            raise ValueError(
-                f"setUp() of trigger {name} should have 1 argument"
-            )
+            raise ValueError(f"setUp() of trigger {name} should have 1 argument")
 
         self._state = CustomDict(self.name, "state", {})
         self._version = version
@@ -72,9 +67,7 @@ class Trigger(ABC):
 
         initial_state = self.setUp(cursor)
         if not isinstance(initial_state, dict):
-            raise TypeError(
-                f"setUp() of trigger {self.name} should return a dict."
-            )
+            raise TypeError(f"setUp() of trigger {self.name} should return a dict.")
         self.update(initial_state)
 
         # Set up fit queue
@@ -141,9 +134,7 @@ class Trigger(ABC):
                 f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier} and key {triggered_by.key}."
             )
 
-            cursor.logTriggerExecution(
-                trigger_name, old_version, "fit", triggered_by
-            )
+            cursor.logTriggerExecution(trigger_name, old_version, "fit", triggered_by)
 
             fit_event.set()
 

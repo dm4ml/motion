@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import threading
 import time
 import typing
+from datetime import datetime
 
 from croniter import croniter
-from datetime import datetime
-from motion.cursor import Cursor
 
-from motion.utils import logger, TriggerElement, TriggerFn
+from motion.cursor import Cursor
+from motion.utils import TriggerElement, TriggerFn, logger
 
 
 class CronThread(threading.Thread):
@@ -32,9 +34,9 @@ class CronThread(threading.Thread):
 
     def run(self) -> None:
         while self.running:
-            next_time = croniter(
-                self.cron_expression, datetime.now()
-            ).get_next(datetime)
+            next_time = croniter(self.cron_expression, datetime.now()).get_next(
+                datetime
+            )
             delay = (next_time - datetime.now()).total_seconds()
 
             # Wait until the scheduled time
@@ -63,9 +65,7 @@ class CronThread(threading.Thread):
                     f"Finished waiting for background task {self.trigger_fn.name}."
                 )
             except Exception as e:
-                logger.error(
-                    f"Error while running task {self.trigger_fn.name}: {e}"
-                )
+                logger.error(f"Error while running task {self.trigger_fn.name}: {e}")
                 continue
 
             if self.first_run:
@@ -73,9 +73,7 @@ class CronThread(threading.Thread):
                 self.first_run = False
 
             self.checkpoint_fn()
-            logger.info(
-                f"Checkpointed store from task {self.trigger_fn.name}."
-            )
+            logger.info(f"Checkpointed store from task {self.trigger_fn.name}.")
 
     def stop(self) -> None:
         logger.info(f"Stopping task thread for name {self.trigger_fn.name}")
@@ -98,9 +96,9 @@ class CheckpointThread(threading.Thread):
 
     def run(self) -> None:
         while self.running:
-            next_time = croniter(
-                self.cron_expression, datetime.now()
-            ).get_next(datetime)
+            next_time = croniter(self.cron_expression, datetime.now()).get_next(
+                datetime
+            )
             delay = (next_time - datetime.now()).total_seconds()
             if delay > 0:
                 time.sleep(delay)

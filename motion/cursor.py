@@ -2,49 +2,46 @@
 Database connection, with functions that a users is allowed to
 call within trigger lifecycle methods.
 """
+from __future__ import annotations
+
 import collections
-import duckdb
-import itertools
-import logging
-import pandas as pd
-import pyarrow as pa
-import pyarrow.compute as pc
-import pytz
 import threading
 import typing
 import uuid
-
-from datetime import datetime
 from enum import Enum
-from motion.utils import logger, TriggerElement, TriggerFn
+
+import duckdb
+import pandas as pd
+import pyarrow as pa
+import pyarrow.compute as pc
+
+from motion.utils import TriggerElement, TriggerFn, logger
 
 
-class Cursor(object):
+class Cursor:
     def __init__(
         self,
         *,
         name: str,
-        relations: typing.Dict[str, pa.Table],
+        relations: dict[str, pa.Table],
         log_table: pa.Table,
-        table_columns: typing.Dict[str, typing.List[str]],
-        triggers: typing.Dict[str, typing.List[TriggerFn]],
+        table_columns: dict[str, list[str]],
+        triggers: dict[str, list[TriggerFn]],
         write_lock: threading.Lock,
         session_id: str,
         wait_for_results: bool = False,
-        triggers_to_run_on_duplicate: typing.Dict[
-            TriggerFn, TriggerElement
-        ] = {},
+        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
         spawned_by: TriggerElement = None,  # type: ignore
     ):
         self.name = name
-        self.relations: typing.Dict[str, pa.Table] = relations
+        self.relations: dict[str, pa.Table] = relations
         self.log_table = log_table
         self.table_columns = table_columns
         self.triggers = triggers
         self.write_lock = write_lock
         self.session_id = session_id
         self.wait_for_results = wait_for_results
-        self.fit_events: typing.List[threading.Event] = []
+        self.fit_events: list[threading.Event] = []
         self.triggers_to_run_on_duplicate = triggers_to_run_on_duplicate
         self.spawned_by = spawned_by
 
@@ -105,7 +102,7 @@ class Cursor(object):
         *,
         relation: str,
         identifier: str,
-        key_values: typing.Dict[str, typing.Any],
+        key_values: dict[str, typing.Any],
     ) -> str:
         """Set multiple values for a key in a relation.
         TODO(shreyashankar): Handle complex types.
@@ -155,9 +152,9 @@ class Cursor(object):
                 new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
 
                 # Check schemas match
-                if collections.Counter(
-                    new_row.schema.names
-                ) != collections.Counter(new_row_df.columns.values):
+                if collections.Counter(new_row.schema.names) != collections.Counter(
+                    new_row_df.columns.values
+                ):
                     raise AttributeError(
                         f"One of the keys you are trying to set is not a valid key in the relation {relation}. Please double check your keys."
                     )
@@ -179,7 +176,7 @@ class Cursor(object):
                 self.relations[relation] = final_table
 
         # Get all triggers to run
-        triggers_to_run: typing.Dict[TriggerFn, TriggerElement] = {}
+        triggers_to_run: dict[TriggerFn, TriggerElement] = {}
         for key, value in key_values.items():
             if f"{relation}.{key}" not in self.triggers:
                 continue
@@ -248,9 +245,7 @@ class Cursor(object):
         *,
         trigger: TriggerFn,
         triggered_by: TriggerElement,
-        triggers_to_run_on_duplicate: typing.Dict[
-            TriggerFn, TriggerElement
-        ] = {},
+        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
@@ -260,9 +255,7 @@ class Cursor(object):
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         try:
-            self._executeTrigger(
-                trigger, triggered_by, triggers_to_run_on_duplicate
-            )
+            self._executeTrigger(trigger, triggered_by, triggers_to_run_on_duplicate)
         except RecursionError:
             raise RecursionError(
                 f"Recursion error in trigger {trigger[0]}. Please make sure you do not have a cycle in your triggers."
@@ -272,9 +265,7 @@ class Cursor(object):
         self,
         trigger: TriggerFn,
         triggered_by: TriggerElement,
-        triggers_to_run_on_duplicate: typing.Dict[
-            TriggerFn, TriggerElement
-        ] = {},
+        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
@@ -401,7 +392,7 @@ class Cursor(object):
         *,
         relation: str,
         identifier: str,
-        keys: typing.List[str],
+        keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation.
@@ -426,9 +417,7 @@ class Cursor(object):
         if not keys or not all(
             [k in self.relations[relation].schema.names for k in keys]
         ):
-            raise ValueError(
-                f"Not all keys {keys} not found in relation {relation}."
-            )
+            raise ValueError(f"Not all keys {keys} not found in relation {relation}.")
 
         con = duckdb.connect()
         scanner = pa.dataset.Scanner.from_dataset(
@@ -481,7 +470,7 @@ class Cursor(object):
 
     def _get_derived_ids(
         self, con: duckdb.DuckDBPyConnection, identifier: str
-    ) -> typing.List[str]:
+    ) -> list[str]:
         """Get all derived ids for an identifier.
 
         Args:
@@ -509,8 +498,8 @@ class Cursor(object):
         self,
         *,
         relation: str,
-        identifiers: typing.List[str],
-        keys: typing.List[str],
+        identifiers: list[str],
+        keys: list[str],
         **kwargs: typing.Any,
     ) -> pd.DataFrame:
         """Get multiple values for keys in a relation.
@@ -562,13 +551,9 @@ class Cursor(object):
                 # Filter out rows where all columns except derived_id are null
                 keep_null_idx = res.schema.get_field_index("derived_id")
                 col_indices = [
-                    i
-                    for i in range(len(res.schema.names))
-                    if i != keep_null_idx
+                    i for i in range(len(res.schema.names)) if i != keep_null_idx
                 ]
-                valid_cols = [
-                    pa.compute.is_valid(res.column(i)) for i in col_indices
-                ]
+                valid_cols = [pa.compute.is_valid(res.column(i)) for i in col_indices]
                 cond = valid_cols[0]
                 for i in range(1, len(valid_cols)):
                     cond = pa.compute.and_(cond, valid_cols[i])
@@ -580,9 +565,7 @@ class Cursor(object):
 
         return res.to_dict("records")
 
-    def getIdsForKey(
-        self, relation: str, key: str, value: typing.Any
-    ) -> typing.List[int]:
+    def getIdsForKey(self, relation: str, key: str, value: typing.Any) -> list[int]:
         """Get ids for a key-value pair in a relation.
 
         Args:

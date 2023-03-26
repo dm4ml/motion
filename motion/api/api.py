@@ -1,27 +1,13 @@
-from fastapi import (
-    FastAPI,
-    HTTPException,
-    Request,
-    Response,
-    status,
-    Form,
-    File,
-    UploadFile,
-    Body,
-    APIRouter,
-)
-from fastapi.exceptions import RequestValidationError
+from __future__ import annotations
+
+import typing
 from io import BytesIO
-from pydantic import ValidationError
 from urllib.parse import parse_qs
 
-import binascii
-import logging
 import pandas as pd
-import pyarrow as pa
-import typing
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
+from pydantic import Json
 
-from pydantic import BaseModel, Extra, Json
 from motion.api.models import *
 from motion.store import Store
 

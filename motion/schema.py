@@ -1,16 +1,14 @@
-from datetime import date, datetime
-from abc import ABC
-from collections import namedtuple
-from enum import Enum
-import pyarrow as pa
-
-# import pyarrow.extension as pa_ext
-from pydantic import BaseModel, Extra
+from __future__ import annotations
 
 import inspect
-import numpy as np
-import pickle
 import typing
+from collections import namedtuple
+from datetime import date, datetime
+from enum import Enum
+
+import numpy as np
+import pyarrow as pa
+from pydantic import BaseModel, Extra
 
 
 class MEnum(Enum):

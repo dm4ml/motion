@@ -1,19 +1,19 @@
-import pandas as pd
-import requests
-
-from enum import Enum
-from motion.store import Store
+from __future__ import annotations
 
 import io
 import json
 import typing
+from enum import Enum
 
-
-from fastapi.testclient import TestClient
+import pandas as pd
+import requests
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from motion.store import Store
 
 
-class ClientConnection(object):
+class ClientConnection:
     """A client connection to a motion store.
 
     Args:
@@ -23,7 +23,7 @@ class ClientConnection(object):
     def __init__(
         self,
         name: str,
-        server: typing.Union[str, FastAPI],
+        server: str | FastAPI,
     ) -> None:
         self.name = name
 
@@ -80,9 +80,7 @@ class ClientConnection(object):
             with TestClient(self.server) as client:
                 response = client.request("post", dest, data=data, files=files)
         else:
-            response = requests.post(
-                self.server + dest, data=data, files=files
-            )
+            response = requests.post(self.server + dest, data=data, files=files)
 
         if response.status_code != 200:
             raise Exception(response.content)
@@ -95,9 +93,7 @@ class ClientConnection(object):
         Args:
             trigger (str): The name of the trigger.
         """
-        return self.postWrapper(
-            "/wait_for_trigger/", data={"trigger": trigger}
-        )
+        return self.postWrapper("/wait_for_trigger/", data={"trigger": trigger})
 
     def get(self, **kwargs: typing.Any) -> typing.Any:
         response = self.getWrapper("/get/", **kwargs)
@@ -118,9 +114,7 @@ class ClientConnection(object):
                 kwargs["key_values"].update({key: value.value})
 
         args = {
-            "args": json.dumps(
-                {k: v for k, v in kwargs.items() if k != "key_values"}
-            )
+            "args": json.dumps({k: v for k, v in kwargs.items() if k != "key_values"})
         }
 
         # Turn key-values into a dataframe
