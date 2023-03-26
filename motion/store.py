@@ -15,7 +15,7 @@ import uuid
 from croniter import croniter
 from enum import Enum
 from motion import Trigger, Schema
-from motion.dbcon import Connection
+from motion.cursor import Cursor
 from motion.task import CronThread, CheckpointThread
 from motion.trigger import TriggerFn
 
@@ -75,22 +75,21 @@ class Store(object):
         """Generates a new cursor for the database, with triggers and all.
 
         Returns:
-            Connection: The cursor.
+            Cursor: The cursor.
         """
         if not self.listening and not bypass_listening:
             raise Exception(
                 "Store has not started. Call store.start() before using the cursor."
             )
-
-        return Connection(
-            self.name,
-            self.relations,
-            self.log_table,
-            self.table_columns,
-            self.triggers,
-            self.db_write_lock,
-            self.session_id,
-            wait_for_results,
+        return Cursor(
+            name=self.name,
+            relations=self.relations,
+            log_table=self.log_table,
+            table_columns=self.table_columns,
+            triggers=self.triggers,
+            write_lock=self.db_write_lock,
+            session_id=self.session_id,
+            wait_for_results=wait_for_results,
         )
 
     def checkpoint_pa(self):

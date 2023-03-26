@@ -24,11 +24,9 @@ def test_ask_chatbot():
     ]
 
     for prompt in all_prompts:
-        new_id = connection.getNewId(relation="chat")
         # Must specify kw for every arg in .set and .get
-        connection.set(
+        new_id = connection.set(
             relation="chat",
-            identifier=new_id,
             key_values={"prompt": prompt},
         )
         result = connection.get(

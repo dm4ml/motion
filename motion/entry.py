@@ -5,6 +5,8 @@ import requests
 from enum import Enum
 from motion.store import Store
 from motion.api import create_app
+
+# from motion.utils import logger
 from multiprocessing import Process
 
 import colorlog
@@ -20,12 +22,6 @@ import uvicorn
 
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
-
-
-MOTION_HOME = os.environ.get(
-    "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-)
-logger = logging.getLogger(__name__)
 
 
 def init(
@@ -56,6 +52,10 @@ def init(
 
     if session_id is None:
         session_id = str(uuid.uuid4())
+
+    MOTION_HOME = os.environ.get(
+        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
+    )
 
     store = Store(
         name,
@@ -104,6 +104,10 @@ def serve(
 
 def serve_store(store, host, port):
     # Log that the server is running
+    MOTION_HOME = os.environ.get(
+        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
+    )
+
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     with open(os.path.join(MOTION_HOME, "logs", store.name), "a") as f:
         f.write(f"Server running at {host}:{port}")
@@ -182,6 +186,10 @@ def connect(name: str, wait_for_triggers: list = []):
         Store: The motion store.
     """
     #  Check logs
+    MOTION_HOME = os.environ.get(
+        "MOTION_HOME", os.path.expanduser("~/.cache/motion")
+    )
+
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     try:
         with open(os.path.join(MOTION_HOME, "logs", name), "r") as f:
@@ -311,7 +319,7 @@ class ClientConnection(object):
         memory_buffer.seek(0)
 
         return self.postWrapper(
-            "/set_no_kv/",
+            "/set_python/",
             data=args,
             files={
                 "file": (
@@ -321,9 +329,6 @@ class ClientConnection(object):
                 )
             },
         )
-
-    def getNewId(self, **kwargs):
-        return self.getWrapper("/get_new_id/", **kwargs)
 
     def sql(self, **kwargs):
         return self.getWrapper("/sql/", **kwargs)

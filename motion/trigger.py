@@ -15,9 +15,10 @@ TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
 from motion.utils import logger
 
 
-class Params(dict):
-    def __init__(self, trigger_name, *args, **kwargs):
+class CustomDict(dict):
+    def __init__(self, trigger_name: str, dict_type: str, *args, **kwargs):
         self.trigger_name = trigger_name
+        self.dict_type = dict_type
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, key):
@@ -25,7 +26,7 @@ class Params(dict):
             return super().__getitem__(key)
         except KeyError:
             raise KeyError(
-                f"Key `{key}` not found in {self.trigger_name} params."
+                f"Key `{key}` not found in {self.dict_type} for trigger {self.trigger_name}."
             )
 
 
@@ -35,6 +36,11 @@ class Trigger(ABC):
 
         # Validate number of arguments in each trigger and set up routes
         route_list = self.routes()
+        if not isinstance(route_list, list):
+            raise TypeError(
+                f"routes() of trigger {name} should return a list of motion.Route objects."
+            )
+
         seen_keys = set()
         for r in route_list:
             if f"{r.relation}.{r.key}" in seen_keys:
@@ -47,7 +53,7 @@ class Trigger(ABC):
         self.route_map = {f"{r.relation}.{r.key}": r for r in self.routes()}
 
         # Set up params dictionary
-        self._params = Params(self.name, params)
+        self._params = CustomDict(self.name, "params", params)
 
         # Set up initial state
         if len(inspect.signature(self.setUp).parameters) != 1:
@@ -55,10 +61,16 @@ class Trigger(ABC):
                 f"setUp() of trigger {name} should have 1 argument"
             )
 
-        self._state = {}
+        self._state = CustomDict(self.name, "state", {})
         self._version = version
         self._last_fit_id = -sys.maxsize - 1
-        self.update(self.setUp(cursor))
+
+        initial_state = self.setUp(cursor)
+        if not isinstance(initial_state, dict):
+            raise TypeError(
+                f"setUp() of trigger {self.name} should return a dict."
+            )
+        self.update(initial_state)
 
         # Set up fit queue
         self._fit_queue = SimpleQueue()
@@ -110,6 +122,12 @@ class Trigger(ABC):
             new_state = self.route_map.get(
                 f"{triggered_by.relation}.{triggered_by.key}"
             ).fit(cursor, triggered_by)
+
+            if not isinstance(new_state, dict):
+                fit_event.set()
+                raise TypeError(
+                    f"fit() of trigger {self.name} should return a dict of state updates."
+                )
 
             old_version = self.version
             self.update(new_state)

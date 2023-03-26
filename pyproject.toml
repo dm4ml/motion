@@ -26,6 +26,10 @@ python-multipart = "^0.0.6"
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+env = ["MOTION_HOME = /tmp/motion"]
+
 
 [build-system]
 requires = ["poetry-core"]

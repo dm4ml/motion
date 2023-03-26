@@ -21,50 +21,7 @@ import pandas as pd
 import pyarrow as pa
 
 from pydantic import BaseModel, Extra, Json
-
-
-class MotionGet(BaseModel, extra=Extra.allow):
-    relation: str
-    identifier: str
-    keys: list
-
-    @property
-    def kwargs(self):
-        return self.__dict__
-
-
-class MotionMget(BaseModel):
-    relation: str
-    identifiers: list
-    keys: list
-    kwargs: dict = {}
-
-    @property
-    def kwargs(self):
-        return self.__dict__
-
-
-class MotionSetNoKV(BaseModel):
-    relation: str
-    identifier: str = None
-    run_duplicate_triggers: bool = False
-
-
-class MotionSet(BaseModel):
-    relation: str
-    identifier: str = None
-    key_values: dict
-    run_duplicate_triggers: bool = False
-
-
-class MotionGetNewId(BaseModel):
-    relation: str
-    key: str = "identifier"
-
-
-class MotionSql(BaseModel):
-    query: str
-    as_df: bool = True
+from motion.api.models import *
 
 
 def df_to_json_response(df):
@@ -78,16 +35,13 @@ def df_to_json_response(df):
 def create_app(store, testing=False):
     app = FastAPI()
 
-    # @app.exception_handler(RequestValidationError)
-    # async def validation_exception_handler(
-    #     request: Request, exc: RequestValidationError
-    # ):
-    #     detail = exc.errors()[0]["msg"]
-    #     return Response(
-    #         {"detail": detail},
-    #         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-    #         media_type="application/json",
-    #     )
+    json_app = FastAPI(
+        title="Motion JSON API",
+        description="An API for calling basic Motion functions on JSON data.",
+        # version="1.0.0",
+        # servers=[{"url": "https://your-app-url.com"}],
+    )
+    app.mount("/json", json_app)
 
     @app.on_event("startup")
     async def startup():
@@ -95,7 +49,7 @@ def create_app(store, testing=False):
         app.state.store = store
 
     @app.get("/get/")
-    async def get(args: MotionGet):
+    async def get(args: GetRequest):
         cur = app.state.store.cursor()
 
         res = cur.get(**args.kwargs)
@@ -107,7 +61,7 @@ def create_app(store, testing=False):
         return df_to_json_response(res)
 
     @app.get("/mget/")
-    async def mget(args: MotionMget):
+    async def mget(args: MgetRequest):
         cur = app.state.store.cursor()
         res = cur.mget(
             **args.kwargs,
@@ -117,9 +71,9 @@ def create_app(store, testing=False):
 
         return df_to_json_response(res)
 
-    @app.post("/set_no_kv/")
-    async def set_no_kv(
-        args: Json[MotionSetNoKV], file: UploadFile = File(...)
+    @app.post("/set_python/")
+    async def set_python(
+        args: Json[PartialSetRequest], file: UploadFile = File(...)
     ):
         args = args.dict()
         content = await file.read()
@@ -130,25 +84,13 @@ def create_app(store, testing=False):
 
         cur = app.state.store.cursor()
         return cur.set(
-            args["relation"],
-            args["identifier"],
-            args["key_values"],
-            args["run_duplicate_triggers"],
+            relation=args["relation"],
+            identifier=args["identifier"],
+            key_values=args["key_values"],
         )
 
-    # {
-    #     "relation": "query",
-    #     "identifier": None,
-    #     ""
-    # }
-
-    @app.get("/get_new_id/")
-    async def get_new_id(args: MotionGetNewId):
-        cur = app.state.store.cursor()
-        return cur.getNewId(args.relation, args.key)
-
     @app.get("/sql/")
-    async def sql(args: MotionSql):
+    async def sql(args: SqlRequest):
         cur = app.state.store.cursor()
         res = cur.sql(args.query, args.as_df)
         if isinstance(res, pd.DataFrame):
@@ -177,24 +119,23 @@ def create_app(store, testing=False):
         if not app.state.testing:
             app.state.store.stop()
 
-    router = APIRouter(prefix="/js")
+    # JSON API
 
-    @router.post("/set/")
-    async def routerset(args: MotionSet):
+    @json_app.post("/set/")
+    async def json_set(args: SetRequest):
         cur = app.state.store.cursor()
         try:
             identifier = cur.set(
-                args.relation,
-                args.identifier,
-                args.key_values,
-                args.run_duplicate_triggers,
+                relation=args.relation,
+                identifier=args.identifier,
+                key_values=args.key_values,
             )
             return Response(identifier, media_type="application/json")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.get("/get/")
-    async def routerget(args: MotionGet):
+    @json_app.get("/get/")
+    async def json_get(args: GetRequest):
         cur = app.state.store.cursor()
 
         try:
@@ -203,8 +144,8 @@ def create_app(store, testing=False):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.get("/mget/")
-    async def routermget(args: MotionMget):
+    @json_app.get("/mget/")
+    async def json_mget(args: MgetRequest):
         cur = app.state.store.cursor()
         try:
             res = cur.mget(**args.kwargs)
@@ -212,17 +153,8 @@ def create_app(store, testing=False):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @router.get("/get_new_id/")
-    async def routerget_new_id(args: MotionGetNewId):
-        cur = app.state.store.cursor()
-        try:
-            res = cur.getNewId(args.relation, args.key)
-            return res
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
-
-    @router.get("/sql/")
-    async def routersql(args: MotionSql):
+    @json_app.get("/sql/")
+    async def json_sql(args: SqlRequest):
         cur = app.state.store.cursor()
         try:
             res = cur.sql(args.query, as_df=False)
@@ -230,5 +162,8 @@ def create_app(store, testing=False):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    app.include_router(router)
+    @json_app.get("/session_id/")
+    async def json_session_id():
+        return app.state.store.session_id
+
     return app

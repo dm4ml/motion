@@ -4,6 +4,7 @@ call within trigger lifecycle methods.
 """
 import collections
 import duckdb
+import itertools
 import logging
 import pandas as pd
 import pyarrow as pa
@@ -19,17 +20,22 @@ from motion.trigger import TriggerElement, TriggerFn
 from motion.utils import logger
 
 
-class Connection(object):
+class Cursor(object):
     def __init__(
         self,
-        name,
-        relations,
-        log_table,
-        table_columns,
-        triggers,
-        write_lock,
-        session_id,
-        wait_for_results=False,
+        *,
+        name: str,
+        relations: typing.Dict[str, pa.Table],
+        log_table: pa.Table,
+        table_columns: typing.Dict[str, typing.List[str]],
+        triggers: typing.Dict[str, TriggerElement],
+        write_lock: threading.Lock,
+        session_id: str,
+        wait_for_results: bool = False,
+        triggers_to_run_on_duplicate: typing.Dict[
+            TriggerFn, TriggerElement
+        ] = {},
+        spawned_by: TriggerElement = None,
     ):
         self.name = name
         self.relations = relations
@@ -40,6 +46,8 @@ class Connection(object):
         self.session_id = session_id
         self.wait_for_results = wait_for_results
         self.fit_events = []
+        self.triggers_to_run_on_duplicate = triggers_to_run_on_duplicate
+        self.spawned_by = spawned_by
 
     def __del__(self):
         if self.wait_for_results:
@@ -78,6 +86,8 @@ class Connection(object):
         Returns:
             bool: True if the record exists, False otherwise.
         """
+        if relation not in self.relations:
+            raise KeyError(f"relation {relation} does not exist.")
 
         # Check if identifier exists in pyarrow table
         table = self.relations[relation]
@@ -89,10 +99,10 @@ class Connection(object):
 
     def set(
         self,
+        *,
         relation: str,
         identifier: str,
         key_values: typing.Dict[str, typing.Any],
-        run_duplicate_triggers: bool = False,
     ) -> str:
         """Set multiple values for a key in a relation.
         TODO(shreyashankar): Handle complex types.
@@ -101,10 +111,15 @@ class Connection(object):
             relation (str): The relation to set the value in.
             identifier (str): The id of the record to set the value for.
             key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
-            run_duplicate_triggers (bool, optional): Whether to run duplicate triggers. Defaults to False.
+
+        Returns:
+            str: The identifier of the record.
         """
         if relation is None:
             raise ValueError("relation cannot be None.")
+
+        if relation not in self.relations:
+            raise KeyError(f"relation {relation} does not exist.")
 
         exists = True
         if not identifier:
@@ -140,7 +155,7 @@ class Connection(object):
                 if collections.Counter(
                     new_row.schema.names
                 ) != collections.Counter(new_row_df.columns.values):
-                    raise ValueError(
+                    raise AttributeError(
                         f"One of the keys you are trying to set is not a valid key in the relation {relation}. Please double check your keys."
                     )
 
@@ -160,9 +175,12 @@ class Connection(object):
                 final_table = pa.concat_tables([filtered_table, new_row])
                 self.relations[relation] = final_table
 
-        # Run triggers
-        executed = set()
+        # Get all triggers to run
+        triggers_to_run = {}
         for key, value in key_values.items():
+            if f"{relation}.{key}" not in self.triggers:
+                continue
+
             triggered_by = TriggerElement(
                 relation=relation,
                 identifier=identifier,
@@ -170,9 +188,21 @@ class Connection(object):
                 value=value,
             )
             for trigger in self.triggers.get(f"{relation}.{key}", []):
-                if run_duplicate_triggers or trigger not in executed:
-                    self.executeTrigger(trigger, triggered_by)
-                    executed.add(trigger)
+                if trigger in triggers_to_run.keys():
+                    continue
+
+                triggers_to_run[trigger] = triggered_by
+
+        # Run triggers, passing in remainder of triggers_to_run
+        for trigger, triggered_by in triggers_to_run.items():
+            other_triggers_to_run = {
+                k: triggers_to_run[k] for k in triggers_to_run if k != trigger
+            }
+            self.executeTrigger(
+                trigger=trigger,
+                triggered_by=triggered_by,
+                triggers_to_run_on_duplicate=other_triggers_to_run,
+            )
 
         return identifier
 
@@ -208,28 +238,59 @@ class Connection(object):
 
     def executeTrigger(
         self,
+        *,
         trigger: TriggerFn,
         triggered_by: TriggerElement,
+        triggers_to_run_on_duplicate: typing.Dict[
+            TriggerFn, TriggerElement
+        ] = {},
     ):
         """Execute a trigger.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
             triggered_by (TriggerElement): The element that triggered the trigger.
+            triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
+        """
+        try:
+            self._executeTrigger(
+                trigger, triggered_by, triggers_to_run_on_duplicate
+            )
+        except RecursionError:
+            raise RecursionError(
+                f"Recursion error in trigger {trigger[0]}. Please make sure you do not have a cycle in your triggers."
+            )
+
+    def _executeTrigger(
+        self,
+        trigger: TriggerFn,
+        triggered_by: TriggerElement,
+        triggers_to_run_on_duplicate: typing.Dict[
+            TriggerFn, TriggerElement
+        ] = {},
+    ):
+        """Execute a trigger.
+
+        Args:
+            trigger (TriggerFn): The trigger to execute.
+            triggered_by (TriggerElement): The element that triggered the trigger.
+            triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         trigger_name, trigger_fn, isTransform = trigger
         logger.info(
             f"Running trigger {trigger_name} for identifier {triggered_by.identifier}, key {triggered_by.key}..."
         )
-        new_connection = Connection(
-            self.name,
-            self.relations,
-            self.log_table,
-            self.table_columns,
-            self.triggers,
-            self.write_lock,
-            self.session_id,
-            self.wait_for_results,
+        new_connection = Cursor(
+            name=self.name,
+            relations=self.relations,
+            log_table=self.log_table,
+            table_columns=self.table_columns,
+            triggers=self.triggers,
+            write_lock=self.write_lock,
+            session_id=self.session_id,
+            wait_for_results=self.wait_for_results,
+            triggers_to_run_on_duplicate=triggers_to_run_on_duplicate,
+            spawned_by=triggered_by,
         )
 
         if not isTransform:
@@ -250,7 +311,7 @@ class Connection(object):
                 f"{triggered_by.relation}.{triggered_by.key}", None
             )
             if route is None:
-                raise ValueError(
+                raise NotImplementedError(
                     f"Route not found for {triggered_by.relation}.{triggered_by.key}."
                 )
 
@@ -274,7 +335,7 @@ class Connection(object):
                     f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
                 )
 
-    def duplicate(self, relation: str, identifier: int) -> int:
+    def duplicate(self, *, relation: str, identifier: int) -> int:
         """Duplicate a record in a relation. Doesn't run triggers.
 
         Args:
@@ -303,10 +364,38 @@ class Connection(object):
             final_table = pa.concat_tables([table, new_row])
             self.relations[relation] = final_table
 
+        # Run triggers on duplicate if it was from element that spawned
+        # the trigger in the first place
+        if (
+            self.spawned_by is not None
+            and self.spawned_by.identifier == identifier
+            and self.spawned_by.relation == relation
+        ):
+            for (
+                trigger,
+                triggered_by,
+            ) in self.triggers_to_run_on_duplicate.items():
+                other_triggers_to_run = {
+                    k: self.triggers_to_run_on_duplicate[k]
+                    for k in self.triggers_to_run_on_duplicate
+                    if k != trigger
+                }
+                new_triggered_by = triggered_by._replace(identifier=new_id)
+                self.executeTrigger(
+                    trigger=trigger,
+                    triggered_by=new_triggered_by,
+                    triggers_to_run_on_duplicate=other_triggers_to_run,
+                )
+
         return new_id
 
     def get(
-        self, relation: str, identifier: int, keys: typing.List[str], **kwargs
+        self,
+        *,
+        relation: str,
+        identifier: int,
+        keys: typing.List[str],
+        **kwargs,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation.
         TODO: Handle complex types.
@@ -324,6 +413,21 @@ class Connection(object):
             typing.Any: The values for the keys.
         """
 
+        if not self.exists(relation, identifier):
+            raise ValueError(
+                f"Identifier {identifier} not found in relation {relation}."
+            )
+
+        if keys == ["*"]:
+            keys = self.relations[relation].schema.names
+
+        if not keys or not all(
+            [k in self.relations[relation].schema.names for k in keys]
+        ):
+            raise ValueError(
+                f"Not all keys {keys} not found in relation {relation}."
+            )
+
         con = duckdb.connect()
         scanner = pa.dataset.Scanner.from_dataset(
             pa.dataset.dataset(self.relations[relation])
@@ -333,6 +437,7 @@ class Connection(object):
             res = con.execute(
                 f"SELECT {', '.join(keys)} FROM scanner WHERE identifier = '{identifier}'"
             ).fetchone()
+
             res_dict = {k: v for k, v in zip(keys, res)}
             res_dict.update({"identifier": identifier})
 
@@ -359,10 +464,43 @@ class Connection(object):
         if "identifier" not in keys:
             keys.append("identifier")
 
-        return self.mget(relation, all_ids, keys, **kwargs)
+        return self.mget(
+            relation=relation,
+            identifiers=all_ids,
+            keys=keys,
+            compute_derived=False,
+            **kwargs,
+        )
+
+    def _get_derived_ids(
+        self, con: duckdb.DuckDBPyConnection, identifier: str
+    ) -> typing.List[str]:
+        """Get all derived ids for an identifier.
+
+        Args:
+            con (duckdb.PyConnection): The connection to use.
+            identifier (str): The identifier to get the derived ids for.
+
+        Returns:
+            typing.List[str]: The derived ids.
+        """
+        id_res = con.execute(
+            f"SELECT identifier FROM scanner WHERE derived_id = '{identifier}'"
+        ).fetchall()
+        id_res = [i[0] for i in id_res]
+        all_ids = [identifier] + id_res
+        while len(id_res) > 0:
+            id_res_str = [f"'{str(i)}'" for i in id_res]
+            id_res = con.execute(
+                f"SELECT identifier FROM scanner WHERE derived_id IN ({', '.join(id_res_str)})"
+            ).fetchall()
+            id_res = [i[0] for i in id_res]
+            all_ids.extend(id_res)
+        return all_ids
 
     def mget(
         self,
+        *,
         relation: str,
         identifiers: typing.List[str],
         keys: typing.List[str],
@@ -387,7 +525,22 @@ class Connection(object):
             pa.dataset.dataset(self.relations[relation])
         )
 
+        # Find all derived ids
+        if kwargs.get("compute_derived", True):
+            all_derived_ids = []
+            for identifier in identifiers:
+                if not self.exists(relation, identifier):
+                    raise ValueError(
+                        f"Identifier {identifier} not found in relation {relation}."
+                    )
+                all_derived_ids.extend(self._get_derived_ids(con, identifier))
+            identifiers = list(set(identifiers + all_derived_ids))
+
         all_ids_str = [f"'{str(i)}'" for i in identifiers]
+
+        if keys == ["*"]:
+            keys = self.relations[relation].schema.names
+
         if "identifier" not in keys:
             keys.append("identifier")
         res = con.execute(
@@ -395,7 +548,24 @@ class Connection(object):
         ).fetch_arrow_table()
 
         if kwargs.get("filter_null", True):
-            res = pa.compute.drop_null(res).combine_chunks()
+            if "derived_id" not in keys:
+                res = pa.compute.drop_null(res).combine_chunks()
+
+            else:
+                # Filter out rows where all columns except derived_id are null
+                keep_null_idx = res.schema.get_field_index("derived_id")
+                col_indices = [
+                    i
+                    for i in range(len(res.schema.names))
+                    if i != keep_null_idx
+                ]
+                valid_cols = [
+                    pa.compute.is_valid(res.column(i)) for i in col_indices
+                ]
+                cond = valid_cols[0]
+                for i in range(1, len(valid_cols)):
+                    cond = pa.compute.and_(cond, valid_cols[i])
+                res = res.filter(cond)
 
         res = res.to_pandas()
         if kwargs.get("as_df", False):

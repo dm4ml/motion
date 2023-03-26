@@ -57,6 +57,7 @@ class CronThread(threading.Thread):
                     trigger=self.trigger_fn,
                     triggered_by=triggered_by,
                 )
+
                 self.cur.waitForResults()
                 logger.info(
                     f"Finished waiting for background task {self.trigger_fn.name}."
