@@ -1,6 +1,11 @@
 name: motion
 
-on: [push, pull_request, pull_request_target]
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
 
 
 jobs:
