@@ -216,6 +216,18 @@ def test_route_errors(StatefulTrigger, MultipliedAges):
     with pytest.raises(TypeError):
         store = motion.init(config)
 
+    # Try specifying no infer or fit, this should pass
+    StatefulTrigger.routes = lambda self: [
+        motion.Route(relation="test", key="age")
+    ]
+    store = motion.init(config)
+    cursor = store.cursor()
+    cursor.set(
+        relation="test",
+        identifier=None,
+        key_values={"name": "John", "age": 15, "multiplied_age": 30},
+    )
+
 
 @pytest.fixture
 def KeyNotFoundInState():

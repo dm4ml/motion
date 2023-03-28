@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Callable
+from typing import Callable, Union
 
 from pydantic import BaseModel
 
@@ -11,8 +11,8 @@ from motion.trigger import Trigger
 class Route(BaseModel):
     relation: str
     key: str
-    infer: Callable | None
-    fit: Callable | None
+    infer: Union[Callable, None] = None
+    fit: Union[Callable, None] = None
 
     def validateTrigger(self, trigger_object: Trigger) -> None:
         if self.infer is not None:
