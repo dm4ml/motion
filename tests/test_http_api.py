@@ -28,7 +28,16 @@ def test_http_client(config_with_two_triggers):
     store.stop()
 
 
-def test_http_set_get(test_http_client):
+@pytest.fixture
+def test_create_headers(entry):
+    bearer_token = os.environ["MOTION_API_TOKEN"]
+    return {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {bearer_token}",
+    }
+
+
+def test_http_set_get(test_http_client, test_create_headers):
 
     with TestClient(test_http_client) as client:
 
@@ -40,7 +49,7 @@ def test_http_set_get(test_http_client):
                 "identifier": "",
                 "key_values": {"name": "Mary", "age": random.randint(10, 30)},
             },
-            headers={"Content-Type": "application/json"},
+            headers=test_create_headers,
         )
 
         identifier = set_response.json()
@@ -54,7 +63,7 @@ def test_http_set_get(test_http_client):
                 "keys": ["*"],
                 "include_derived": True,
             },
-            headers={"Content-Type": "application/json"},
+            headers=test_create_headers,
         )
         results = get_response.json()
         results_df = pd.DataFrame(results)
@@ -64,7 +73,7 @@ def test_http_set_get(test_http_client):
         assert (results_df["doubled_age"] == results_df["age"] * 2).all()
 
 
-def test_http_mget(test_http_client):
+def test_http_mget(test_http_client, test_create_headers):
 
     with TestClient(test_http_client) as client:
 
@@ -82,7 +91,7 @@ def test_http_mget(test_http_client):
                         "age": random.randint(10, 30),
                     },
                 },
-                headers={"Content-Type": "application/json"},
+                headers=test_create_headers,
             )
             identifiers.append(set_response.json())
 
@@ -96,7 +105,7 @@ def test_http_mget(test_http_client):
                 "keys": ["*"],
                 "include_derived": True,
             },
-            headers={"Content-Type": "application/json"},
+            headers=test_create_headers,
         )
         results = mget_response.json()
         results_df = pd.DataFrame(results)
@@ -106,7 +115,7 @@ def test_http_mget(test_http_client):
         assert (results_df["doubled_age"] == results_df["age"] * 2).all()
 
 
-def test_http_sql(test_http_client):
+def test_http_sql(test_http_client, test_create_headers):
     with TestClient(test_http_client) as client:
 
         # Create some data
@@ -121,7 +130,7 @@ def test_http_sql(test_http_client):
                     "age": random.randint(10, 30),
                 },
             },
-            headers={"Content-Type": "application/json"},
+            headers=test_create_headers,
         )
         identifier = set_response.json()
 
@@ -133,7 +142,7 @@ def test_http_sql(test_http_client):
             json={
                 "query": f"SELECT * FROM test WHERE identifier = '{identifier}'",
             },
-            headers={"Content-Type": "application/json"},
+            headers=test_create_headers,
         )
         results = sql_response.json()
         results_df = pd.DataFrame(results)
@@ -143,7 +152,7 @@ def test_http_sql(test_http_client):
         assert (results_df["doubled_age"] == results_df["age"] * 2).all()
 
 
-def test_http_utils(test_http_client):
+def test_http_utils(test_http_client, test_create_headers):
     with TestClient(test_http_client) as client:
 
         # No cron triggers in this one
@@ -151,18 +160,21 @@ def test_http_utils(test_http_client):
             "post",
             "/json/wait_for_trigger/",
             json={"trigger": "trigger_1"},
+            headers=test_create_headers,
         )
 
         assert response.status_code == 500
 
         # Test session id
 
-        response = client.request("get", "/json/session_id/")
+        response = client.request(
+            "get", "/json/session_id/", headers=test_create_headers
+        )
         assert response.status_code == 200
         assert response.json() == "HTTP_TESTING"
 
 
-def test_wait_for_cron_triggers(basic_config_with_cron):
+def test_wait_for_cron_triggers(basic_config_with_cron, test_create_headers):
     # Create store and client
 
     store = motion.init(basic_config_with_cron, session_id="HTTP_TESTING")
@@ -175,6 +187,7 @@ def test_wait_for_cron_triggers(basic_config_with_cron):
             "post",
             "/json/wait_for_trigger/",
             json={"trigger": "cron_trigger"},
+            headers=test_create_headers,
         )
 
         assert response.status_code == 200

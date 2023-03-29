@@ -4,11 +4,10 @@ import io
 import json
 import typing
 from enum import Enum
-from urllib.error import HTTPError
 
 import pandas as pd
 import requests
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from motion.store import Store
@@ -25,9 +24,16 @@ class ClientConnection:
         self,
         name: str,
         server: str | FastAPI,
+        bearer_token: str,
     ) -> None:
+        if not bearer_token:
+            raise ConnectionError(
+                f"Could not find bearer token for {name}. Please set the MOTION_API_TOKEN environment variable, or pass in the token to the `motion.connect` function if you are using `motion.connect`."
+            )
+
         self.name = name
 
+        self.request_headers = {"Authorization": f"Bearer {bearer_token}"}
         if isinstance(server, FastAPI):
             self.server = server
 
@@ -59,17 +65,17 @@ class ClientConnection:
     def getWrapper(self, dest: str, **kwargs: typing.Any) -> typing.Any:
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("get", dest, json=kwargs)
+                response = client.request(
+                    "get", dest, json=kwargs, headers=self.request_headers
+                )
         else:
-            response = requests.get(self.server + dest, json=kwargs)
+            response = requests.get(
+                self.server + dest, json=kwargs, headers=self.request_headers
+            )
 
         if response.status_code != 200:
-            raise HTTPError(
-                msg=f"{response.content}",  # type: ignore
-                code=response.status_code,  # type: ignore
-                hdrs=response.headers,  # type: ignore
-                url=response.url,  # type: ignore
-                fp=None,
+            raise HTTPException(
+                status_code=response.status_code, detail=response.content
             )
 
         with io.BytesIO(response.content) as data:
@@ -85,17 +91,24 @@ class ClientConnection:
     ) -> typing.Any:
         if isinstance(self.server, FastAPI):
             with TestClient(self.server) as client:
-                response = client.request("post", dest, data=data, files=files)
+                response = client.request(
+                    "post",
+                    dest,
+                    data=data,
+                    files=files,
+                    headers=self.request_headers,
+                )
         else:
-            response = requests.post(self.server + dest, data=data, files=files)
+            response = requests.post(
+                self.server + dest,
+                data=data,
+                files=files,
+                headers=self.request_headers,
+            )
 
         if response.status_code != 200:
-            raise HTTPError(
-                msg=f"{response.content}",  # type: ignore
-                code=response.status_code,  # type: ignore
-                hdrs=response.headers,  # type: ignore
-                url=response.url,  # type: ignore
-                fp=None,  # type: ignore
+            raise HTTPException(
+                status_code=response.status_code, detail=response.content
             )
 
         return response.json()

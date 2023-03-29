@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import typing
 from io import BytesIO
 from urllib.parse import parse_qs
 
 import pandas as pd
-from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import Json
 
 from motion.api.models import *
@@ -20,11 +22,27 @@ def df_to_json_response(df: pd.DataFrame) -> Response:
 
 
 def create_app(store: Store, testing: bool = False) -> FastAPI:
-    app = FastAPI()
+    # Security
+    MOTION_API_TOKEN = os.environ.get("MOTION_API_TOKEN")
+    assert MOTION_API_TOKEN is not None
+    scheme = HTTPBearer()
+
+    def check_auth(
+        credentials: HTTPAuthorizationCredentials = Depends(scheme),
+    ) -> bool:
+        if credentials.credentials != MOTION_API_TOKEN:
+            raise HTTPException(
+                status_code=401, detail="Invalid authentication credentials"
+            )
+
+        return True
+
+    app = FastAPI(dependencies=[Depends(check_auth)])
 
     json_app = FastAPI(
         title="Motion JSON API",
         description="An API for calling basic Motion functions on JSON data.",
+        dependencies=[Depends(check_auth)]
         # version="1.0.0",
         # servers=[{"url": "https://your-app-url.com"}],
     )
