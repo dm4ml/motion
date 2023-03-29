@@ -1,6 +1,10 @@
-import cohere
-import motion
+from __future__ import annotations
+
 import os
+
+import cohere
+
+import motion
 
 
 class Chatbot(motion.Trigger):

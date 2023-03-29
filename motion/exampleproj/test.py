@@ -1,9 +1,9 @@
-import motion
-import os
+from __future__ import annotations
 
-from schemas import QuerySource
 from mconfig import MCONFIG
 from rich import print
+
+import motion
 
 # Test that for simple queries, the results make some sense
 
@@ -24,16 +24,12 @@ def test_ask_chatbot():
     ]
 
     for prompt in all_prompts:
-        new_id = connection.getNewId(relation="chat")
         # Must specify kw for every arg in .set and .get
-        connection.set(
+        new_id = connection.set(
             relation="chat",
-            identifier=new_id,
             key_values={"prompt": prompt},
         )
-        result = connection.get(
-            relation="chat", identifier=new_id, keys=["completion"]
-        )
+        result = connection.get(relation="chat", identifier=new_id, keys=["completion"])
         print(f"Prompt: {prompt} and result: {result}")
 
     connection.close(wait=False)

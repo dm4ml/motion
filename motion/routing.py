@@ -1,16 +1,20 @@
-from pydantic import BaseModel
-from typing import Callable, Union
+from __future__ import annotations
 
 import inspect
+from typing import Callable, Union
+
+from pydantic import BaseModel
+
+from motion.trigger import Trigger
 
 
 class Route(BaseModel):
     relation: str
     key: str
-    infer: Union[Callable, None]
-    fit: Union[Callable, None]
+    infer: Union[Callable, None] = None
+    fit: Union[Callable, None] = None
 
-    def validate(self, trigger_object):
+    def validateTrigger(self, trigger_object: Trigger) -> None:
         if self.infer is not None:
             if getattr(trigger_object, self.infer.__name__, None) is None:
                 raise ValueError(
@@ -30,5 +34,5 @@ class Route(BaseModel):
 
             if len(inspect.signature(self.fit).parameters) != 2:
                 raise ValueError(
-                    f"Fit method {self.infer.__name__} should have 2 arguments: cursor and triggered_by."
+                    f"Fit method {self.fit.__name__} should have 2 arguments: cursor and triggered_by."
                 )

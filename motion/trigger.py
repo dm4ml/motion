@@ -1,40 +1,48 @@
-import inspect
-import logging
-import threading
-import sys
+from __future__ import annotations
 
+import inspect
+import sys
+import threading
+import typing
 from abc import ABC, abstractmethod
-from collections import namedtuple
 from queue import SimpleQueue
 
-TriggerElement = namedtuple(
-    "TriggerElement", ["relation", "identifier", "key", "value"]
-)
-TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
-
-from motion.utils import logger
+from motion.cursor import Cursor
+from motion.utils import TriggerElement, logger
 
 
-class Params(dict):
-    def __init__(self, trigger_name, *args, **kwargs):
+class CustomDict(dict):
+    def __init__(
+        self,
+        trigger_name: str,
+        dict_type: str,
+        *args: typing.Any,
+        **kwargs: typing.Any,
+    ) -> None:
         self.trigger_name = trigger_name
+        self.dict_type = dict_type
         super().__init__(*args, **kwargs)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> object:
         try:
             return super().__getitem__(key)
         except KeyError:
             raise KeyError(
-                f"Key `{key}` not found in {self.trigger_name} params."
+                f"Key `{key}` not found in {self.dict_type} for trigger {self.trigger_name}."
             )
 
 
 class Trigger(ABC):
-    def __init__(self, cursor, name, version, params={}):
+    def __init__(self, cursor: Cursor, name: str, version: int, params: dict = {}):
         self.name = name
 
         # Validate number of arguments in each trigger and set up routes
         route_list = self.routes()
+        if not isinstance(route_list, list):
+            raise TypeError(
+                f"routes() of trigger {name} should return a list of motion.Route objects."
+            )
+
         seen_keys = set()
         for r in route_list:
             if f"{r.relation}.{r.key}" in seen_keys:
@@ -42,26 +50,28 @@ class Trigger(ABC):
                     f"Duplicate route {r.relation}.{r.key} in trigger {name}."
                 )
 
-            r.validate(self)
+            r.validateTrigger(self)
             seen_keys.add(f"{r.relation}.{r.key}")
         self.route_map = {f"{r.relation}.{r.key}": r for r in self.routes()}
 
         # Set up params dictionary
-        self._params = Params(self.name, params)
+        self._params = CustomDict(self.name, "params", params)
 
         # Set up initial state
         if len(inspect.signature(self.setUp).parameters) != 1:
-            raise ValueError(
-                f"setUp() of trigger {name} should have 1 argument"
-            )
+            raise ValueError(f"setUp() of trigger {name} should have 1 argument")
 
-        self._state = {}
+        self._state = CustomDict(self.name, "state", {})
         self._version = version
         self._last_fit_id = -sys.maxsize - 1
-        self.update(self.setUp(cursor))
+
+        initial_state = self.setUp(cursor)
+        if not isinstance(initial_state, dict):
+            raise TypeError(f"setUp() of trigger {self.name} should return a dict.")
+        self.update(initial_state)
 
         # Set up fit queue
-        self._fit_queue = SimpleQueue()
+        self._fit_queue = SimpleQueue()  # type: SimpleQueue
         self._fit_thread = threading.Thread(
             target=self.processFitQueue,
             daemon=True,
@@ -70,35 +80,35 @@ class Trigger(ABC):
         self._fit_thread.start()
 
     @abstractmethod
-    def routes(self):
+    def routes(self) -> list:
         pass
 
     @abstractmethod
-    def setUp(self, cursor):
+    def setUp(self, cursor: Cursor) -> dict:
         pass
 
     @property
-    def params(self):
+    def params(self) -> dict:
         return self._params
 
     @property
-    def state(self):
+    def state(self) -> dict:
         return self._state
 
     @property
-    def version(self):
+    def version(self) -> int:
         return self._version
 
     @property
-    def last_fit_id(self):
+    def last_fit_id(self) -> int:
         return self._last_fit_id
 
-    def update(self, new_state):
+    def update(self, new_state: dict) -> None:
         if new_state:
             self._state.update(new_state)
             self._version += 1
 
-    def processFitQueue(self):
+    def processFitQueue(self) -> None:
         while True:
             (
                 cursor,
@@ -107,9 +117,15 @@ class Trigger(ABC):
                 fit_event,
             ) = self._fit_queue.get()
 
-            new_state = self.route_map.get(
+            new_state = self.route_map[
                 f"{triggered_by.relation}.{triggered_by.key}"
-            ).fit(cursor, triggered_by)
+            ].fit(cursor, triggered_by)
+
+            if not isinstance(new_state, dict):
+                fit_event.set()
+                raise TypeError(
+                    f"fit() of trigger {self.name} should return a dict of state updates."
+                )
 
             old_version = self.version
             self.update(new_state)
@@ -118,18 +134,16 @@ class Trigger(ABC):
                 f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier} and key {triggered_by.key}."
             )
 
-            cursor.logTriggerExecution(
-                trigger_name, old_version, "fit", triggered_by
-            )
+            cursor.logTriggerExecution(trigger_name, old_version, "fit", triggered_by)
 
             fit_event.set()
 
     def fitWrapper(
         self,
-        cursor,
-        trigger_name,
+        cursor: Cursor,
+        trigger_name: str,
         triggered_by: TriggerElement,
-    ):
+    ) -> threading.Event:
         fit_event = threading.Event()
         self._fit_queue.put((cursor, trigger_name, triggered_by, fit_event))
 

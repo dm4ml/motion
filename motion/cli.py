@@ -1,23 +1,18 @@
-import click
-import importlib
-import inspect
-import logging
-import motion
+from __future__ import annotations
+
 import os
-import pytest
-
 import shutil
+from subprocess import run
 
-from subprocess import call, run
+import click
 
+import motion
 
-MOTION_HOME = os.environ.get(
-    "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-)
+MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
 
 @click.group()
-def motioncli():
+def motioncli() -> None:
     pass
 
 
@@ -32,7 +27,7 @@ def motioncli():
     prompt="Your name",
     help="Author name.",
 )
-def create(name, author):
+def create(name: str, author: str) -> None:
     """Creates a new application."""
     # Return error if name is not valid
     name = name.strip().lower()
@@ -45,9 +40,7 @@ def create(name, author):
         return
 
     # Copy over the example project
-    shutil.copytree(
-        os.path.join(os.path.dirname(__file__), "exampleproj"), name
-    )
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "exampleproj"), name)
 
     # Create store setup file
     with open(os.path.join(name, "mconfig.py"), "w") as f:
@@ -57,7 +50,6 @@ def create(name, author):
                     os.path.dirname(__file__),
                     "exampleproj/mconfig.py",
                 ),
-                "r",
             )
             .read()
             .replace("{0}", name)
@@ -77,7 +69,7 @@ def create(name, author):
     default="INFO",
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
-def serve(host, port, logging_level):
+def serve(host: str, port: int, logging_level: str) -> None:
     """Serves a motion application."""
 
     # Check that the project is created
@@ -86,7 +78,7 @@ def serve(host, port, logging_level):
         return
 
     # Create object from mconfig.py
-    config_code = open("mconfig.py", "r").read() + "\nMCONFIG"
+    config_code = open("mconfig.py").read() + "\nMCONFIG"
 
     import sys
 
@@ -97,14 +89,12 @@ def serve(host, port, logging_level):
     click.echo(f"Serving application {mconfig['application']['name']}...")
 
     # Serve the application
-    motion.serve(
-        mconfig, host=host, port=port, motion_logging_level=logging_level
-    )
+    motion.serve(mconfig, host=host, port=port, motion_logging_level=logging_level)
 
 
 @motioncli.command("clear")
 @click.argument("name", required=True)
-def clear(name):
+def clear(name: str) -> None:
     """Removes the datastore for the given application."""
     # Remove directory at name
     dirname = os.path.join(MOTION_HOME, "datastores", name)
@@ -119,7 +109,7 @@ def clear(name):
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--debug", is_flag=True, help="Enable debug output")
 @click.argument("args", nargs=-1)
-def test(verbose, debug, args):
+def test(verbose: bool, debug: bool, args: tuple) -> None:
     """Run pytest with the given arguments."""
     pytest_args = list(args)
     if verbose:

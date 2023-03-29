@@ -1,35 +1,19 @@
-import os
-import pandas as pd
-import requests
+from __future__ import annotations
 
-from enum import Enum
-from motion.store import Store
-from motion.api import create_app
-from multiprocessing import Process
+import logging
+import os
+import uuid
 
 import colorlog
-import io
-import json
-import logging
-import pyarrow as pa
-import sys
-import time
-import typing
-import uuid
 import uvicorn
 
-from fastapi.testclient import TestClient
-from fastapi import FastAPI
-
-
-MOTION_HOME = os.environ.get(
-    "MOTION_HOME", os.path.expanduser("~/.cache/motion")
-)
-logger = logging.getLogger(__name__)
+from motion.api import create_app
+from motion.client import ClientConnection
+from motion.store import Store
 
 
 def init(
-    mconfig: dict, disable_cron_triggers: bool = False, session_id: str = None
+    mconfig: dict, disable_cron_triggers: bool = False, session_id: str = ""
 ) -> Store:
     """Initialize the motion store.
 
@@ -50,12 +34,12 @@ def init(
     except Exception as e:
         raise Exception("Motion config must have application name and author.")
 
-    checkpoint = (
-        mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
-    )
+    checkpoint = mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"
 
-    if session_id is None:
+    if session_id == "":
         session_id = str(uuid.uuid4())
+
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
     store = Store(
         name,
@@ -87,8 +71,11 @@ def init(
 
 
 def serve(
-    mconfig: dict, host="0.0.0.0", port=8000, motion_logging_level="INFO"
-):
+    mconfig: dict,
+    host: str = "0.0.0.0",
+    port: int = 8000,
+    motion_logging_level: str = "INFO",
+) -> None:
     """Serve a motion application.
 
     Args:
@@ -102,8 +89,10 @@ def serve(
     serve_store(store, host, port)
 
 
-def serve_store(store, host, port):
+def serve_store(store: Store, host: str, port: int) -> None:
     # Log that the server is running
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
+
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     with open(os.path.join(MOTION_HOME, "logs", store.name), "a") as f:
         f.write(f"Server running at {host}:{port}")
@@ -113,7 +102,7 @@ def serve_store(store, host, port):
     uvicorn.run(app, host=host, port=port)
 
 
-def configureLogging(level: str):
+def configureLogging(level: str) -> None:
     handler = logging.StreamHandler()
 
     formatter = colorlog.ColoredFormatter(
@@ -136,9 +125,9 @@ def test(
     mconfig: dict,
     wait_for_triggers: list = [],
     disable_cron_triggers: bool = False,
-    motion_logging_level: str = "DEBUG",
-    session_id: str = None,
-):
+    motion_logging_level: str = "WARNING",
+    session_id: str = "",
+) -> ClientConnection:
     """Test a motion application. This will run the application
     and then shut it down.
 
@@ -146,13 +135,11 @@ def test(
         mconfig (dict): Config for the motion application.
         wait_for_triggers (list, optional): Defaults to [].
         disable_cron_triggers (bool, optional): Defaults to False.
-        motion_logging_level (str, optional): Defaults to "DEBUG".
+        motion_logging_level (str, optional): Defaults to "WARNING".
         session_id (str, optional): Defaults to None.
     """
     if wait_for_triggers and disable_cron_triggers:
-        raise ValueError(
-            "Cannot wait for triggers if cron triggers are disabled."
-        )
+        raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
 
     configureLogging(motion_logging_level)
     store = init(
@@ -161,9 +148,8 @@ def test(
         session_id=session_id,
     )
     app = create_app(store, testing=True)
-    connection = ClientConnection(
-        mconfig["application"]["name"], server=app, store=store
-    )
+    connection = ClientConnection(mconfig["application"]["name"], server=app)
+    connection.addStore(store)
 
     for trigger in wait_for_triggers:
         connection.waitForTrigger(trigger)
@@ -171,7 +157,7 @@ def test(
     return connection
 
 
-def connect(name: str, wait_for_triggers: list = []):
+def connect(name: str, wait_for_triggers: list = []) -> ClientConnection:
     """Connect to a motion application.
 
     Args:
@@ -182,9 +168,11 @@ def connect(name: str, wait_for_triggers: list = []):
         Store: The motion store.
     """
     #  Check logs
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
+
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     try:
-        with open(os.path.join(MOTION_HOME, "logs", name), "r") as f:
+        with open(os.path.join(MOTION_HOME, "logs", name)) as f:
             server = f.read().split(" ")[-1]
     except FileNotFoundError:
         raise Exception(
@@ -196,134 +184,3 @@ def connect(name: str, wait_for_triggers: list = []):
         connection.waitForTrigger(trigger)
 
     return connection
-
-
-class ClientConnection(object):
-    """A client connection to a motion store.
-
-    Args:
-        name (str): The name of the store.
-    """
-
-    def __init__(
-        self, name: str, server: typing.Union[str, FastAPI], store=None
-    ):
-        self.name = name
-
-        if isinstance(server, FastAPI):
-            self.server = server
-            self.store = store
-            self.session_id = self.store.session_id
-
-        else:
-            self.server = "http://" + server
-            try:
-                response = requests.get(self.server + "/ping/")
-                if response.status_code != 200:
-                    raise Exception(
-                        f"Could not successfully connect to server for {self.name}; getting status code {response.status_code}."
-                    )
-            except requests.exceptions.ConnectionError:
-                raise Exception(
-                    f"Could not connect to server for {self.name} at {self.server}. Please run `motion serve` first."
-                )
-            self.session_id = requests.get(self.server + "/session_id/").json()
-
-    def close(self, wait=True):
-        if isinstance(self.server, FastAPI):
-            self.store.stop(wait=wait)
-
-    def __del__(self):
-        self.close(wait=False)
-
-    def getWrapper(self, dest, **kwargs):
-        if isinstance(self.server, FastAPI):
-            with TestClient(self.server) as client:
-                response = client.request("get", dest, json=kwargs)
-        else:
-            response = requests.get(self.server + dest, json=kwargs)
-
-        if response.status_code != 200:
-            raise Exception(response.content)
-
-        with io.BytesIO(response.content) as data:
-            if response.headers["content-type"] == "application/octet-stream":
-                df = pd.read_parquet(data, engine="pyarrow")
-                return df
-
-            if response.headers["content-type"] == "application/json":
-                return json.loads(response.content)
-
-    def postWrapper(self, dest, data, files=None):
-        if isinstance(self.server, FastAPI):
-            with TestClient(self.server) as client:
-                response = client.request("post", dest, data=data, files=files)
-        else:
-            response = requests.post(
-                self.server + dest, data=data, files=files
-            )
-
-        if response.status_code != 200:
-            raise Exception(response.content)
-
-        return response.json()
-
-    def waitForTrigger(self, trigger: str):
-        """Wait for a trigger to fire.
-
-        Args:
-            trigger (str): The name of the trigger.
-        """
-        return self.postWrapper(
-            "/wait_for_trigger/", data={"trigger": trigger}
-        )
-
-    def get(self, **kwargs):
-        response = self.getWrapper("/get/", **kwargs)
-        if not kwargs.get("as_df", False):
-            return response.to_dict(orient="records")
-        return response
-
-    def mget(self, **kwargs):
-        response = self.getWrapper("/mget/", **kwargs)
-        if not kwargs.get("as_df", False):
-            return response.to_dict(orient="records")
-        return response
-
-    def set(self, **kwargs):
-        # Convert enums to their values
-        for key, value in kwargs["key_values"].items():
-            if isinstance(value, Enum):
-                kwargs["key_values"].update({key: value.value})
-
-        args = {
-            "args": json.dumps(
-                {k: v for k, v in kwargs.items() if k != "key_values"}
-            )
-        }
-
-        # Turn key-values into a dataframe
-        df = pd.DataFrame(kwargs["key_values"], index=[0])
-
-        # Convert to parquet stream
-        memory_buffer = io.BytesIO()
-        df.to_parquet(memory_buffer, engine="pyarrow", index=False)
-        memory_buffer.seek(0)
-
-        return self.postWrapper(
-            "/set_no_kv/",
-            data=args,
-            files={
-                "file": (
-                    "key_values",
-                    memory_buffer,
-                    "application/octet-stream",
-                )
-            },
-        )
-
-    def getNewId(self, **kwargs):
-        return self.getWrapper("/get_new_id/", **kwargs)
-
-    def sql(self, **kwargs):
-        return self.getWrapper("/sql/", **kwargs)
