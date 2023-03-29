@@ -8,19 +8,11 @@ class GetRequest(BaseModel, extra=Extra.allow):
     identifier: str
     keys: list
 
-    @property
-    def kwargs(self) -> dict:
-        return self.__dict__
-
 
 class MgetRequest(BaseModel, extra=Extra.allow):
     relation: str
     identifiers: list
     keys: list
-
-    @property
-    def kwargs(self) -> dict:
-        return self.__dict__
 
 
 class PartialSetRequest(BaseModel):
@@ -34,7 +26,7 @@ class SetRequest(BaseModel):
     key_values: dict
 
 
-class SqlRequest(BaseModel, extra=Extra.allow):
+class SqlRequest(BaseModel):
     query: str
     as_df: bool = True
 
@@ -42,3 +34,7 @@ class SqlRequest(BaseModel, extra=Extra.allow):
 class DuplicateRequest(BaseModel):
     relation: str
     identifier: str
+
+
+class WaitRequest(BaseModel):
+    trigger: str

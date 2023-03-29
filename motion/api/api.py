@@ -38,7 +38,7 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     @app.get("/get/")
     async def get(args: GetRequest) -> Response:
         cur = app.state.store.cursor()
-        res = cur.get(**args.kwargs)
+        res = cur.get(**args.__dict__)
 
         # Check if the result is a pandas df
         if isinstance(res, dict):
@@ -53,7 +53,7 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     async def mget(args: MgetRequest) -> Response:
         cur = app.state.store.cursor()
         res = cur.mget(
-            **args.kwargs,
+            **args.__dict__,
         )
         # Check if the result is a pandas df
         if isinstance(res, dict):
@@ -66,14 +66,16 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
 
     @app.post("/set_python/")
     async def set_python(
-        args: Json[PartialSetRequest], file: UploadFile = File(...)
+        args: Json[PartialSetRequest], key_values: UploadFile = File(...)
     ) -> typing.Any:
         args = args.dict()  # type: ignore
-        content = await file.read()
+        content = await key_values.read()
         with BytesIO(content) as f:
-            if file.content_type == "application/octet-stream":
+            if key_values.content_type == "application/octet-stream":
                 df = pd.read_parquet(f, engine="pyarrow")
                 args["key_values"] = df.to_dict(orient="records")[0]  # type: ignore
+            else:
+                raise HTTPException(status_code=400, detail="Invalid file type")
 
         cur = app.state.store.cursor()
         return cur.set(
@@ -120,7 +122,7 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     # JSON API
 
     @json_app.post("/set/")
-    async def json_set(args: SetRequest) -> Response:
+    async def json_set(args: SetRequest) -> typing.Any:
         cur = app.state.store.cursor()
         try:
             identifier = cur.set(
@@ -128,7 +130,7 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
                 identifier=args.identifier,
                 key_values=args.key_values,
             )
-            return Response(identifier, media_type="application/json")
+            return identifier
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -137,7 +139,9 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
         cur = app.state.store.cursor()
 
         try:
-            res = cur.get(**args.kwargs)
+            args = args.dict()  # type: ignore
+            args["as_df"] = False  # type: ignore
+            res = cur.get(**args)
             return res
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -146,7 +150,9 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     async def json_mget(args: MgetRequest) -> typing.Any:
         cur = app.state.store.cursor()
         try:
-            res = cur.mget(**args.kwargs)
+            args = args.dict()  # type: ignore
+            args["as_df"] = False  # type: ignore
+            res = cur.mget(**args)
             return res
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -155,13 +161,22 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     async def json_sql(args: SqlRequest) -> typing.Any:
         cur = app.state.store.cursor()
         try:
-            res = cur.sql(args.query, as_df=False)
-            return res
+            res = cur.sql(args.query, as_df=True)
+            return res.to_dict(orient="records")
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
     @json_app.get("/session_id/")
     async def json_session_id() -> typing.Any:
         return app.state.store.session_id
+
+    @json_app.post("/wait_for_trigger/")
+    async def json_wait_for_trigger(args: WaitRequest) -> typing.Any:
+        cur = app.state.store.cursor()
+        try:
+            app.state.store.waitForTrigger(args.trigger)
+            return args.trigger
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
     return app

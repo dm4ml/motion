@@ -179,7 +179,7 @@ class ClientConnection:
             "/set_python/",
             data=args,
             files={
-                "file": (
+                "key_values": (
                     "key_values",
                     memory_buffer,
                     "application/octet-stream",

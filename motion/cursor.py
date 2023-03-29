@@ -586,7 +586,7 @@ class Cursor:
         ).fetchall()
         return [r[0] for r in res]
 
-    def sql(self, stmt: str, as_df: bool = True) -> typing.Any:
+    def sql(self, query: str, as_df: bool = True) -> typing.Any:
         con = duckdb.connect()
 
         # Create a table for each relation
@@ -594,7 +594,7 @@ class Cursor:
             locals()[relation] = table
 
         return (
-            con.execute(stmt).fetch_arrow_table().to_pandas()
+            con.execute(query).fetch_arrow_table().to_pandas()
             if as_df
-            else con.execute(stmt).fetchall()
+            else con.execute(query).fetchall()
         )
