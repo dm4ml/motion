@@ -12,6 +12,15 @@ from motion.client import ClientConnection
 from motion.store import Store
 
 
+def create_token() -> str:
+    """Create a token for the API.
+
+    Returns:
+        str: The token.
+    """
+    return str(uuid.uuid4())
+
+
 def init(
     mconfig: dict, disable_cron_triggers: bool = False, session_id: str = ""
 ) -> Store:
@@ -136,7 +145,7 @@ def test(
         wait_for_triggers (list, optional): Defaults to [].
         disable_cron_triggers (bool, optional): Defaults to False.
         motion_logging_level (str, optional): Defaults to "WARNING".
-        session_id (str, optional): Defaults to None.
+        session_id (str, optional): Defaults to "".
     """
     if wait_for_triggers and disable_cron_triggers:
         raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
@@ -148,7 +157,12 @@ def test(
         session_id=session_id,
     )
     app = create_app(store, testing=True)
-    connection = ClientConnection(mconfig["application"]["name"], server=app)
+
+    connection = ClientConnection(
+        mconfig["application"]["name"],
+        server=app,
+        bearer_token=os.environ.get("MOTION_API_TOKEN", ""),
+    )
     connection.addStore(store)
 
     for trigger in wait_for_triggers:
@@ -157,18 +171,26 @@ def test(
     return connection
 
 
-def connect(name: str, wait_for_triggers: list = []) -> ClientConnection:
+def connect(
+    name: str,
+    wait_for_triggers: list = [],
+    motion_api_token: str = "",
+) -> ClientConnection:
     """Connect to a motion application.
 
     Args:
         name (str): The qname of the store.
         wait_for_triggers (list, optional): Defaults to [].
+        motion_api_token (str, optional): Defaults to "". If not provided, the token will be read from environment.
 
     Returns:
         Store: The motion store.
     """
     #  Check logs
     MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
+    MOTION_API_TOKEN = (
+        motion_api_token if motion_api_token else os.environ.get("MOTION_API_TOKEN", "")
+    )
 
     os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
     try:
@@ -179,7 +201,7 @@ def connect(name: str, wait_for_triggers: list = []) -> ClientConnection:
             f"Could not find a server for {name}. Please run `motion serve` first."
         )
 
-    connection = ClientConnection(name, server)
+    connection = ClientConnection(name, server, bearer_token=MOTION_API_TOKEN)
     for trigger in wait_for_triggers:
         connection.waitForTrigger(trigger)
 

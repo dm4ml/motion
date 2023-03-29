@@ -5,8 +5,21 @@ import shutil
 import pytest
 
 
+@pytest.fixture(scope="session", autouse=True)
+def entry():
+    os.environ["MOTION_HOME"] = "/tmp/motion"
+    os.environ["MOTION_API_TOKEN"] = "test_api_token"
+
+    yield
+
+    # Cleanup: remove the temporary directory
+    shutil.rmtree(
+        "/tmp/motion",
+    )
+
+
 @pytest.fixture
-def schema():
+def schema(entry):
     class TestSchema(motion.Schema):
         name: str
         age: int
@@ -16,7 +29,7 @@ def schema():
 
 
 @pytest.fixture
-def schema_with_liked():
+def schema_with_liked(entry):
     class TestSchemaWithLiked(motion.Schema):
         name: str
         age: int
@@ -27,7 +40,7 @@ def schema_with_liked():
 
 
 @pytest.fixture
-def double_age_trigger():
+def double_age_trigger(entry):
     def set_doubled_age(cursor, triggered_by):
         cursor.set(
             relation=triggered_by.relation,
@@ -39,7 +52,7 @@ def double_age_trigger():
 
 
 @pytest.fixture
-def half_age_trigger():
+def half_age_trigger(entry):
     def set_half_age(cursor, triggered_by):
         cursor.set(
             relation=triggered_by.relation,
@@ -51,7 +64,7 @@ def half_age_trigger():
 
 
 @pytest.fixture
-def liked_trigger():
+def liked_trigger(entry):
     def set_liked(cursor, triggered_by):
         likes = ["pizza", "ice cream", "chocolate"]
 
@@ -72,7 +85,7 @@ def liked_trigger():
 @pytest.fixture
 def basic_config(schema, double_age_trigger):
     # Set environment variable here
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test1",
@@ -93,7 +106,7 @@ def basic_config(schema, double_age_trigger):
 def config_with_two_triggers(
     schema_with_liked, double_age_trigger, liked_trigger
 ):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test2",
@@ -115,7 +128,7 @@ def config_with_two_triggers(
 def config_with_multiple_triggers_on_one_key(
     schema_with_liked, double_age_trigger, liked_trigger
 ):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test3",
@@ -135,7 +148,7 @@ def config_with_multiple_triggers_on_one_key(
 
 @pytest.fixture
 def config_with_cycle(schema, double_age_trigger, half_age_trigger):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test4",
@@ -154,7 +167,7 @@ def config_with_cycle(schema, double_age_trigger, half_age_trigger):
 
 
 @pytest.fixture
-def StatefulTrigger():
+def StatefulTrigger(entry):
     class StatefulTrigger(motion.Trigger):
         def routes(self):
             return [
@@ -190,7 +203,7 @@ def StatefulTrigger():
 
 
 @pytest.fixture
-def MultipliedAges():
+def MultipliedAges(entry):
     class MultipliedAges(motion.Schema):
         name: str
         age: int
@@ -201,7 +214,7 @@ def MultipliedAges():
 
 @pytest.fixture
 def simple_stateful_config(StatefulTrigger, MultipliedAges):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
 
     config = {
         "application": {
@@ -220,7 +233,7 @@ def simple_stateful_config(StatefulTrigger, MultipliedAges):
 
 
 @pytest.fixture
-def cron_trigger():
+def cron_trigger(entry):
     def cron_trigger(cursor, triggered_by):
         cursor.set(
             relation="test",
@@ -234,7 +247,7 @@ def cron_trigger():
 @pytest.fixture
 def basic_config_with_cron(schema, double_age_trigger, cron_trigger):
     # Set environment variable here
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test6",
@@ -253,7 +266,7 @@ def basic_config_with_cron(schema, double_age_trigger, cron_trigger):
 
 
 @pytest.fixture
-def schema_with_blob():
+def schema_with_blob(entry):
     class TestSchemaWithBlob(motion.Schema):
         name: str
         age: int
@@ -266,7 +279,7 @@ def schema_with_blob():
 @pytest.fixture
 def basic_config_with_blob(schema_with_blob, double_age_trigger):
     # Set environment variable here
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {
             "name": "test7",
@@ -283,11 +296,11 @@ def basic_config_with_blob(schema_with_blob, double_age_trigger):
     yield config
 
 
-@pytest.fixture(scope="session", autouse=True)
-def run_after_tests():
-    yield
+# @pytest.fixture(scope="session", autouse=True)
+# def run_after_tests():
+#     yield
 
-    # Cleanup: remove the temporary directory
-    shutil.rmtree(
-        "/tmp/motion",
-    )
+#     # Cleanup: remove the temporary directory
+#     shutil.rmtree(
+#         "/tmp/motion",
+#     )

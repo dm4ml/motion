@@ -98,9 +98,9 @@ def ImproperFit():
     return ImproperFit
 
 
-def test_improper_fit(MultipliedAges, ImproperFit):
+def test_improper_fit(entry, MultipliedAges, ImproperFit):
     # Use a fit function that returns a value that is not a dict
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
 
     config = {
         "application": {
@@ -160,8 +160,8 @@ def ImproperSetup():
     return ImproperSetup
 
 
-def test_improper_setup(MultipliedAges, ImproperSetup):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+def test_improper_setup(entry, MultipliedAges, ImproperSetup):
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
 
     config = {
         "application": {
@@ -181,8 +181,8 @@ def test_improper_setup(MultipliedAges, ImproperSetup):
         store = motion.init(config)
 
 
-def test_route_errors(StatefulTrigger, MultipliedAges):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+def test_route_errors(entry, StatefulTrigger, MultipliedAges):
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
 
     StatefulTrigger.routes = lambda self: []
 
@@ -256,8 +256,8 @@ def KeyNotFoundInState():
     return KeyNotFoundInState
 
 
-def test_key_not_found_in_state(KeyNotFoundInState, MultipliedAges):
-    os.environ["MOTION_HOME"] = "/tmp/motion"
+def test_key_not_found_in_state(entry, KeyNotFoundInState, MultipliedAges):
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
 
     config = {
         "application": {

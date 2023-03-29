@@ -119,3 +119,9 @@ def test(verbose: bool, debug: bool, args: tuple) -> None:
     # pytest.main(pytest_args)
 
     run(["pytest", *pytest_args])
+
+
+@motioncli.command("token", help="Generate a new API token")
+def token() -> None:
+    """Generate a new API token."""
+    click.echo(motion.create_token())
