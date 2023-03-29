@@ -124,4 +124,5 @@ def test(verbose: bool, debug: bool, args: tuple) -> None:
 @motioncli.command("token", help="Generate a new API token")
 def token() -> None:
     """Generate a new API token."""
-    click.echo(motion.create_token())
+    token = motion.create_token()
+    click.echo(token)

@@ -28,6 +28,7 @@ class Store:
     ) -> None:
         self.name = name
         self.session_id: str = session_id
+
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
         self.disable_cron_triggers = disable_cron_triggers
@@ -116,6 +117,7 @@ class Store:
             table_columns = {}
 
             base_path = os.path.join(self.datastore_prefix, self.name)
+
             # Iterate through all folders in base_path
             for relation in os.listdir(base_path):
                 if relation == "logs.parquet":

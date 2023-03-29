@@ -24,7 +24,11 @@ def df_to_json_response(df: pd.DataFrame) -> Response:
 def create_app(store: Store, testing: bool = False) -> FastAPI:
     # Security
     MOTION_API_TOKEN = os.environ.get("MOTION_API_TOKEN")
-    assert MOTION_API_TOKEN is not None
+    if not MOTION_API_TOKEN:
+        raise ValueError(
+            "MOTION_API_TOKEN environment variable is not set. Please run `motion token` to generate a token, and export MOTION_API_TOKEN={result}."
+        )
+
     scheme = HTTPBearer()
 
     def check_auth(
