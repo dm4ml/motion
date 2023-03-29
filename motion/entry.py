@@ -125,7 +125,7 @@ def test(
     mconfig: dict,
     wait_for_triggers: list = [],
     disable_cron_triggers: bool = False,
-    motion_logging_level: str = "DEBUG",
+    motion_logging_level: str = "WARNING",
     session_id: str = "",
 ) -> ClientConnection:
     """Test a motion application. This will run the application
@@ -135,7 +135,7 @@ def test(
         mconfig (dict): Config for the motion application.
         wait_for_triggers (list, optional): Defaults to [].
         disable_cron_triggers (bool, optional): Defaults to False.
-        motion_logging_level (str, optional): Defaults to "DEBUG".
+        motion_logging_level (str, optional): Defaults to "WARNING".
         session_id (str, optional): Defaults to None.
     """
     if wait_for_triggers and disable_cron_triggers:

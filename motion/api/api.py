@@ -38,11 +38,13 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
     @app.get("/get/")
     async def get(args: GetRequest) -> Response:
         cur = app.state.store.cursor()
-
         res = cur.get(**args.kwargs)
 
         # Check if the result is a pandas df
-        if not isinstance(res, pd.DataFrame):
+        if isinstance(res, dict):
+            res = pd.DataFrame(res, index=[0])
+
+        elif not isinstance(res, pd.DataFrame):
             res = pd.DataFrame(res)
 
         return df_to_json_response(res)
@@ -53,7 +55,11 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
         res = cur.mget(
             **args.kwargs,
         )
-        if not isinstance(res, pd.DataFrame):
+        # Check if the result is a pandas df
+        if isinstance(res, dict):
+            res = pd.DataFrame(res, index=[0])
+
+        elif not isinstance(res, pd.DataFrame):
             res = pd.DataFrame(res)
 
         return df_to_json_response(res)
@@ -84,6 +90,11 @@ def create_app(store: Store, testing: bool = False) -> FastAPI:
             return df_to_json_response(res)
         else:
             return Response(res, media_type="application/json")
+
+    @app.post("/duplicate/")
+    async def duplicate(data: DuplicateRequest) -> typing.Any:
+        cur = app.state.store.cursor()
+        return cur.duplicate(relation=data.relation, identifier=data.identifier)
 
     @app.post("/wait_for_trigger/")
     async def wait_for_trigger(request: Request) -> str:

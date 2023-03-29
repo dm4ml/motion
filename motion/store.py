@@ -400,7 +400,7 @@ class Store:
             )
 
         if trigger_name not in self.cron_threads.keys():
-            raise ValueError(
+            raise FileNotFoundError(
                 f"Trigger {trigger_name} does not exist as a cron-scheduled thread. Valid cron-scheduled triggers are {list(self.cron_threads.keys())}."
             )
 

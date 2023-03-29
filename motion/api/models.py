@@ -37,3 +37,8 @@ class SetRequest(BaseModel):
 class SqlRequest(BaseModel, extra=Extra.allow):
     query: str
     as_df: bool = True
+
+
+class DuplicateRequest(BaseModel):
+    relation: str
+    identifier: str

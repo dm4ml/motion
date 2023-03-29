@@ -87,7 +87,7 @@ class Cursor:
             bool: True if the record exists, False otherwise.
         """
         if relation not in self.relations.keys():
-            raise KeyError(f"relation {relation} does not exist.")
+            raise KeyError(f"Relation {relation} does not exist.")
 
         # Check if identifier exists in pyarrow table
         table = self.relations[relation]
@@ -119,7 +119,7 @@ class Cursor:
             raise ValueError("relation cannot be None.")
 
         if relation not in self.relations:
-            raise KeyError(f"relation {relation} does not exist.")
+            raise KeyError(f"Relation {relation} does not exist.")
 
         exists = True
         if not identifier:
@@ -411,6 +411,9 @@ class Cursor:
             typing.Any: The values for the keys.
         """
 
+        if not identifier:
+            raise ValueError("Identifier cannot be empty.")
+
         if keys == ["*"]:
             keys = self.relations[relation].schema.names
 
@@ -427,13 +430,12 @@ class Cursor:
         if not kwargs.get("include_derived", False):
             res = con.execute(
                 f"SELECT {', '.join(keys)} FROM scanner WHERE identifier = '{identifier}'"
-            ).fetchone()
+            ).fetchall()
 
             if not res:
-                raise ValueError(
-                    f"Identifier {identifier} not found in relation {relation}."
-                )
+                return res
 
+            res = res[0]
             res_dict = {k: v for k, v in zip(keys, res)}
             res_dict.update({"identifier": identifier})
 
@@ -460,11 +462,11 @@ class Cursor:
         if "identifier" not in keys:
             keys.append("identifier")
 
+        kwargs.update({"include_derived": False})
         return self.mget(
             relation=relation,
             identifiers=all_ids,
             keys=keys,
-            compute_derived=False,
             **kwargs,
         )
 
@@ -522,13 +524,9 @@ class Cursor:
         )
 
         # Find all derived ids
-        if kwargs.get("compute_derived", True):
+        if kwargs.get("include_derived", False):
             all_derived_ids = []
             for identifier in identifiers:
-                if not self.exists(relation, identifier):
-                    raise ValueError(
-                        f"Identifier {identifier} not found in relation {relation}."
-                    )
                 all_derived_ids.extend(self._get_derived_ids(con, identifier))
             identifiers = list(set(identifiers + all_derived_ids))
 

@@ -19,11 +19,10 @@ def test_empty(basic_config):
     store = motion.init(basic_config)
     new_cursor = store.cursor()
 
-    with pytest.raises(ValueError):
-        # This ID doesn't exist
-        new_cursor.get(
-            relation="test", identifier="hehehehe", keys=["doubled_age"]
-        )["doubled_age"]
+    res = new_cursor.get(
+        relation="test", identifier="hehehehe", keys=["doubled_age"]
+    )
+    assert not res
 
 
 def test_get_failures(basic_config):

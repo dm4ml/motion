@@ -4,6 +4,7 @@ import io
 import json
 import typing
 from enum import Enum
+from urllib.error import HTTPError
 
 import pandas as pd
 import requests
@@ -63,7 +64,13 @@ class ClientConnection:
             response = requests.get(self.server + dest, json=kwargs)
 
         if response.status_code != 200:
-            raise Exception(response.content)
+            raise HTTPError(
+                msg=f"{response.content}",  # type: ignore
+                code=response.status_code,  # type: ignore
+                hdrs=response.headers,  # type: ignore
+                url=response.url,  # type: ignore
+                fp=None,
+            )
 
         with io.BytesIO(response.content) as data:
             if response.headers["content-type"] == "application/octet-stream":
@@ -83,7 +90,13 @@ class ClientConnection:
             response = requests.post(self.server + dest, data=data, files=files)
 
         if response.status_code != 200:
-            raise Exception(response.content)
+            raise HTTPError(
+                msg=f"{response.content}",  # type: ignore
+                code=response.status_code,  # type: ignore
+                hdrs=response.headers,  # type: ignore
+                url=response.url,  # type: ignore
+                fp=None,  # type: ignore
+            )
 
         return response.json()
 
@@ -95,35 +108,72 @@ class ClientConnection:
         """
         return self.postWrapper("/wait_for_trigger/", data={"trigger": trigger})
 
-    def get(self, **kwargs: typing.Any) -> typing.Any:
-        response = self.getWrapper("/get/", **kwargs)
-        if not kwargs.get("as_df", False):
-            return response.to_dict(orient="records")
-        return response
-
-    def mget(self, **kwargs: typing.Any) -> typing.Any:
-        response = self.getWrapper("/mget/", **kwargs)
-        if not kwargs.get("as_df", False):
-            return response.to_dict(orient="records")
-        return response
-
-    def set(self, **kwargs: typing.Any) -> typing.Any:
-        # Convert enums to their values
-        for key, value in kwargs["key_values"].items():
-            if isinstance(value, Enum):
-                kwargs["key_values"].update({key: value.value})
-
+    def get(
+        self,
+        *,
+        relation: str,
+        identifier: str,
+        keys: list[str],
+        **kwargs: typing.Any,
+    ) -> typing.Any:
         args = {
-            "args": json.dumps({k: v for k, v in kwargs.items() if k != "key_values"})
+            "relation": relation,
+            "identifier": identifier,
+            "keys": keys,
         }
+        args.update(kwargs)
 
-        # Turn key-values into a dataframe
-        df = pd.DataFrame(kwargs["key_values"], index=[0])
+        response = self.getWrapper("/get/", **args)
+        if not kwargs.get("as_df", False):
+            response = response.to_dict(orient="records")
+            if len(response) == 1:
+                response = response[0]
 
-        # Convert to parquet stream
+        return response
+
+    def mget(
+        self,
+        *,
+        relation: str,
+        identifiers: list[str],
+        keys: list[str],
+        **kwargs: typing.Any,
+    ) -> typing.Any:
+        args = {
+            "relation": relation,
+            "identifiers": identifiers,
+            "keys": keys,
+        }
+        args.update(kwargs)
+        response = self.getWrapper("/mget/", **args)
+        if not kwargs.get("as_df", False):
+            return response.to_dict(orient="records")
+        return response
+
+    def set(
+        self,
+        *,
+        relation: str,
+        identifier: str,
+        key_values: dict[str, typing.Any],
+    ) -> typing.Any:
+        # Convert enums to their values
+
+        for key, value in key_values.items():
+            if isinstance(value, Enum):
+                key_values.update({key: value.value})
+
+        # Turn key-values into a dataframe to convert to parquet
+        if identifier is None:
+            identifier = ""
+
+        df = pd.DataFrame(key_values, index=[0])
         memory_buffer = io.BytesIO()
         df.to_parquet(memory_buffer, engine="pyarrow", index=False)
         memory_buffer.seek(0)
+
+        # Create request args
+        args = {"args": json.dumps({"relation": relation, "identifier": identifier})}
 
         return self.postWrapper(
             "/set_python/",
@@ -137,5 +187,14 @@ class ClientConnection:
             },
         )
 
-    def sql(self, **kwargs: typing.Any) -> typing.Any:
-        return self.getWrapper("/sql/", **kwargs)
+    def sql(self, *, query: str, as_df: bool = True) -> typing.Any:
+        args = {"query": query, "as_df": as_df}
+
+        return self.getWrapper("/sql/", **args)
+
+    def duplicate(self, *, relation: str, identifier: str) -> typing.Any:
+        data = json.dumps({"relation": relation, "identifier": identifier})
+        return self.postWrapper(
+            "/duplicate/",
+            data=data,
+        )

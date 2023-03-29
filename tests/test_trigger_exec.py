@@ -128,7 +128,7 @@ def test_improper_fit(MultipliedAges, ImproperFit):
     with pytest.warns(None, match=filter_warning):
         cursor.set(
             relation="test",
-            identifier=None,
+            identifier="",
             key_values={"name": "John", "age": 15, "multiplied_age": 30},
         )
 

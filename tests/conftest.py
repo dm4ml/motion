@@ -1,5 +1,7 @@
 import motion
 import os
+import random
+import shutil
 import pytest
 
 
@@ -215,3 +217,77 @@ def simple_stateful_config(StatefulTrigger, MultipliedAges):
         },
     }
     yield config
+
+
+@pytest.fixture
+def cron_trigger():
+    def cron_trigger(cursor, triggered_by):
+        cursor.set(
+            relation="test",
+            identifier="",
+            key_values={"name": "Johnny", "age": random.randint(10, 30)},
+        )
+
+    return cron_trigger
+
+
+@pytest.fixture
+def basic_config_with_cron(schema, double_age_trigger, cron_trigger):
+    # Set environment variable here
+    os.environ["MOTION_HOME"] = "/tmp/motion"
+    config = {
+        "application": {
+            "name": "test6",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": {
+            "test": schema,
+        },
+        "triggers": {
+            double_age_trigger: ["test.age"],
+            cron_trigger: ["* * * * *"],
+        },
+    }
+    yield config
+
+
+@pytest.fixture
+def schema_with_blob():
+    class TestSchemaWithBlob(motion.Schema):
+        name: str
+        age: int
+        doubled_age: int
+        photo: bytes
+
+    return TestSchemaWithBlob
+
+
+@pytest.fixture
+def basic_config_with_blob(schema_with_blob, double_age_trigger):
+    # Set environment variable here
+    os.environ["MOTION_HOME"] = "/tmp/motion"
+    config = {
+        "application": {
+            "name": "test7",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": {
+            "test": schema_with_blob,
+        },
+        "triggers": {
+            double_age_trigger: ["test.age"],
+        },
+    }
+    yield config
+
+
+@pytest.fixture(scope="session", autouse=True)
+def run_after_tests():
+    yield
+
+    # Cleanup: remove the temporary directory
+    shutil.rmtree(
+        "/tmp/motion",
+    )

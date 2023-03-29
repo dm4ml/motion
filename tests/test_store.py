@@ -5,6 +5,7 @@ Tests the following store functions:
 * load from checkpoint
 * add relation
 * add trigger
+* cron
 """
 import motion
 import os
@@ -40,3 +41,20 @@ def test_checkpoint(basic_config):
     )["doubled_age"]
 
     assert new_doubled_age == 40
+
+
+def test_cron(basic_config_with_cron):
+    store = motion.init(basic_config_with_cron)
+
+    # Wait for cron trigger
+    store.waitForTrigger("cron_trigger")
+
+    # Read doubled age
+    cursor = store.cursor()
+    results = cursor.sql("SELECT * FROM test", as_df=True).to_dict("records")[
+        0
+    ]
+
+    assert results["doubled_age"] == 2 * results["age"]
+    assert results["name"] == "Johnny"
+    assert results["session_id"] == store.session_id
