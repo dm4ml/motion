@@ -13,3 +13,4 @@
 applications*
 *.png
 *wandb*
+dist*

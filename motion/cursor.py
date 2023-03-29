@@ -101,8 +101,8 @@ class Cursor:
         self,
         *,
         relation: str,
-        identifier: str,
         key_values: dict[str, typing.Any],
+        identifier: str = "",
     ) -> str:
         """Set multiple values for a key in a relation.
         TODO(shreyashankar): Handle complex types.
@@ -333,7 +333,7 @@ class Cursor:
                     f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
                 )
 
-    def duplicate(self, *, relation: str, identifier: str) -> str:
+    def duplicate(self, relation: str, identifier: str) -> str:
         """Duplicate a record in a relation. Doesn't run triggers.
 
         Args:
