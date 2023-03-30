@@ -11,6 +11,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
@@ -31,4 +35,7 @@ jobs:
           poetry publish --version ${{ steps.bump_version.outputs.version }}
           git add pyproject.toml
           git commit -m "Bump up version"
-          git push
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
