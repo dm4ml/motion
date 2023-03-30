@@ -8,6 +8,7 @@ on:
 jobs:
   publish-to-pypi:
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -24,8 +25,6 @@ jobs:
           python-version: 3.9
       - name: Install Poetry
         uses: snok/install-poetry@v1
-      - name: Install dependencies
-        run: poetry install
       - name: Bump version
         id: bump_version
         run: |
@@ -41,5 +40,5 @@ jobs:
       - name: Push changes
         uses: ad-m/github-push-action@master
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.BRANCH_PROTECTION_WORKAROUND }}
           branch: main
