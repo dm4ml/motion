@@ -1,30 +1,25 @@
-name: motion
-
 on:
-  workflow_dispatch:
-  pull_request:
-
+  push:
+    branches:
+      - main
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  publish-to-pypi:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-
       - name: Install Poetry
         uses: snok/install-poetry@v1
-
       - name: Install dependencies
         run: poetry install
-
-      - name: Run pytest
-        run: poetry run pytest
-
-      - name: Run mypy
-        run: poetry run mypy
+      - name: Bump version
+        run: poetry version patch
+      - name: Build and publish
+        run: |
+          poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
+          poetry build
+          poetry publish
