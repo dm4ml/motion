@@ -20,9 +20,15 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Bump version
-        run: poetry version patch
+        id: bump_version
+        run: |
+          VERSION=$(poetry version patch | awk '{ print $NF }')
+          echo ::set-output name=version::$VERSION
       - name: Build and publish
         run: |
           poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
           poetry build
-          poetry publish
+          poetry publish --version ${{ steps.bump_version.outputs.version }}
+          git add pyproject.toml
+          git commit -m "Bump up version"
+          git push
