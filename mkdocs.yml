@@ -1,0 +1,11 @@
+site_name: Motion Docs
+nav:
+    - Home: index.md
+    - Getting Started: getting-started.md
+theme:
+    name: "terminal"
+    palette: dark
+    features:
+        - navigation.top.cursor_animation.hide
+    hide:
+        - side_toc
