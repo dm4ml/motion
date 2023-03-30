@@ -8,7 +8,7 @@ on:
 jobs:
   publish-to-pypi:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-actions[bot]'
+    if: ${{github.event.pusher.email}} != "github-actions[bot]@users.noreply.github.com"
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -18,7 +18,7 @@ jobs:
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
