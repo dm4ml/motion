@@ -8,8 +8,12 @@ on:
 jobs:
   publish-to-pypi:
     runs-on: ubuntu-latest
-    if: ${{github.event.pusher.email}} != "github-actions[bot]@users.noreply.github.com"
+    if: ${{github.event.head_commit.author.name}} != "github-actions[bot]"
     steps:
+      - name: Print author
+        run: |
+          echo "Commit author name: ${{ github.event.head_commit.author.name }}"
+          echo "Commit author email: ${{ github.event.head_commit.author.email }}"
       - name: Checkout code
         uses: actions/checkout@v2
         with:
