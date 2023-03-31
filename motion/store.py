@@ -49,11 +49,11 @@ class Store:
             self.addLogTable_pa()
 
         # Set up triggers
-        self.triggers: dict[str, list[TriggerFn]] = {}
-        self.cron_triggers: dict[str, list[TriggerFn]] = {}
-        self.cron_threads: dict[str, CronThread] = {}
-        self.trigger_names: dict[str, list[str]] = {}
-        self.trigger_fns: dict[str, Trigger] = {}
+        self.triggers: typing.Dict[str, list[TriggerFn]] = {}
+        self.cron_triggers: typing.Dict[str, list[TriggerFn]] = {}
+        self.cron_threads: typing.Dict[str, CronThread] = {}
+        self.trigger_names: typing.Dict[str, list[str]] = {}
+        self.trigger_fns: typing.Dict[str, Trigger] = {}
 
     def __del__(self) -> None:
         self.stop(wait=False)
@@ -218,7 +218,7 @@ class Store:
         self,
         name: str,
         trigger: typing.Type[Trigger],
-        params: dict[str, typing.Any] = {},
+        params: typing.Dict[str, typing.Any] = {},
     ) -> None:
         """Adds a trigger to the store.
 
@@ -327,7 +327,7 @@ class Store:
         names_and_fns = self.triggers.get(f"{relation}.{key}", [])
         return [t[0] for t in names_and_fns]
 
-    def getTriggersForAllKeys(self) -> dict[str, list[str]]:
+    def getTriggersForAllKeys(self) -> typing.Dict[str, list[str]]:
         """Get the list of triggers for all keys.
 
         Returns:

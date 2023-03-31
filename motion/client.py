@@ -166,7 +166,7 @@ class ClientConnection:
         *,
         relation: str,
         identifier: str,
-        key_values: dict[str, typing.Any],
+        key_values: typing.Dict[str, typing.Any],
     ) -> typing.Any:
         # Convert enums to their values
 
