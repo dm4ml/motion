@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import inspect
-from typing import Callable, Union
+from typing import Callable, Dict, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, root_validator
 
 from motion.trigger import Trigger
 
@@ -13,6 +11,18 @@ class Route(BaseModel):
     key: str
     infer: Union[Callable, None] = None
     fit: Union[Callable, None] = None
+
+    @root_validator()
+    def key_has_no_periods(cls, values: Dict) -> Dict:
+        relation = values.get("relation")
+        key = values.get("key")
+
+        if "." in key:  # type: ignore
+            raise ValueError(f"Route key {key} cannot contain periods.")
+        if "." in relation:  # type: ignore
+            raise ValueError(f"Route relation {relation} cannot contain periods.")
+
+        return values
 
     def validateTrigger(self, trigger_object: Trigger) -> None:
         if self.infer is not None:

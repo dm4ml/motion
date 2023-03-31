@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import inspect
 import os
 import threading
 import typing
@@ -56,7 +53,7 @@ class Store:
         self.cron_triggers: dict[str, list[TriggerFn]] = {}
         self.cron_threads: dict[str, CronThread] = {}
         self.trigger_names: dict[str, list[str]] = {}
-        self.trigger_fns: dict[str, typing.Callable] = {}
+        self.trigger_fns: dict[str, Trigger] = {}
 
     def __del__(self) -> None:
         self.stop(wait=False)
@@ -205,9 +202,6 @@ class Store:
                     continue
                 name_idx = pa_schema_names.index(old_name)
                 if not old_type.equals(pa_schema_types[name_idx]):
-                    print(old_name)
-                    print(old_type)
-                    print(pa_schema_types[name_idx])
                     logger.error(
                         f"relation {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
                     )
@@ -223,22 +217,14 @@ class Store:
     def addTrigger(
         self,
         name: str,
-        keys: list[str],
-        trigger: typing.Callable | type,
+        trigger: typing.Type[Trigger],
         params: dict[str, typing.Any] = {},
     ) -> None:
         """Adds a trigger to the store.
 
         Args:
             name (str): Trigger name.
-            keys (typing.List[str]): Names of the keys to triger on. Formatted
-            as "relation.key" or cron expression. Trigger executes if there is
-            a addition to any of the keys, or on the cron schedule.
-            trigger (typing.Union[typing.Callable, type]): Function or class to
-            execute when the trigger is fired. If function, must take in the id
-            of the row that triggered the trigger, a reference to the element
-            that triggered it, and a reference to the store object (in this
-            order). If class, must implement the Transform interface.
+            trigger (Trigger): Trigger class to execute when trigger is fired. Must implement the Trigger interface.
             params (typing.Dict[str, typing.Any], optional): Parameters to pass
 
         Raises:
@@ -248,32 +234,23 @@ class Store:
             logger.warning(f"Trigger {name} already exists. Doing nothing.")
             return
 
-        if inspect.isfunction(trigger):
-            # Check that the function signature is correct
-            if len(inspect.signature(trigger).parameters) != 2:
-                raise ValueError(
-                    f"Trigger function must take in 2 arguments: cursor and triggered_by."
-                )
+        # Check that the class implements the Trigger interface
+        if not issubclass(trigger, Trigger):
+            raise ValueError(f"Trigger class must implement the Trigger interface.")
 
-        elif inspect.isclass(trigger):
-            # Check that the class implements the Transform interface
-            if not issubclass(trigger, Trigger):
-                raise ValueError(f"Trigger class must implement the Trigger interface.")
-
-        else:
-            raise ValueError(
-                f"Trigger {name} must be a function or class. Got {type(trigger)}."
-            )
+        # Retrieve keys
+        keys = trigger.getRouteKeys()
 
         # Check that keys are valid
         all_possible_keys = [
             f"{ns}.{key}" for ns in self.table_columns for key in self.table_columns[ns]
         ]
         cron_key_exists = False
-        for key in keys:
-            if key not in all_possible_keys and not croniter.is_valid(key):
+        for full_key in keys:
+            _, key = full_key.split(".")
+            if full_key not in all_possible_keys and not croniter.is_valid(key):
                 raise ValueError(
-                    f"Trigger {name} has invalid key {key}. Valid keys are {all_possible_keys} or a cron expression. If your schemas have changed, you may need to clear your application by running `motion clear {self.name}`."
+                    f"Trigger {name} has invalid key {full_key}. Valid keys are {all_possible_keys} or a cron expression. If your schemas have changed, you may need to clear your application by running `motion clear {self.name}`."
                 )
 
             if croniter.is_valid(key):
@@ -296,22 +273,21 @@ class Store:
 
         version = version if version is not None else 0
 
-        trigger_exec = (
-            trigger(self.cursor(bypass_listening=True), name, version, params)
-            if inspect.isclass(trigger)
-            else trigger
+        trigger_exec = trigger(
+            self.cursor(bypass_listening=True), name, version, params
         )
         self.trigger_fns[name] = trigger_exec
 
-        for key in keys:
+        for full_key in keys:
+            _, key = full_key.split(".")
             if croniter.is_valid(key):
-                self.cron_triggers[key] = self.cron_triggers.get(key, []) + [
-                    TriggerFn(name, trigger_exec, inspect.isclass(trigger))
+                self.cron_triggers[full_key] = self.cron_triggers.get(full_key, []) + [
+                    TriggerFn(name, trigger_exec)
                 ]
 
             else:
-                self.triggers[key] = self.triggers.get(key, []) + [
-                    TriggerFn(name, trigger_exec, inspect.isclass(trigger))
+                self.triggers[full_key] = self.triggers.get(full_key, []) + [
+                    TriggerFn(name, trigger_exec)
                 ]
 
     def deleteTrigger(self, name: str) -> None:
@@ -328,14 +304,12 @@ class Store:
         fn = self.trigger_fns[name]
         for key in keys:
             if croniter.is_valid(key):
-                self.cron_triggers[key].remove(
-                    TriggerFn(name, fn, isinstance(fn, Trigger))
-                )
+                self.cron_triggers[key].remove(TriggerFn(name, fn))
                 self.cron_threads[name].stop()
                 self.cron_threads[name].join()
 
             else:
-                self.triggers[key].remove(TriggerFn(name, fn, isinstance(fn, Trigger)))
+                self.triggers[key].remove(TriggerFn(name, fn))
 
         del self.trigger_names[name]
         del self.trigger_fns[name]
@@ -371,7 +345,8 @@ class Store:
         self.cron_threads = {}
 
         if not self.disable_cron_triggers:
-            for cron_expression, triggers in self.cron_triggers.items():
+            for full_key, triggers in self.cron_triggers.items():
+                _, cron_expression = full_key.split(".")
                 for trigger_fn in triggers:
                     e = threading.Event()
                     t = CronThread(

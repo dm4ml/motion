@@ -20,7 +20,7 @@ def test_empty(basic_config):
     new_cursor = store.cursor()
 
     res = new_cursor.get(
-        relation="test", identifier="hehehehe", keys=["doubled_age"]
+        relation="Test", identifier="hehehehe", keys=["doubled_age"]
     )
     assert not res
 
@@ -31,19 +31,19 @@ def test_get_failures(basic_config):
     # Add some data
     cursor = store.cursor()
     student_id = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 20},
     )
 
     with pytest.raises(Exception):
-        cursor.get(relation="test", identifier=student_id, keys=["heheheh"])
+        cursor.get(relation="Test", identifier=student_id, keys=["heheheh"])
 
     with pytest.raises(Exception):
-        cursor.get(relation="test", identifier=student_id, keys=[])
+        cursor.get(relation="Test", identifier=student_id, keys=[])
 
     with pytest.raises(Exception):
-        cursor.get(relation="test", identifier=student_id, keys=None)
+        cursor.get(relation="Test", identifier=student_id, keys=None)
 
 
 def test_get_all(basic_config):
@@ -52,12 +52,12 @@ def test_get_all(basic_config):
     # Add some data
     cursor = store.cursor()
     student_id = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 20},
     )
 
-    results = cursor.get(relation="test", identifier=student_id, keys=["*"])
+    results = cursor.get(relation="Test", identifier=student_id, keys=["*"])
     assert results["name"] == "John"
     assert results["age"] == 20
     assert results["doubled_age"] == 40
@@ -80,14 +80,14 @@ def test_set_failures(basic_config):
 
     with pytest.raises(AttributeError):
         cursor.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values={"name": "John", "lllage": 20},
         )
 
     with pytest.raises(pa.lib.ArrowInvalid):
         cursor.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values={"name": "John", "age": "20"},
         )
@@ -98,23 +98,23 @@ def test_duplicate_set(basic_config):
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
     first_age = cursor.get(
-        relation="test", identifier=identifier, keys=["age", "doubled_age"]
+        relation="Test", identifier=identifier, keys=["age", "doubled_age"]
     )
     assert first_age["age"] == 15
     assert first_age["doubled_age"] == 30
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=identifier,
         key_values={"age": 25},
     )
     second_age = cursor.get(
-        relation="test", identifier=identifier, keys=["age", "doubled_age"]
+        relation="Test", identifier=identifier, keys=["age", "doubled_age"]
     )
     assert second_age["age"] == 25
     assert second_age["doubled_age"] == 50
@@ -125,12 +125,12 @@ def test_include_derived_get(config_with_two_triggers):
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
     results = cursor.get(
-        relation="test",
+        relation="Test",
         identifier=identifier,
         keys=["*"],
         include_derived=True,
@@ -157,14 +157,14 @@ def test_mget(config_with_two_triggers):
 
     for name, age in zip(names, ages):
         identifier = cursor.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values={"name": name, "age": age},
         )
         identifiers.append(identifier)
 
     result_df = cursor.mget(
-        relation="test",
+        relation="Test",
         identifiers=identifiers,
         keys=["*"],
         include_derived=True,
@@ -181,7 +181,7 @@ def test_mget(config_with_two_triggers):
 
     # Test mget without returning as df
     results = cursor.mget(
-        relation="test",
+        relation="Test",
         identifiers=identifiers,
         keys=["*"],
         include_derived=True,
@@ -196,21 +196,21 @@ def test_duplicate_id(basic_config):
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
 
     for _ in range(3):
-        new_id = cursor.duplicate(relation="test", identifier=identifier)
+        new_id = cursor.duplicate(relation="Test", identifier=identifier)
         cursor.set(
-            relation="test",
+            relation="Test",
             identifier=new_id,
             key_values={"age": 16},
         )
 
     results = cursor.get(
-        relation="test",
+        relation="Test",
         identifier=identifier,
         keys=["*"],
         as_df=True,
@@ -227,13 +227,13 @@ def test_sql(basic_config):
     cursor = store.cursor()
 
     cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
 
     results = cursor.sql(
-        "SELECT * FROM test WHERE name = 'John'",
+        "SELECT * FROM Test WHERE name = 'John'",
         as_df=True,
     )
 
@@ -242,7 +242,7 @@ def test_sql(basic_config):
     assert results["age"].values[0] == 15
     assert results["doubled_age"].values[0] == 30
 
-    results = cursor.sql("SELECT * FROM test WHERE name = 'John'", as_df=False)
+    results = cursor.sql("SELECT * FROM Test WHERE name = 'John'", as_df=False)
     assert len(results) == 1
 
 
@@ -251,13 +251,13 @@ def test_exists(basic_config):
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
 
-    assert cursor.exists(relation="test", identifier=identifier)
-    assert not cursor.exists(relation="test", identifier="heheheh")
+    assert cursor.exists(relation="Test", identifier=identifier)
+    assert not cursor.exists(relation="Test", identifier="heheheh")
 
     with pytest.raises(KeyError):
         cursor.exists(relation="heheheh", identifier=identifier)

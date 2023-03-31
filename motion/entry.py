@@ -1,13 +1,12 @@
-from __future__ import annotations
-
 import logging
 import os
+import shutil
 import uuid
 
 import colorlog
 import uvicorn
 
-from motion.api import create_app
+from motion.api import create_fastapi_app
 from motion.client import ClientConnection
 from motion.store import Store
 
@@ -19,6 +18,33 @@ def create_token() -> str:
         str: The token.
     """
     return str(uuid.uuid4())
+
+
+def create_app(name: str, author: str) -> None:
+    """Creates a motion app."""
+    name = name.strip().lower()
+    if len(name.split(" ")) > 1:
+        raise ValueError("Name cannot contain spaces.")
+
+    if os.path.exists(name):
+        raise ValueError(f"Directory {name} already exists.")
+
+    # Copy over the example project
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "exampleproj"), name)
+
+    # Create store setup file
+    with open(os.path.join(name, "mconfig.py"), "w") as f:
+        f.write(
+            open(
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "exampleproj/mconfig.py",
+                ),
+            )
+            .read()
+            .replace("{0}", name)
+            .replace("{1}", author)
+        )
 
 
 def init(
@@ -59,16 +85,15 @@ def init(
     )
 
     # Create relations
-    for relation, schema in mconfig["relations"].items():
-        store.addrelation_pa(relation, schema)
+    for relation in mconfig["relations"]:
+        store.addrelation_pa(relation.__name__, relation)
 
     # Create triggers
-    for trigger, keys in mconfig["triggers"].items():
+    for trigger in mconfig["triggers"]:
         params = mconfig.get("trigger_params", {}).get(trigger, {})
 
         store.addTrigger(
             name=trigger.__name__,
-            keys=keys,
             trigger=trigger,
             params=params,
         )
@@ -107,7 +132,7 @@ def serve_store(store: Store, host: str, port: int) -> None:
         f.write(f"Server running at {host}:{port}")
 
     # Start fastapi server
-    app = create_app(store)
+    app = create_fastapi_app(store)
     uvicorn.run(app, host=host, port=port)
 
 
@@ -156,7 +181,7 @@ def test(
         disable_cron_triggers=disable_cron_triggers,
         session_id=session_id,
     )
-    app = create_app(store, testing=True)
+    app = create_fastapi_app(store, testing=True)
 
     connection = ClientConnection(
         mconfig["application"]["name"],

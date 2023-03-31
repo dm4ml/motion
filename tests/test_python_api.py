@@ -26,7 +26,7 @@ def test_python_set(test_client):
 
     # Specify all keywords
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier="some_student_id_1",
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
@@ -35,7 +35,7 @@ def test_python_set(test_client):
     # Don't specify keywords
     with pytest.raises(TypeError):
         student_id = connection.set(
-            "test",
+            "Test",
             "some_student_id_2",
             {"name": "Mary", "age": random.randint(10, 30)},
         )
@@ -50,14 +50,14 @@ def test_python_set(test_client):
 
     # Trying to set without identifiers
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier="",
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
     assert student_id is not None
     assert student_id != ""
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
@@ -67,12 +67,12 @@ def test_python_set(test_client):
     # Setting kv pairs that don't exist in the relation
     with pytest.raises(AttributeError):
         student_id = connection.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values={"heheheh": "Mary", "age": random.randint(10, 30)},
         )
         student_id = connection.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values="something",
         )
@@ -83,14 +83,14 @@ def test_python_get(test_client):
 
     # Set some data
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier="",  # Let the client generate an identifier
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
 
     # Specify all keywords
     results = connection.get(
-        identifier=student_id, relation="test", keys=["*"]
+        identifier=student_id, relation="Test", keys=["*"]
     )
     assert results["name"] == "Mary"
     assert results["doubled_age"] == 2 * results["age"]
@@ -98,16 +98,16 @@ def test_python_get(test_client):
 
     # Get as dataframe
     results = connection.get(
-        identifier=student_id, relation="test", keys=["*"], as_df=True
+        identifier=student_id, relation="Test", keys=["*"], as_df=True
     )
     assert results["name"].values[0] == "Mary"
     assert results["doubled_age"].values[0] == 2 * results["age"].values[0]
 
     # Test derived ids
-    derived_id = connection.duplicate(relation="test", identifier=student_id)
+    derived_id = connection.duplicate(relation="Test", identifier=student_id)
     results = connection.get(
         identifier=student_id,
-        relation="test",
+        relation="Test",
         keys=["*"],
         as_df=True,
         include_derived=True,
@@ -117,7 +117,7 @@ def test_python_get(test_client):
     # Get results that don't exist
     results = connection.get(
         identifier="nonexistent",
-        relation="test",
+        relation="Test",
         keys=["*"],
         include_derived=False,
     )
@@ -129,12 +129,12 @@ def test_python_mget(test_client):
 
     # Set some data
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier="",  # Let the client generate an identifier
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
     student_id_2 = connection.set(
-        relation="test",
+        relation="Test",
         identifier="",  # Let the client generate an identifier
         key_values={"name": "John", "age": random.randint(10, 30)},
     )
@@ -142,7 +142,7 @@ def test_python_mget(test_client):
     # Specify all keywords
     results = connection.mget(
         identifiers=[student_id, student_id_2],
-        relation="test",
+        relation="Test",
         keys=["*"],
     )
 
@@ -157,7 +157,7 @@ def test_python_mget(test_client):
     # Get as dataframe
     results = connection.mget(
         identifiers=[student_id, student_id_2],
-        relation="test",
+        relation="Test",
         keys=["*"],
         as_df=True,
     )
@@ -168,13 +168,13 @@ def test_python_mget(test_client):
     assert results["doubled_age"].values[1] == 2 * results["age"].values[1]
 
     # Test derived ids
-    derived_id = connection.duplicate(relation="test", identifier=student_id)
+    derived_id = connection.duplicate(relation="Test", identifier=student_id)
     derived_id_2 = connection.duplicate(
-        relation="test", identifier=student_id_2
+        relation="Test", identifier=student_id_2
     )
     results = connection.mget(
         identifiers=[student_id, student_id_2],
-        relation="test",
+        relation="Test",
         keys=["*"],
         as_df=True,
         include_derived=True,
@@ -184,7 +184,7 @@ def test_python_mget(test_client):
     # Get results that don't exist
     results = connection.mget(
         identifiers=["nonexistent", student_id_2],
-        relation="test",
+        relation="Test",
         keys=["*"],
         include_derived=False,
     )
@@ -196,22 +196,22 @@ def test_python_sql(test_client):
 
     # Set some data
     student_id = connection.set(
-        relation="test",
+        relation="Test",
         identifier="",  # Let the client generate an identifier
         key_values={"name": "Mary", "age": random.randint(10, 30)},
     )
 
     # Run sql query
     results = connection.sql(
-        query=f"SELECT * FROM test WHERE identifier = '{student_id}'",
+        query=f"SELECT * FROM Test WHERE identifier = '{student_id}'",
     )
     assert len(results) == 1
 
 
 def test_wait_for_trigger(test_client):
     connection = test_client
-    res = connection.waitForTrigger("cron_trigger")
-    assert res == "cron_trigger"
+    res = connection.waitForTrigger("Cron")
+    assert res == "Cron"
 
     # Try waiting for invalid trigger
     with pytest.raises(FileNotFoundError):
@@ -224,11 +224,11 @@ def test_wait_for_triggers(basic_config_with_cron):
     connection = motion.test(
         basic_config_with_cron,
         session_id="TESTING",
-        wait_for_triggers=["cron_trigger"],
+        wait_for_triggers=["Cron"],
     )
 
     # Retrieve result
-    res = connection.sql(query="SELECT * FROM test WHERE name = 'Johnny'")
+    res = connection.sql(query="SELECT * FROM Test WHERE name = 'Johnny'")
     assert len(res) == 1
 
     # Close connection
@@ -242,7 +242,7 @@ def test_blob_data(basic_config_with_blob):
     # Set some data
     img_path = os.path.join(os.path.dirname(__file__), "assets/landscape.jpeg")
     student_id = connection.set(
-        relation="test",
+        relation="TestSchemaWithBlob",
         identifier="",
         key_values={
             "name": "Mary",
@@ -253,6 +253,9 @@ def test_blob_data(basic_config_with_blob):
 
     # Read back the blob
     results = connection.get(
-        identifier=student_id, relation="test", keys=["*"], as_df=True
+        identifier=student_id,
+        relation="TestSchemaWithBlob",
+        keys=["*"],
+        as_df=True,
     )
     assert results["photo"].values[0] == open(img_path, "rb").read()

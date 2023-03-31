@@ -20,7 +20,7 @@ def test_http_client(config_with_two_triggers):
     # Create store and client
 
     store = motion.init(config_with_two_triggers, session_id="HTTP_TESTING")
-    app = motion.api.create_app(store, testing=True)
+    app = motion.api.create_fastapi_app(store, testing=True)
 
     yield app
 
@@ -45,7 +45,7 @@ def test_http_set_get(test_http_client, test_create_headers):
             "post",
             "/json/set/",
             json={
-                "relation": "test",
+                "relation": "Test",
                 "identifier": "",
                 "key_values": {"name": "Mary", "age": random.randint(10, 30)},
             },
@@ -58,7 +58,7 @@ def test_http_set_get(test_http_client, test_create_headers):
             "get",
             "/json/get/",
             json={
-                "relation": "test",
+                "relation": "Test",
                 "identifier": identifier,
                 "keys": ["*"],
                 "include_derived": True,
@@ -84,7 +84,7 @@ def test_http_mget(test_http_client, test_create_headers):
                 "post",
                 "/json/set/",
                 json={
-                    "relation": "test",
+                    "relation": "Test",
                     "identifier": "",
                     "key_values": {
                         "name": "John",
@@ -100,7 +100,7 @@ def test_http_mget(test_http_client, test_create_headers):
             "get",
             "/json/mget/",
             json={
-                "relation": "test",
+                "relation": "Test",
                 "identifiers": identifiers,
                 "keys": ["*"],
                 "include_derived": True,
@@ -123,7 +123,7 @@ def test_http_sql(test_http_client, test_create_headers):
             "post",
             "/json/set/",
             json={
-                "relation": "test",
+                "relation": "Test",
                 "identifier": "",
                 "key_values": {
                     "name": "John",
@@ -140,7 +140,7 @@ def test_http_sql(test_http_client, test_create_headers):
             "get",
             "/json/sql/",
             json={
-                "query": f"SELECT * FROM test WHERE identifier = '{identifier}'",
+                "query": f"SELECT * FROM Test WHERE identifier = '{identifier}'",
             },
             headers=test_create_headers,
         )
@@ -178,20 +178,19 @@ def test_wait_for_cron_triggers(basic_config_with_cron, test_create_headers):
     # Create store and client
 
     store = motion.init(basic_config_with_cron, session_id="HTTP_TESTING")
-    app = motion.api.create_app(store, testing=True)
+    app = motion.api.create_fastapi_app(store, testing=True)
 
     with TestClient(app) as client:
 
-        # No cron triggers in this one
         response = client.request(
             "post",
             "/json/wait_for_trigger/",
-            json={"trigger": "cron_trigger"},
+            json={"trigger": "Cron"},
             headers=test_create_headers,
         )
 
         assert response.status_code == 200
-        assert response.json() == "cron_trigger"
+        assert response.json() == "Cron"
 
     # Stop store
     store.stop()

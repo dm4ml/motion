@@ -2,7 +2,7 @@
 Database connection, with functions that a users is allowed to
 call within trigger lifecycle methods.
 """
-from __future__ import annotations
+
 
 import collections
 import threading
@@ -274,7 +274,7 @@ class Cursor:
             triggered_by (TriggerElement): The element that triggered the trigger.
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
-        trigger_name, trigger_fn, isTransform = trigger
+        trigger_name, trigger_fn = trigger
         logger.info(
             f"Running trigger {trigger_name} for identifier {triggered_by.identifier}, key {triggered_by.key}..."
         )
@@ -291,47 +291,34 @@ class Cursor:
             spawned_by=triggered_by,
         )
 
-        if not isTransform:
-            trigger_fn(
+        # Get route for key
+        route = trigger_fn.route_map.get(
+            f"{triggered_by.relation}.{triggered_by.key}", None
+        )
+        if route is None:
+            raise NotImplementedError(
+                f"Route not found for {triggered_by.relation}.{triggered_by.key}."
+            )
+
+        # Execute the transform lifecycle: infer -> fit
+        if route.infer is not None:
+            route.infer(new_connection, triggered_by)
+            self.logTriggerExecution(
+                trigger_name, trigger_fn.version, "infer", triggered_by
+            )
+
+        # Fit is asynchronous
+        if route.fit is not None:
+            fit_thread = trigger_fn.fitWrapper(
                 new_connection,
+                trigger_name,
                 triggered_by,
             )
-            # Log the trigger execution
-            self.logTriggerExecution(trigger_name, 0, "function", triggered_by)
-
+            self.fit_events.append(fit_thread)
+        else:
             logger.info(
                 f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
             )
-
-        else:
-            # Get route for key
-            route = trigger_fn.route_map.get(
-                f"{triggered_by.relation}.{triggered_by.key}", None
-            )
-            if route is None:
-                raise NotImplementedError(
-                    f"Route not found for {triggered_by.relation}.{triggered_by.key}."
-                )
-
-            # Execute the transform lifecycle: infer -> fit
-            if route.infer is not None:
-                route.infer(new_connection, triggered_by)
-                self.logTriggerExecution(
-                    trigger_name, trigger_fn.version, "infer", triggered_by
-                )
-
-            # Fit is asynchronous
-            if route.fit is not None:
-                fit_thread = trigger_fn.fitWrapper(
-                    new_connection,
-                    trigger_name,
-                    triggered_by,
-                )
-                self.fit_events.append(fit_thread)
-            else:
-                logger.info(
-                    f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
-                )
 
     def duplicate(self, relation: str, identifier: str) -> str:
         """Duplicate a record in a relation. Doesn't run triggers.

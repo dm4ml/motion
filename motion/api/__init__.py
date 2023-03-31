@@ -1,3 +1,3 @@
-from motion.api.api import create_app
+from motion.api.api import create_fastapi_app
 
-__all__ = ["create_app"]
+__all__ = ["create_fastapi_app"]

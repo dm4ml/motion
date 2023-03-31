@@ -1,4 +1,4 @@
 from triggers.chatbot import Chatbot
-from triggers.generate import sample_prompt_generator
+from triggers.scrape import ScrapeWikipedia
 
-__all__ = ["Chatbot", "sample_prompt_generator"]
+__all__ = ["Chatbot", "ScrapeWikipedia"]
