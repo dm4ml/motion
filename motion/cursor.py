@@ -23,18 +23,18 @@ class Cursor:
         self,
         *,
         name: str,
-        relations: dict[str, pa.Table],
+        relations: typing.Dict[str, pa.Table],
         log_table: pa.Table,
-        table_columns: dict[str, list[str]],
-        triggers: dict[str, list[TriggerFn]],
+        table_columns: typing.Dict[str, list[str]],
+        triggers: typing.Dict[str, list[TriggerFn]],
         write_lock: threading.Lock,
         session_id: str,
         wait_for_results: bool = False,
-        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
+        triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
         spawned_by: TriggerElement = None,  # type: ignore
     ):
         self.name = name
-        self.relations: dict[str, pa.Table] = relations
+        self.relations: typing.Dict[str, pa.Table] = relations
         self.log_table = log_table
         self.table_columns = table_columns
         self.triggers = triggers
@@ -101,7 +101,7 @@ class Cursor:
         self,
         *,
         relation: str,
-        key_values: dict[str, typing.Any],
+        key_values: typing.Dict[str, typing.Any],
         identifier: str = "",
     ) -> str:
         """Set multiple values for a key in a relation.
@@ -176,7 +176,7 @@ class Cursor:
                 self.relations[relation] = final_table
 
         # Get all triggers to run
-        triggers_to_run: dict[TriggerFn, TriggerElement] = {}
+        triggers_to_run: typing.Dict[TriggerFn, TriggerElement] = {}
         for key, value in key_values.items():
             if f"{relation}.{key}" not in self.triggers:
                 continue
@@ -245,7 +245,7 @@ class Cursor:
         *,
         trigger: TriggerFn,
         triggered_by: TriggerElement,
-        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
+        triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
@@ -265,7 +265,7 @@ class Cursor:
         self,
         trigger: TriggerFn,
         triggered_by: TriggerElement,
-        triggers_to_run_on_duplicate: dict[TriggerFn, TriggerElement] = {},
+        triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
