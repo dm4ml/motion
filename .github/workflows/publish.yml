@@ -32,13 +32,12 @@ jobs:
       - name: Bump version
         id: bump_version
         run: |
-          VERSION=$(poetry version patch | awk '{ print $NF }')
-          echo ::set-output name=version::$VERSION
+          poetry version patch
       - name: Build and publish
         run: |
           poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
           poetry build
-          poetry publish --version ${{ steps.bump_version.outputs.version }}
+          poetry publish
           git add pyproject.toml
           git commit -m "Bump up version"
       - name: Push changes
