@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import copy
 import logging
 from collections import namedtuple
@@ -9,7 +7,7 @@ logger = logging.getLogger(__name__)
 TriggerElement = namedtuple(
     "TriggerElement", ["relation", "identifier", "key", "value"]
 )
-TriggerFn = namedtuple("TriggerFn", ["name", "fn", "isTransform"])
+TriggerFn = namedtuple("TriggerFn", ["name", "fn"])
 
 
 def update_params(mconfig: dict, params: dict) -> dict:

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import inspect
 import sys
 import threading
@@ -33,7 +31,14 @@ class CustomDict(dict):
 
 
 class Trigger(ABC):
-    def __init__(self, cursor: Cursor, name: str, version: int, params: dict = {}):
+    def __init__(
+        self,
+        cursor: Cursor,
+        name: str,
+        version: int,
+        params: dict = {},
+        routes_only: bool = False,
+    ):
         self.name = name
 
         # Validate number of arguments in each trigger and set up routes
@@ -52,7 +57,16 @@ class Trigger(ABC):
 
             r.validateTrigger(self)
             seen_keys.add(f"{r.relation}.{r.key}")
-        self.route_map = {f"{r.relation}.{r.key}": r for r in self.routes()}
+
+        self.route_map = {}
+        for r in self.routes():
+            if r.relation != "":
+                self.route_map[f"{r.relation}.{r.key}"] = r
+            else:
+                self.route_map[f"_cron.{r.key}"] = r
+
+        if routes_only:
+            return
 
         # Set up params dictionary
         self._params = CustomDict(self.name, "params", params)
@@ -79,13 +93,19 @@ class Trigger(ABC):
         )
         self._fit_thread.start()
 
+    @classmethod
+    def getRouteKeys(cls) -> list:
+        obj: Trigger = cls(None, "", 0, routes_only=True)  # type: ignore
+
+        return list(obj.route_map.keys())
+
     @abstractmethod
     def routes(self) -> list:
         pass
 
     @abstractmethod
     def setUp(self, cursor: Cursor) -> dict:
-        pass
+        raise TypeError(f"Please implement setUp() for trigger {self.name}.")
 
     @property
     def params(self) -> dict:

@@ -22,13 +22,13 @@ def test_state_retrieval(simple_stateful_config):
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="MultipliedAges",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
 
     full_record = cursor.get(
-        relation="test",
+        relation="MultipliedAges",
         identifier=identifier,
         keys=["*"],
         include_derived=True,
@@ -46,7 +46,7 @@ def test_state_update(simple_stateful_config):
     identifiers = []
     for _ in range(3):
         identifier = cursor.set(
-            relation="test",
+            relation="MultipliedAges",
             identifier=None,
             key_values={"name": "John", "age": 15},
         )
@@ -54,7 +54,7 @@ def test_state_update(simple_stateful_config):
         identifiers.append(identifier)
 
     all_records = cursor.mget(
-        relation="test",
+        relation="MultipliedAges",
         identifiers=identifiers,
         keys=["*"],
         include_derived=True,
@@ -73,7 +73,10 @@ def ImproperFit():
         def routes(self):
             return [
                 motion.Route(
-                    relation="test", key="age", infer=self.infer, fit=self.fit
+                    relation="MultipliedAges",
+                    key="age",
+                    infer=self.infer,
+                    fit=self.fit,
                 )
             ]
 
@@ -108,12 +111,8 @@ def test_improper_fit(entry, MultipliedAges, ImproperFit):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": MultipliedAges,
-        },
-        "triggers": {
-            ImproperFit: ["test.age"],
-        },
+        "relations": [MultipliedAges],
+        "triggers": [ImproperFit],
     }
 
     store = motion.init(config)
@@ -127,7 +126,7 @@ def test_improper_fit(entry, MultipliedAges, ImproperFit):
 
     with pytest.warns(None, match=filter_warning):
         cursor.set(
-            relation="test",
+            relation="MultipliedAges",
             identifier="",
             key_values={"name": "John", "age": 15, "multiplied_age": 30},
         )
@@ -139,7 +138,10 @@ def ImproperSetup():
         def routes(self):
             return [
                 motion.Route(
-                    relation="test", key="age", infer=self.infer, fit=self.fit
+                    relation="MultipliedAges",
+                    key="age",
+                    infer=self.infer,
+                    fit=self.fit,
                 )
             ]
 
@@ -169,12 +171,8 @@ def test_improper_setup(entry, MultipliedAges, ImproperSetup):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": MultipliedAges,
-        },
-        "triggers": {
-            ImproperSetup: ["test.age"],
-        },
+        "relations": [MultipliedAges],
+        "triggers": [ImproperSetup],
     }
 
     with pytest.raises(TypeError):
@@ -184,31 +182,18 @@ def test_improper_setup(entry, MultipliedAges, ImproperSetup):
 def test_route_errors(entry, StatefulTrigger, MultipliedAges):
     # os.environ["MOTION_HOME"] = "/tmp/motion"
 
-    StatefulTrigger.routes = lambda self: []
-
     config = {
         "application": {
             "name": "test_bad_routes",
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": MultipliedAges,
-        },
-        "triggers": {
-            StatefulTrigger: ["test.age"],
-        },
+        "relations": [MultipliedAges],
+        "triggers": [StatefulTrigger],
     }
 
     store = motion.init(config)
     cursor = store.cursor()
-
-    with pytest.raises(NotImplementedError):
-        cursor.set(
-            relation="test",
-            identifier=None,
-            key_values={"name": "John", "age": 15, "multiplied_age": 30},
-        )
 
     # Try wrong type
     StatefulTrigger.routes = lambda self: "hello world!"
@@ -218,12 +203,12 @@ def test_route_errors(entry, StatefulTrigger, MultipliedAges):
 
     # Try specifying no infer or fit, this should pass
     StatefulTrigger.routes = lambda self: [
-        motion.Route(relation="test", key="age")
+        motion.Route(relation="MultipliedAges", key="age")
     ]
     store = motion.init(config)
     cursor = store.cursor()
     cursor.set(
-        relation="test",
+        relation="MultipliedAges",
         identifier=None,
         key_values={"name": "John", "age": 15, "multiplied_age": 30},
     )
@@ -235,7 +220,10 @@ def KeyNotFoundInState():
         def routes(self):
             return [
                 motion.Route(
-                    relation="test", key="age", infer=self.infer, fit=self.fit
+                    relation="MultipliedAges",
+                    key="age",
+                    infer=self.infer,
+                    fit=self.fit,
                 )
             ]
 
@@ -265,12 +253,8 @@ def test_key_not_found_in_state(entry, KeyNotFoundInState, MultipliedAges):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": MultipliedAges,
-        },
-        "triggers": {
-            KeyNotFoundInState: ["test.age"],
-        },
+        "relations": [MultipliedAges],
+        "triggers": [KeyNotFoundInState],
     }
 
     store = motion.init(config)
@@ -278,7 +262,7 @@ def test_key_not_found_in_state(entry, KeyNotFoundInState, MultipliedAges):
 
     with pytest.raises(KeyError):
         cursor.set(
-            relation="test",
+            relation="MultipliedAges",
             identifier=None,
             key_values={"name": "John", "age": 15, "multiplied_age": 30},
         )
@@ -291,12 +275,12 @@ def test_multiple_triggers_in_one_set(
     cursor = store.cursor()
 
     identifier = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 15},
     )
     results = cursor.get(
-        relation="test",
+        relation="Test",
         identifier=identifier,
         keys=["*"],
         include_derived=True,
@@ -318,7 +302,7 @@ def test_cycle(config_with_cycle):
 
     with pytest.raises(RecursionError):
         cursor.set(
-            relation="test",
+            relation="Test",
             identifier=None,
             key_values={"name": "John", "age": 15},
         )

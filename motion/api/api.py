@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import typing
 from io import BytesIO
@@ -21,7 +19,7 @@ def df_to_json_response(df: pd.DataFrame) -> Response:
     )
 
 
-def create_app(store: Store, testing: bool = False) -> FastAPI:
+def create_fastapi_app(store: Store, testing: bool = False) -> FastAPI:
     # Security
     MOTION_API_TOKEN = os.environ.get("MOTION_API_TOKEN")
     if not MOTION_API_TOKEN:

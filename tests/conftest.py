@@ -20,66 +20,105 @@ def entry():
 
 @pytest.fixture
 def schema(entry):
-    class TestSchema(motion.Schema):
+    class Test(motion.Schema):
         name: str
         age: int
         doubled_age: int
 
-    return TestSchema
+    return Test
 
 
 @pytest.fixture
 def schema_with_liked(entry):
-    class TestSchemaWithLiked(motion.Schema):
+    class Test(motion.Schema):
         name: str
         age: int
         doubled_age: int
         liked: str
 
-    return TestSchemaWithLiked
+    return Test
 
 
 @pytest.fixture
 def double_age_trigger(entry):
-    def set_doubled_age(cursor, triggered_by):
-        cursor.set(
-            relation=triggered_by.relation,
-            identifier=triggered_by.identifier,
-            key_values={"doubled_age": 2 * triggered_by.value},
-        )
+    class DoubleAge(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="Test", key="age", infer=self.infer, fit=None
+                )
+            ]
 
-    return set_doubled_age
+        def setUp(self, cursor):
+            return {}
+
+        def infer(self, cursor, triggered_by):
+            cursor.set(
+                relation=triggered_by.relation,
+                identifier=triggered_by.identifier,
+                key_values={"doubled_age": int(2 * triggered_by.value)},
+            )
+
+    return DoubleAge
 
 
 @pytest.fixture
 def half_age_trigger(entry):
-    def set_half_age(cursor, triggered_by):
-        cursor.set(
-            relation=triggered_by.relation,
-            identifier=triggered_by.identifier,
-            key_values={"age": int(0.5 * triggered_by.value)},
-        )
+    class HalfAge(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="Test",
+                    key="doubled_age",
+                    infer=self.infer,
+                    fit=None,
+                )
+            ]
 
-    return set_half_age
+        def setUp(self, cursor):
+            return {}
+
+        def infer(self, cursor, triggered_by):
+            cursor.set(
+                relation=triggered_by.relation,
+                identifier=triggered_by.identifier,
+                key_values={"age": int(0.5 * triggered_by.value)},
+            )
+
+    return HalfAge
 
 
 @pytest.fixture
 def liked_trigger(entry):
-    def set_liked(cursor, triggered_by):
-        likes = ["pizza", "ice cream", "chocolate"]
+    class Liked(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="Test",
+                    key="doubled_age",
+                    infer=self.infer,
+                    fit=None,
+                )
+            ]
 
-        for like in likes:
-            new_id = cursor.duplicate(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
-            )
-            cursor.set(
-                relation=triggered_by.relation,
-                identifier=new_id,
-                key_values={"liked": like},
-            )
+        def setUp(self, cursor):
+            return {}
 
-    return set_liked
+        def infer(self, cursor, triggered_by):
+            likes = ["pizza", "ice cream", "chocolate"]
+
+            for like in likes:
+                new_id = cursor.duplicate(
+                    relation=triggered_by.relation,
+                    identifier=triggered_by.identifier,
+                )
+                cursor.set(
+                    relation=triggered_by.relation,
+                    identifier=new_id,
+                    key_values={"liked": like},
+                )
+
+    return Liked
 
 
 @pytest.fixture
@@ -92,12 +131,8 @@ def basic_config(schema, double_age_trigger):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-        },
+        "relations": [schema],
+        "triggers": [double_age_trigger],
     }
     yield config
 
@@ -113,13 +148,8 @@ def config_with_two_triggers(
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema_with_liked,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-            liked_trigger: ["test.doubled_age"],
-        },
+        "relations": [schema_with_liked],
+        "triggers": [double_age_trigger, liked_trigger],
     }
     yield config
 
@@ -129,19 +159,17 @@ def config_with_multiple_triggers_on_one_key(
     schema_with_liked, double_age_trigger, liked_trigger
 ):
     # os.environ["MOTION_HOME"] = "/tmp/motion"
+    liked_trigger.routes = lambda self: [
+        motion.Route(relation="Test", key="age", infer=self.infer, fit=None)
+    ]
     config = {
         "application": {
             "name": "test3",
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema_with_liked,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-            liked_trigger: ["test.age"],
-        },
+        "relations": [schema_with_liked],
+        "triggers": [double_age_trigger, liked_trigger],
     }
     yield config
 
@@ -155,13 +183,8 @@ def config_with_cycle(schema, double_age_trigger, half_age_trigger):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-            half_age_trigger: ["test.doubled_age"],
-        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, half_age_trigger],
     }
     yield config
 
@@ -172,7 +195,10 @@ def StatefulTrigger(entry):
         def routes(self):
             return [
                 motion.Route(
-                    relation="test", key="age", infer=self.infer, fit=self.fit
+                    relation="MultipliedAges",
+                    key="age",
+                    infer=self.infer,
+                    fit=self.fit,
                 )
             ]
 
@@ -222,26 +248,36 @@ def simple_stateful_config(StatefulTrigger, MultipliedAges):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": MultipliedAges,
-        },
-        "triggers": {
-            StatefulTrigger: ["test.age"],
-        },
+        "relations": [MultipliedAges],
+        "triggers": [StatefulTrigger],
     }
     yield config
 
 
 @pytest.fixture
 def cron_trigger(entry):
-    def cron_trigger(cursor, triggered_by):
-        cursor.set(
-            relation="test",
-            identifier="",
-            key_values={"name": "Johnny", "age": random.randint(10, 30)},
-        )
+    class Cron(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="",
+                    key="* * * * *",
+                    infer=self.infer,
+                    fit=None,
+                )
+            ]
 
-    return cron_trigger
+        def setUp(self, cursor):
+            return {}
+
+        def infer(self, cursor, triggered_by):
+            cursor.set(
+                relation="Test",
+                identifier="",
+                key_values={"name": "Johnny", "age": random.randint(10, 30)},
+            )
+
+    return Cron
 
 
 @pytest.fixture
@@ -254,13 +290,8 @@ def basic_config_with_cron(schema, double_age_trigger, cron_trigger):
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-            cron_trigger: ["* * * * *"],
-        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, cron_trigger],
     }
     yield config
 
@@ -280,27 +311,23 @@ def schema_with_blob(entry):
 def basic_config_with_blob(schema_with_blob, double_age_trigger):
     # Set environment variable here
     # os.environ["MOTION_HOME"] = "/tmp/motion"
+
+    double_age_trigger.routes = lambda self: [
+        motion.Route(
+            relation="TestSchemaWithBlob",
+            key="age",
+            infer=self.infer,
+            fit=None,
+        )
+    ]
+
     config = {
         "application": {
             "name": "test7",
             "author": "shreyashankar",
             "version": "0.1",
         },
-        "relations": {
-            "test": schema_with_blob,
-        },
-        "triggers": {
-            double_age_trigger: ["test.age"],
-        },
+        "relations": [schema_with_blob],
+        "triggers": [double_age_trigger],
     }
     yield config
-
-
-# @pytest.fixture(scope="session", autouse=True)
-# def run_after_tests():
-#     yield
-
-#     # Cleanup: remove the temporary directory
-#     shutil.rmtree(
-#         "/tmp/motion",
-#     )

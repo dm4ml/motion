@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from mconfig import MCONFIG
 from rich import print
 
@@ -11,26 +9,23 @@ import motion
 def test_ask_chatbot():
     connection = motion.test(
         MCONFIG,
-        wait_for_triggers=[],  # No triggers to wait for
-        motion_logging_level="INFO",
+        wait_for_triggers=["ScrapeWikipedia"],
+        motion_logging_level="WARNING",  # Can be "INFO" or "DEBUG" for more verbose logging
     )
 
-    all_prompts = [
-        "What should I wear to a wedding?",
-        "What should I wear to a party?",
-        "What should I wear to a job interview?",
-        "What should I wear to a first date?",
-        "What should I wear to a picnic?",
-    ]
-
-    for prompt in all_prompts:
-        # Must specify kw for every arg in .set and .get
-        new_id = connection.set(
-            relation="chat",
-            key_values={"prompt": prompt},
-        )
-        result = connection.get(relation="chat", identifier=new_id, keys=["completion"])
-        print(f"Prompt: {prompt} and result: {result}")
+    # Must specify kw for every arg in .set and .get
+    prompt = "What do people find interesting?"
+    new_id = connection.set(
+        relation="Chat",
+        identifier="",
+        key_values={"prompt": prompt},
+    )
+    result = connection.get(
+        relation="Chat", identifier=new_id, keys=["completion", "full_prompt"]
+    )
+    print(f"Prompt: {prompt}")
+    print(f"Full prompt: {result['full_prompt']}")
+    print(f"Response: {result['completion']}")
 
     connection.close(wait=False)
 

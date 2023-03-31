@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import io
 import json
 import typing
@@ -23,7 +21,7 @@ class ClientConnection:
     def __init__(
         self,
         name: str,
-        server: str | FastAPI,
+        server: typing.Union[str, FastAPI],
         bearer_token: str,
     ) -> None:
         if not bearer_token:

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import threading
 import time
 import typing
@@ -48,7 +46,7 @@ class CronThread(threading.Thread):
 
             # Run trigger
             triggered_by = TriggerElement(
-                relation="SCHEDULED",
+                relation="_cron",
                 identifier="SCHEDULED",
                 key=self.cron_expression,
                 value=None,

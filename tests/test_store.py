@@ -19,12 +19,12 @@ def test_checkpoint(basic_config):
     # Add some data
     cursor = store.cursor()
     student_id = cursor.set(
-        relation="test",
+        relation="Test",
         identifier=None,
         key_values={"name": "John", "age": 20},
     )
     doubled_age = cursor.get(
-        relation="test", identifier=student_id, keys=["doubled_age"]
+        relation="Test", identifier=student_id, keys=["doubled_age"]
     )["doubled_age"]
 
     assert doubled_age == 40
@@ -37,7 +37,7 @@ def test_checkpoint(basic_config):
     new_store = motion.init(basic_config, session_id=session_id)
     new_cursor = new_store.cursor()
     new_doubled_age = new_cursor.get(
-        relation="test", identifier=student_id, keys=["doubled_age"]
+        relation="Test", identifier=student_id, keys=["doubled_age"]
     )["doubled_age"]
 
     assert new_doubled_age == 40
@@ -47,11 +47,11 @@ def test_cron(basic_config_with_cron):
     store = motion.init(basic_config_with_cron)
 
     # Wait for cron trigger
-    store.waitForTrigger("cron_trigger")
+    store.waitForTrigger("Cron")
 
     # Read doubled age
     cursor = store.cursor()
-    results = cursor.sql("SELECT * FROM test", as_df=True).to_dict("records")[
+    results = cursor.sql("SELECT * FROM Test", as_df=True).to_dict("records")[
         0
     ]
 

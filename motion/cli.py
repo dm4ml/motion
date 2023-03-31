@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import shutil
 from subprocess import run
@@ -7,8 +5,6 @@ from subprocess import run
 import click
 
 import motion
-
-MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
 
 @click.group()
@@ -29,32 +25,7 @@ def motioncli() -> None:
 )
 def create(name: str, author: str) -> None:
     """Creates a new application."""
-    # Return error if name is not valid
-    name = name.strip().lower()
-    if len(name.split(" ")) > 1:
-        click.echo("Name cannot contain spaces.")
-        return
-
-    if os.path.exists(name):
-        click.echo(f"Directory {name} already exists.")
-        return
-
-    # Copy over the example project
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "exampleproj"), name)
-
-    # Create store setup file
-    with open(os.path.join(name, "mconfig.py"), "w") as f:
-        f.write(
-            open(
-                os.path.join(
-                    os.path.dirname(__file__),
-                    "exampleproj/mconfig.py",
-                ),
-            )
-            .read()
-            .replace("{0}", name)
-            .replace("{1}", author)
-        )
+    motion.create_app(name, author)
 
     click.echo("Created a project successfully.")
 
@@ -97,6 +68,7 @@ def serve(host: str, port: int, logging_level: str) -> None:
 def clear(name: str) -> None:
     """Removes the datastore for the given application."""
     # Remove directory at name
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
     dirname = os.path.join(MOTION_HOME, "datastores", name)
     if not os.path.exists(dirname):
         click.echo(f"Application {name} does not exist.")
