@@ -70,6 +70,8 @@ async def async_scrape_recipe(url: str, session: aiohttp.ClientSession) -> Any:
             ingredients = data["recipeIngredient"]
             instructions = [i["text"] for i in data["recipeInstructions"]]
             image_url = data["image"][0]
+            if not image_url.startswith("http"):
+                raise Exception("Image url is not valid.")
 
             recipe = {
                 "title": title,
