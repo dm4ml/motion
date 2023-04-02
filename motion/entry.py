@@ -9,6 +9,7 @@ import uvicorn
 from motion.api import create_fastapi_app
 from motion.client import ClientConnection
 from motion.store import Store
+from motion.utils import PRODUCTION_SESSION_ID
 
 
 def create_token() -> str:
@@ -146,7 +147,7 @@ def serve(
         motion_logging_level (str, optional): The logging level for motion.
     """
     configureLogging(motion_logging_level)
-    store = init(mconfig, session_id="PRODUCTION")
+    store = init(mconfig, session_id=PRODUCTION_SESSION_ID)
     serve_store(store, host, port)
 
 

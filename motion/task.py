@@ -6,7 +6,7 @@ from datetime import datetime
 from croniter import croniter
 
 from motion.cursor import Cursor
-from motion.utils import TriggerElement, TriggerFn, logger
+from motion.utils import PRODUCTION_SESSION_ID, TriggerElement, TriggerFn, logger
 
 
 class CronThread(threading.Thread):
@@ -19,6 +19,7 @@ class CronThread(threading.Thread):
         trigger_fn: TriggerFn,
         checkpoint_fn: typing.Callable,
         first_run_event: threading.Event,
+        session_id: str,
     ) -> None:
         threading.Thread.__init__(self)
         self.daemon = True
@@ -29,6 +30,7 @@ class CronThread(threading.Thread):
         self.running = True
         self.first_run = True
         self.first_run_event = first_run_event
+        self.session_id = session_id
 
     def run(self) -> None:
         while self.running:
@@ -63,8 +65,15 @@ class CronThread(threading.Thread):
                     f"Finished waiting for background task {self.trigger_fn.name}."
                 )
             except Exception as e:
-                logger.error(f"Error while running task {self.trigger_fn.name}: {e}")
-                continue
+                if self.session_id == PRODUCTION_SESSION_ID:
+                    logger.error(
+                        f"Error while running task {self.trigger_fn.name}: {e}"
+                    )
+                    continue
+                else:
+                    if self.first_run:
+                        self.first_run_event.set()
+                    raise e
 
             if self.first_run:
                 self.first_run_event.set()
