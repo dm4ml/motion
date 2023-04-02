@@ -355,6 +355,7 @@ class Store:
                         trigger_fn,
                         self.checkpoint_pa,
                         e,
+                        self.session_id,
                     )
                     self.cron_threads[trigger_fn.name] = t
                     t.start()

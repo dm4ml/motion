@@ -9,6 +9,8 @@ TriggerElement = namedtuple(
 )
 TriggerFn = namedtuple("TriggerFn", ["name", "fn"])
 
+PRODUCTION_SESSION_ID = "PRODUCTION"
+
 
 def update_params(mconfig: dict, params: dict) -> dict:
     """Updates the mconfig with the new trigger params.
