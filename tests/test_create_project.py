@@ -18,6 +18,6 @@ def test_create_project(entry):
     os.chdir("/tmp/motionapps/testproj")
 
     # Execute the test.py file in the testproject directory
-    run(["python", "test.py"])
+    run(["python", "mconfig.py"])
 
     shutil.rmtree("/tmp/motionapps/testproj")
