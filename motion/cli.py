@@ -12,6 +12,23 @@ def motioncli() -> None:
     pass
 
 
+@motioncli.command("example")
+@click.option(
+    "--name",
+    prompt="Example application name",
+    help="One of the example applications to create. Can be: 'cooking'.",
+)
+@click.option(
+    "--author",
+    prompt="Your name",
+    help="Author name.",
+)
+def example(name: str, author: str) -> None:
+    """Creates a new application from an example."""
+    motion.create_example_app(name, author)
+    click.echo("Created a project successfully.")
+
+
 @motioncli.command("create")
 @click.option(
     "--name",

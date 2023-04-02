@@ -1,9 +1,19 @@
 from motion.trigger import Trigger
 from motion.schema import Schema, MEnum
-from motion.entry import init, serve, connect, test, create_token, create_app
+from motion.entry import (
+    init,
+    serve,
+    connect,
+    test,
+    create_token,
+    create_app,
+    create_example_app,
+)
 from motion.routing import Route
 from motion.utils import update_params
 from motion.client import ClientConnection
+from motion.cursor import Cursor
+from motion.utils import TriggerElement
 
 __all__ = [
     "MEnum",
@@ -18,4 +28,7 @@ __all__ = [
     "ClientConnection",
     "create_token",
     "create_app",
+    "create_example_app",
+    "Cursor",
+    "TriggerElement",
 ]

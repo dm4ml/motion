@@ -20,6 +20,33 @@ def create_token() -> str:
     return str(uuid.uuid4())
 
 
+def create_example_app(name: str, author: str) -> None:
+    """Creates a motion app from examples."""
+    name = name.strip().lower()
+
+    if name == "cooking":
+        # Copy the example project
+        shutil.copytree(
+            os.path.join(os.path.dirname(__file__), f"examples/{name}"), name
+        )
+
+        # Create config
+        with open(os.path.join(name, "mconfig.py"), "w") as f:
+            f.write(
+                open(
+                    os.path.join(
+                        os.path.dirname(__file__),
+                        f"examples/{name}/mconfig.py",
+                    ),
+                )
+                .read()
+                .replace("{1}", author)
+            )
+
+    else:
+        raise ValueError(f"Example application {name} does not exist.")
+
+
 def create_app(name: str, author: str) -> None:
     """Creates a motion app."""
     name = name.strip().lower()
@@ -30,7 +57,7 @@ def create_app(name: str, author: str) -> None:
         raise ValueError(f"Directory {name} already exists.")
 
     # Copy over the example project
-    shutil.copytree(os.path.join(os.path.dirname(__file__), "exampleproj"), name)
+    shutil.copytree(os.path.join(os.path.dirname(__file__), "examples/basic"), name)
 
     # Create store setup file
     with open(os.path.join(name, "mconfig.py"), "w") as f:
@@ -38,7 +65,7 @@ def create_app(name: str, author: str) -> None:
             open(
                 os.path.join(
                     os.path.dirname(__file__),
-                    "exampleproj/mconfig.py",
+                    "examples/basic/mconfig.py",
                 ),
             )
             .read()

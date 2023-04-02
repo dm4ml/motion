@@ -44,7 +44,7 @@ mypy_path = "motion"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-exclude = ['motion/exampleproj*', 'motion/tests*']
+exclude = ['motion/tests*']
 ignore_missing_imports = true
 show_error_codes = true
 
