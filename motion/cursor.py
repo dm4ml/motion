@@ -50,6 +50,7 @@ class Cursor:
             self.waitForResults()
 
     def waitForResults(self) -> None:
+        """Waits for all fit events to finish."""
         for t in self.fit_events:
             t.wait()
         self.fit_events = []
@@ -104,8 +105,8 @@ class Cursor:
         key_values: typing.Dict[str, typing.Any],
         identifier: str = "",
     ) -> str:
-        """Set multiple values for a key in a relation.
-        TODO(shreyashankar): Handle complex types.
+        """Sets given key-value pairs for an identifier in a relation.
+        Overwrites existing values.
 
         Args:
             relation (str): The relation to set the value in.
@@ -321,7 +322,7 @@ class Cursor:
             )
 
     def duplicate(self, relation: str, identifier: str) -> str:
-        """Duplicate a record in a relation. Doesn't run triggers.
+        """Duplicates a record in a relation. Doesn't rerun any triggers for old keys on the new record.
 
         Args:
             relation (str): The relation to duplicate the record in.
@@ -382,8 +383,7 @@ class Cursor:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
-        """Get values for an identifier's keys in a relation.
-        TODO: Handle complex types.
+        """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
 
         Args:
             relation (str): The relation to get the value from.
@@ -391,8 +391,9 @@ class Cursor:
             keys (typing.List[str]): The keys to get the values for.
 
         Keyword Args:
-            include_derived (bool, optional): Whether to include derived ids. Defaults to False.
-            filter_null (bool, optional): Whether to filter out null values. Only used in conjuction with include_derived. Defaults to True.
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
 
         Returns:
             typing.Any: The values for the keys.
@@ -491,14 +492,17 @@ class Cursor:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> pd.DataFrame:
-        """Get multiple values for keys in a relation.
-        TODO: Handle complex types.
+        """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
 
         Args:
             relation (str): The relation to get the value from.
             identifiers (typing.List[int]): The ids of the records to get the value for.
             keys (typing.List[str]): The keys to get the values for.
-            filter_null (bool, optional): Whether to filter out null values.  Defaults to True.
+
+        Keyword Args:
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
 
 
         Returns:
@@ -574,6 +578,15 @@ class Cursor:
         return [r[0] for r in res]
 
     def sql(self, query: str, as_df: bool = True) -> typing.Any:
+        """Executes a SQL query on the relations. Specify the relations as tables in the query.
+
+        Args:
+            query (str): SQL query to execute.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to True.
+
+        Returns:
+            typing.Any: Pandas dataframe if as_df is True, else list of tuples.
+        """
         con = duckdb.connect()
 
         # Create a table for each relation

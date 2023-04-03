@@ -8,13 +8,6 @@ import numpy as np
 import pyarrow as pa
 from pydantic import BaseModel, Extra
 
-
-class MEnum(Enum):
-    @classmethod
-    def list(cls) -> list:
-        return [e.value for e in cls]
-
-
 Field = namedtuple("Field", ["name", "type_"])
 
 
@@ -37,7 +30,7 @@ def get_arrow_type(t: type) -> pa.DataType:
     if t in TYPE_TO_PA_TYPE.keys():
         return TYPE_TO_PA_TYPE[t]
 
-    elif inspect.isclass(t) and issubclass(t, MEnum):
+    elif inspect.isclass(t) and issubclass(t, Enum):
         # return pa_ext.EnumType.from_enum(t)
         return pa.string()
 
@@ -67,9 +60,6 @@ class Schema(BaseModel, extra=Extra.allow):
     @classmethod
     def formatPaSchema(cls, relation: str) -> pa.Schema:
         """Formats a pyarrow schema for the given relation.
-
-        Args:
-            table_name (str): Name of relation.
 
         Returns:
             pa.Schema: Schema for table based on annotations.
