@@ -73,6 +73,8 @@ theme:
 
 plugins:
   - search
+  - mkdocstrings
+  - autorefs
 
 markdown_extensions:
   - abbr
