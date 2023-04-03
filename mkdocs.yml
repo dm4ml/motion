@@ -68,6 +68,8 @@ theme:
     - navigation.path
     - toc.follow
     - header.autohide
+    - content.code.copy
+    - content.code.annotate
 
 plugins:
   - search
