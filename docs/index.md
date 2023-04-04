@@ -16,7 +16,7 @@ Motion is a framework, not a library, and thus supports the usage of any Python 
 * Have different pipelines that share the same model(s)
 * Have dynamic data ingestion (e.g., regularly scrape a website)
 * Run models with stateful information (e.g. recent user queries), or
-* Leverage fine-tuned models
+* Regularly update or fine-tune models, indexes, or other data structures
 
 Motion is built for developers who know how to code in Python and want to be able to control operations in their ML applications.
 
