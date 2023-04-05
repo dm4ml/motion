@@ -210,5 +210,5 @@ class ClientConnection:
             data=data,
         )
 
-    def checkpoint(self):
+    def checkpoint(self) -> typing.Any:
         return self.postWrapper("/checkpoint/", data={})
