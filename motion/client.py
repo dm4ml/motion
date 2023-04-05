@@ -53,7 +53,7 @@ class ClientConnection:
         self.store = store
         self.session_id = self.store.session_id
 
-    def close(self, wait: bool = True) -> None:
+    def close(self, wait: bool = False) -> None:
         if isinstance(self.server, FastAPI):
             self.store.stop(wait=wait)
 
@@ -209,3 +209,6 @@ class ClientConnection:
             "/duplicate/",
             data=data,
         )
+
+    def checkpoint(self):
+        return self.postWrapper("/checkpoint/", data={})

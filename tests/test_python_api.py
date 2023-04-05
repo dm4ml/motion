@@ -259,3 +259,31 @@ def test_blob_data(basic_config_with_blob):
         as_df=True,
     )
     assert results["photo"].values[0] == open(img_path, "rb").read()
+
+
+def test_checkpoint(basic_config):
+    connection = motion.test(basic_config, session_id="TESTING_CKPT")
+
+    # Add some data
+    student_id = connection.set(
+        relation="Test",
+        identifier=None,
+        key_values={"name": "John", "age": 20},
+    )
+    doubled_age = connection.get(
+        relation="Test", identifier=student_id, keys=["doubled_age"]
+    )["doubled_age"]
+
+    assert doubled_age == 40
+
+    # Checkpoint
+    connection.checkpoint()
+    connection.close()
+
+    # Restore from checkpoint
+    new_connection = motion.test(basic_config, session_id="TESTING_CKPT")
+    new_doubled_age = new_connection.get(
+        relation="Test", identifier=student_id, keys=["doubled_age"]
+    )["doubled_age"]
+
+    assert new_doubled_age == 40

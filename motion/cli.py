@@ -49,12 +49,12 @@ def create(name: str, author: str) -> None:
 
 @motioncli.command("serve")
 @click.argument("host", required=False, default="0.0.0.0")
-@click.argument("port", required=False, default=8000)
+@click.argument("port", required=False, default=5000)
 @click.option(
     "logging_level",
     "--logging-level",
     "-l",
-    default="INFO",
+    default="WARNING",
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
 def serve(host: str, port: int, logging_level: str) -> None:

@@ -134,6 +134,10 @@ def create_fastapi_app(store: Store, testing: bool = False) -> FastAPI:
     async def session_id() -> typing.Any:
         return app.state.store.session_id
 
+    @app.post("/checkpoint/")
+    async def checkpoint() -> typing.Any:
+        return app.state.store.checkpoint_pa()
+
     @app.on_event("shutdown")
     async def shutdown() -> None:
         if not app.state.testing:

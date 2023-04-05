@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import typing
 import uuid
 
 import colorlog
@@ -135,7 +136,7 @@ def init(
 def serve(
     mconfig: dict,
     host: str = "0.0.0.0",
-    port: int = 8000,
+    port: int = 5000,
     motion_logging_level: str = "INFO",
 ) -> None:
     """Serve a motion application.
@@ -143,7 +144,7 @@ def serve(
     Args:
         mconfig (dict): The motion configuration.
         host (str, optional): The host to serve on. Defaults to "0.0.0.0".
-        port (int, optional): The port to serve on. Defaults to 8000.
+        port (int, optional): The port to serve on. Defaults to 5000.
         motion_logging_level (str, optional): The logging level for motion.
     """
     configureLogging(motion_logging_level)
@@ -152,13 +153,6 @@ def serve(
 
 
 def serve_store(store: Store, host: str, port: int) -> None:
-    # Log that the server is running
-    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
-
-    os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
-    with open(os.path.join(MOTION_HOME, "logs", store.name), "a") as f:
-        f.write(f"Server running at {host}:{port}")
-
     # Start fastapi server
     app = create_fastapi_app(store)
     uvicorn.run(app, host=host, port=port)
@@ -185,20 +179,23 @@ def configureLogging(level: str) -> None:
 
 def test(
     mconfig: dict,
-    wait_for_triggers: list = [],
+    wait_for_triggers: typing.List[str] = [],
     disable_cron_triggers: bool = False,
     motion_logging_level: str = "WARNING",
     session_id: str = "",
 ) -> ClientConnection:
-    """Test a motion application. This will run the application
+    """Creates a test connection to a motion application, defined by a mconfig. This will run the application
     and then shut it down.
 
     Args:
         mconfig (dict): Config for the motion application.
-        wait_for_triggers (list, optional): Defaults to [].
-        disable_cron_triggers (bool, optional): Defaults to False.
-        motion_logging_level (str, optional): Defaults to "WARNING".
-        session_id (str, optional): Defaults to "".
+        wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
+        disable_cron_triggers (bool, optional): Whether cron triggers should be disabled for this session (can speed up testing some non-cron triggers). Defaults to False.
+        motion_logging_level (str, optional): Logging level for motion. Use "INFO" if you want to see all trigger execution logs.
+        session_id (str, optional): Session ID to use for this connection. Defaults to a random UUID if empty.
+
+    Returns:
+        connection: A cannection to the motion application.
     """
     if wait_for_triggers and disable_cron_triggers:
         raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
@@ -226,34 +223,29 @@ def test(
 
 def connect(
     name: str,
-    wait_for_triggers: list = [],
+    host: str = "0.0.0.0",
+    port: int = 5000,
+    wait_for_triggers: typing.List[str] = [],
     motion_api_token: str = "",
 ) -> ClientConnection:
-    """Connect to a motion application.
+    """Connects to a motion application that is already being served.
 
     Args:
-        name (str): The qname of the store.
-        wait_for_triggers (list, optional): Defaults to [].
-        motion_api_token (str, optional): Defaults to "". If not provided, the token will be read from environment.
+        name (str): The name of the motion application.
+        host (str, optional): The host of the motion application. Defaults to localhost.
+        port (int, optional): The port of the motion application. Defaults to 5000.
+        wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
+        motion_api_token (str, optional): API token set as the environment variable on the host serving the motion application. If not provided as an argument, the token will be read from environment (possibly throwing an error if the environment doesn't have an API token defined).
 
     Returns:
-        Store: The motion store.
+        connection: A connection to the motion application.
     """
     #  Check logs
-    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
     MOTION_API_TOKEN = (
         motion_api_token if motion_api_token else os.environ.get("MOTION_API_TOKEN", "")
     )
 
-    os.makedirs(os.path.join(MOTION_HOME, "logs"), exist_ok=True)
-    try:
-        with open(os.path.join(MOTION_HOME, "logs", name)) as f:
-            server = f.read().split(" ")[-1]
-    except FileNotFoundError:
-        raise Exception(
-            f"Could not find a server for {name}. Please run `motion serve` first."
-        )
-
+    server = "http://" + host + ":" + str(port)
     connection = ClientConnection(name, server, bearer_token=MOTION_API_TOKEN)
     for trigger in wait_for_triggers:
         connection.waitForTrigger(trigger)

@@ -22,7 +22,7 @@ Writing a get request:
 
 ```js
 
-const identifier = await fetch('http://localhost:8000/js/set/', {
+const identifier = await fetch('http://localhost:5000/js/set/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -40,7 +40,7 @@ You can then use this identifier to get the result:
 
 ```js
 
-const getresponse = await fetch('http://localhost:8000/js/get/', {
+const getresponse = await fetch('http://localhost:5000/js/get/', {
   method: 'GET',
   headers: {
     'Content-Type': 'application/json',

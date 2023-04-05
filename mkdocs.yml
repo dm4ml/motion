@@ -11,13 +11,16 @@ nav:
       - Cursors: concepts/cursor.md
       - Triggers: concepts/trigger.md
       - Project Structure: concepts/project.md
-      - Client Connection: concepts/clientconn.md
+      - Connecting to a Motion Application: concepts/clientconn.md
       - CLI Utilities: concepts/cli.md
   - Tutorials:
       - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
       - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
       - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
-  - Deployment: deployment.md
+  - Deployment:
+      - Local: deployment/local.md
+      - Remote: deployment/remote.md
+      - HTTP API: deployment/http.md
   - API Reference:
       - Schema: api/schema.md
       - Trigger: api/trigger.md
@@ -85,6 +88,8 @@ markdown_extensions:
   - tables
   - pymdownx.snippets
   - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true 
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
