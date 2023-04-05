@@ -1,7 +1,7 @@
 site_name: Motion Docs
 repo_url: https://github.com/shreyashankar/motion
 nav:
-  - Home:
+  - Getting Started:
       - Welcome: index.md
       - Installation: getting_started/installation.md
       - Configuration: getting_started/configuration.md
@@ -13,14 +13,14 @@ nav:
       - Project Structure: concepts/project.md
       - Connecting to a Motion Application: concepts/clientconn.md
       - CLI Utilities: concepts/cli.md
-  - Tutorials:
-      - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
-      - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
-      - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
   - Deployment:
       - Local: deployment/local.md
       - Remote: deployment/remote.md
       - HTTP API: deployment/http.md
+  - Tutorials:
+      - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
+      - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
+      - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
   - API Reference:
       - Schema: api/schema.md
       - Trigger: api/trigger.md
