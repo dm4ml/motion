@@ -1,6 +1,6 @@
 # HTTP Documentation
 
-Motion applications can be connected to using HTTP requests. This is useful for connecting to a motion application in a different language (e.g., Javascript UI).
+A motion application can also be connected to using HTTP requests; however, request data must be JSON-serializable. This is useful for connecting to a motion application in a different language (e.g., Javascript UI).
 
 The main endpoints and example usages are listed in this section.
 

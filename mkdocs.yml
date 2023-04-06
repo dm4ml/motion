@@ -11,12 +11,12 @@ nav:
       - Cursors: concepts/cursor.md
       - Triggers: concepts/trigger.md
       - Project Structure: concepts/project.md
-      - Connecting to a Motion Application: concepts/clientconn.md
-      - CLI Utilities: concepts/cli.md
   - Deployment:
       - Local: deployment/local.md
+      - Testing: deployment/testing.md
       - Remote: deployment/remote.md
       - HTTP API: deployment/http.md
+      - CLI Utilities: deployment/cli.md
   - Tutorials:
       - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
       - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md

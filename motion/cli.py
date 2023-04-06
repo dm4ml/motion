@@ -1,6 +1,5 @@
 import os
 import shutil
-from subprocess import run
 
 import click
 
@@ -83,7 +82,7 @@ def serve(host: str, port: int, logging_level: str) -> None:
 @motioncli.command("clear")
 @click.argument("name", required=True)
 def clear(name: str) -> None:
-    """Removes the datastore for the given application."""
+    """Removes the data store for the given Motion application."""
     # Remove directory at name
     MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
     dirname = os.path.join(MOTION_HOME, "datastores", name)
@@ -92,22 +91,6 @@ def clear(name: str) -> None:
         return
 
     shutil.rmtree(dirname)
-
-
-@motioncli.command("test", help="Run pytest with the given arguments")
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-@click.option("--debug", is_flag=True, help="Enable debug output")
-@click.argument("args", nargs=-1)
-def test(verbose: bool, debug: bool, args: tuple) -> None:
-    """Run pytest with the given arguments."""
-    pytest_args = list(args)
-    if verbose:
-        pytest_args.append("-v")
-    if debug:
-        pytest_args.append("--debug")
-    # pytest.main(pytest_args)
-
-    run(["pytest", *pytest_args])
 
 
 @motioncli.command("token", help="Generate a new API token")
