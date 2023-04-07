@@ -17,5 +17,9 @@ jobs:
         with:
           key: ${{ github.ref }}
           path: .cache
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+      - name: Install dependencies
+        run: poetry install
       - run: pip install mkdocs-material 
       - run: mkdocs gh-deploy --force
