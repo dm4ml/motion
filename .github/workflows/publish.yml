@@ -45,3 +45,18 @@ jobs:
         with:
           github_token: ${{ secrets.BRANCH_PROTECTION_WORKAROUND }}
           branch: main
+
+      - name: Set release number
+        run: echo "::set-env name=RELEASE_NUMBER::$(poetry version --no-ansi | awk -F' ' '{print $2}')"
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ env.RELEASE_NUMBER }}
+          body: |
+            An autorelease from the latest version of main.
+          draft: false
+          prerelease: true
