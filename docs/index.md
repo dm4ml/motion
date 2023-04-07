@@ -29,7 +29,7 @@ Motion is especially useful for applications that:
 
 Motion is built for developers who know how to code in Python and want to be able to control operations in their ML applications. For low-code and domain-specific development patterns (e.g., enhancing videos), you may want to check out other tools.
 
-Finally, Motion is a framework, not necessarily just a library, and thus supports the usage of any Python libraries or ML models for individual operations in an ML pipeline. 
+Finally, Motion is a framework, not necessarily just a library, and thus supports the usage of _any_ Python library or ML model for individual operations in an ML pipeline. 
 
 ## Where did Motion come from?
 
