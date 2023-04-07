@@ -50,6 +50,7 @@ class Cursor:
             self.waitForResults()
 
     def waitForResults(self) -> None:
+        """Waits for all fit events to finish."""
         for t in self.fit_events:
             t.wait()
         self.fit_events = []
@@ -104,8 +105,8 @@ class Cursor:
         key_values: typing.Dict[str, typing.Any],
         identifier: str = "",
     ) -> str:
-        """Set multiple values for a key in a relation.
-        TODO(shreyashankar): Handle complex types.
+        """Sets given key-value pairs for an identifier in a relation.
+        Overwrites existing values.
 
         Args:
             relation (str): The relation to set the value in.
@@ -181,7 +182,7 @@ class Cursor:
             if f"{relation}.{key}" not in self.triggers:
                 continue
 
-            triggered_by = TriggerElement(
+            trigger_context = TriggerElement(
                 relation=relation,
                 identifier=identifier,
                 key=key,
@@ -191,16 +192,16 @@ class Cursor:
                 if trigger in triggers_to_run.keys():
                     continue
 
-                triggers_to_run[trigger] = triggered_by
+                triggers_to_run[trigger] = trigger_context
 
         # Run triggers, passing in remainder of triggers_to_run
-        for trigger, triggered_by in triggers_to_run.items():
+        for trigger, trigger_context in triggers_to_run.items():
             other_triggers_to_run = {
                 k: triggers_to_run[k] for k in triggers_to_run if k != trigger
             }
             self.executeTrigger(
                 trigger=trigger,
-                triggered_by=triggered_by,
+                trigger_context=trigger_context,
                 triggers_to_run_on_duplicate=other_triggers_to_run,
             )
 
@@ -211,7 +212,7 @@ class Cursor:
         trigger_name: str,
         trigger_version: int,
         trigger_action: str,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
     ) -> None:
         """Logs a trigger execution.
 
@@ -219,7 +220,7 @@ class Cursor:
             trigger_name (str): The name of the trigger.
             trigger_version (int): The version of the trigger.
             trigger_action (str): The action of the trigger.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
         """
 
         # Append to the log table
@@ -229,9 +230,9 @@ class Cursor:
             "trigger_name": trigger_name,
             "trigger_version": trigger_version,
             "trigger_action": trigger_action,
-            "relation": triggered_by.relation,
-            "identifier": triggered_by.identifier,
-            "trigger_key": triggered_by.key,
+            "relation": trigger_context.relation,
+            "identifier": trigger_context.identifier,
+            "trigger_key": trigger_context.key,
         }
         new_row = pa.Table.from_pandas(
             pd.DataFrame(new_row, index=[0]), schema=self.log_table.schema
@@ -244,18 +245,18 @@ class Cursor:
         self,
         *,
         trigger: TriggerFn,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
         triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         try:
-            self._executeTrigger(trigger, triggered_by, triggers_to_run_on_duplicate)
+            self._executeTrigger(trigger, trigger_context, triggers_to_run_on_duplicate)
         except RecursionError:
             raise RecursionError(
                 f"Recursion error in trigger {trigger[0]}. Please make sure you do not have a cycle in your triggers."
@@ -264,19 +265,19 @@ class Cursor:
     def _executeTrigger(
         self,
         trigger: TriggerFn,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
         triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         trigger_name, trigger_fn = trigger
         logger.info(
-            f"Running trigger {trigger_name} for identifier {triggered_by.identifier}, key {triggered_by.key}..."
+            f"Running trigger {trigger_name} for identifier {trigger_context.identifier}, key {trigger_context.key}..."
         )
         new_connection = Cursor(
             name=self.name,
@@ -288,40 +289,39 @@ class Cursor:
             session_id=self.session_id,
             wait_for_results=self.wait_for_results,
             triggers_to_run_on_duplicate=triggers_to_run_on_duplicate,
-            spawned_by=triggered_by,
+            spawned_by=trigger_context,
         )
 
         # Get route for key
         route = trigger_fn.route_map.get(
-            f"{triggered_by.relation}.{triggered_by.key}", None
+            f"{trigger_context.relation}.{trigger_context.key}", None
         )
         if route is None:
             raise NotImplementedError(
-                f"Route not found for {triggered_by.relation}.{triggered_by.key}."
+                f"Route not found for {trigger_context.relation}.{trigger_context.key}."
             )
 
         # Execute the transform lifecycle: infer -> fit
+        infer_context = None
         if route.infer is not None:
-            route.infer(new_connection, triggered_by)
+            infer_context = route.infer(new_connection, trigger_context)
             self.logTriggerExecution(
-                trigger_name, trigger_fn.version, "infer", triggered_by
+                trigger_name, trigger_fn.version, "infer", trigger_context
             )
 
         # Fit is asynchronous
         if route.fit is not None:
             fit_thread = trigger_fn.fitWrapper(
-                new_connection,
-                trigger_name,
-                triggered_by,
+                new_connection, trigger_name, trigger_context, infer_context
             )
             self.fit_events.append(fit_thread)
         else:
             logger.info(
-                f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
+                f"Finished running trigger {trigger_name} for identifier {trigger_context.identifier}."
             )
 
     def duplicate(self, relation: str, identifier: str) -> str:
-        """Duplicate a record in a relation. Doesn't run triggers.
+        """Duplicates a record in a relation. Doesn't rerun any triggers for old keys on the new record.
 
         Args:
             relation (str): The relation to duplicate the record in.
@@ -358,17 +358,17 @@ class Cursor:
         ):
             for (
                 trigger,
-                triggered_by,
+                trigger_context,
             ) in self.triggers_to_run_on_duplicate.items():
                 other_triggers_to_run = {
                     k: self.triggers_to_run_on_duplicate[k]
                     for k in self.triggers_to_run_on_duplicate
                     if k != trigger
                 }
-                new_triggered_by = triggered_by._replace(identifier=new_id)
+                new_trigger_context = trigger_context._replace(identifier=new_id)
                 self.executeTrigger(
                     trigger=trigger,
-                    triggered_by=new_triggered_by,
+                    trigger_context=new_trigger_context,
                     triggers_to_run_on_duplicate=other_triggers_to_run,
                 )
 
@@ -382,8 +382,7 @@ class Cursor:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
-        """Get values for an identifier's keys in a relation.
-        TODO: Handle complex types.
+        """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
 
         Args:
             relation (str): The relation to get the value from.
@@ -391,8 +390,9 @@ class Cursor:
             keys (typing.List[str]): The keys to get the values for.
 
         Keyword Args:
-            include_derived (bool, optional): Whether to include derived ids. Defaults to False.
-            filter_null (bool, optional): Whether to filter out null values. Only used in conjuction with include_derived. Defaults to True.
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
 
         Returns:
             typing.Any: The values for the keys.
@@ -491,14 +491,17 @@ class Cursor:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> pd.DataFrame:
-        """Get multiple values for keys in a relation.
-        TODO: Handle complex types.
+        """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
 
         Args:
             relation (str): The relation to get the value from.
             identifiers (typing.List[int]): The ids of the records to get the value for.
             keys (typing.List[str]): The keys to get the values for.
-            filter_null (bool, optional): Whether to filter out null values.  Defaults to True.
+
+        Keyword Args:
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
 
 
         Returns:
@@ -574,6 +577,15 @@ class Cursor:
         return [r[0] for r in res]
 
     def sql(self, query: str, as_df: bool = True) -> typing.Any:
+        """Executes a SQL query on the relations. Specify the relations as tables in the query.
+
+        Args:
+            query (str): SQL query to execute.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to True.
+
+        Returns:
+            typing.Any: Pandas dataframe if as_df is True, else list of tuples.
+        """
         con = duckdb.connect()
 
         # Create a table for each relation

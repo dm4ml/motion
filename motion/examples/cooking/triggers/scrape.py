@@ -26,7 +26,7 @@ class ScrapeBonAppetit(motion.Trigger):
         return {}
 
     def scrape(
-        self, cursor: motion.Cursor, triggered_by: motion.TriggerElement
+        self, cursor: motion.Cursor, trigger_context: motion.TriggerElement
     ) -> None:
         # Set lower bound
         lower_bound = cursor.sql(

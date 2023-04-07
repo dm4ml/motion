@@ -52,11 +52,11 @@ def double_age_trigger(entry):
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
+        def infer(self, cursor, trigger_context):
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
-                key_values={"doubled_age": int(2 * triggered_by.value)},
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
+                key_values={"doubled_age": int(2 * trigger_context.value)},
             )
 
     return DoubleAge
@@ -78,11 +78,11 @@ def half_age_trigger(entry):
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
+        def infer(self, cursor, trigger_context):
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
-                key_values={"age": int(0.5 * triggered_by.value)},
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
+                key_values={"age": int(0.5 * trigger_context.value)},
             )
 
     return HalfAge
@@ -104,16 +104,16 @@ def liked_trigger(entry):
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
+        def infer(self, cursor, trigger_context):
             likes = ["pizza", "ice cream", "chocolate"]
 
             for like in likes:
                 new_id = cursor.duplicate(
-                    relation=triggered_by.relation,
-                    identifier=triggered_by.identifier,
+                    relation=trigger_context.relation,
+                    identifier=trigger_context.identifier,
                 )
                 cursor.set(
-                    relation=triggered_by.relation,
+                    relation=trigger_context.relation,
                     identifier=new_id,
                     key_values={"liked": like},
                 )
@@ -209,15 +209,15 @@ def StatefulTrigger(entry):
                 "multiplier": multiplier,
             }
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context, infer_context):
             new_multiplier = self.state["multiplier"] + 1
 
             return {
@@ -270,7 +270,7 @@ def cron_trigger(entry):
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
+        def infer(self, cursor, trigger_context):
             cursor.set(
                 relation="Test",
                 identifier="",

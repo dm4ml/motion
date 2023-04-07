@@ -1,5 +1,5 @@
 from motion.trigger import Trigger
-from motion.schema import Schema, MEnum
+from motion.schema import Schema
 from motion.entry import (
     init,
     serve,
@@ -16,7 +16,6 @@ from motion.cursor import Cursor
 from motion.utils import TriggerElement
 
 __all__ = [
-    "MEnum",
     "Schema",
     "Trigger",
     "init",

@@ -87,15 +87,15 @@ def ImproperFit():
                 "multiplier": multiplier,
             }
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context, infer_context):
             return 1
 
     return ImproperFit
@@ -148,15 +148,15 @@ def ImproperSetup():
         def setUp(self, cursor):
             return "hello world"
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context, infer_context):
             return {}
 
     return ImproperSetup
@@ -230,15 +230,15 @@ def KeyNotFoundInState():
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context, infer_context):
             return {}
 
     return KeyNotFoundInState
@@ -306,3 +306,62 @@ def test_cycle(config_with_cycle):
             identifier=None,
             key_values={"name": "John", "age": 15},
         )
+
+
+@pytest.fixture
+def InferContext():
+    class InferContext(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="MultipliedAges",
+                    key="age",
+                    infer=self.infer,
+                    fit=self.fit,
+                )
+            ]
+
+        def setUp(self, cursor):
+            return {}
+
+        def infer(self, cursor, trigger_context):
+            multiplied_value = 2 * trigger_context.value
+            cursor.set(
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
+                key_values={"multiplied_age": multiplied_value},
+            )
+            return {"multiplied_age": multiplied_value}
+
+        def fit(self, cursor, trigger_context, infer_context):
+            assert infer_context["multiplied_age"] == trigger_context.value * 2
+
+            return {}
+
+    return InferContext
+
+
+def test_infer_context(entry, InferContext, MultipliedAges):
+    # os.environ["MOTION_HOME"] = "/tmp/motion"
+
+    config = {
+        "application": {
+            "name": "test_infer_context",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [MultipliedAges],
+        "triggers": [InferContext],
+    }
+
+    store = motion.init(config)
+    cursor = store.cursor()
+
+    cursor.set(
+        relation="MultipliedAges",
+        identifier=None,
+        key_values={"name": "John", "age": 15, "multiplied_age": 30},
+    )
+
+    # In the fit method, we assert that the infer_context is correct
+    cursor.waitForResults()

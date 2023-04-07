@@ -14,3 +14,4 @@ applications*
 *.png
 *wandb*
 dist*
+site*

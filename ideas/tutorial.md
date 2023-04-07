@@ -88,7 +88,7 @@ A trigger is a stateful component of an ML pipeline, executed after `store.set` 
 
 1. `setUp`: Called when the trigger is first created (i.e., when the application is first run). Creates any necessary resources/state and returns a state dictionary object.
 
-On every fire of the trigger, the following methods are called with the parameters `id` (id of the record that was set) and `triggered_by` ((relation, key, value) NamedTuple), in this order:
+On every fire of the trigger, the following methods are called with the parameters `id` (id of the record that was set) and `trigger_context` ((relation, key, value) NamedTuple), in this order:
 
 2. `shouldInfer`: Returns `True` if `infer` should be run, and `False` otherwise.
 3. `infer`: Called if `shouldInfer` returns `True`. 
@@ -117,20 +117,20 @@ class SuggestIdea(motion.Trigger):
         # Set up the query suggestion model
         return {"cohere": cohere.Client(os.environ["COHERE_API_KEY"])}
 
-    def shouldFit(self, id, triggered_by):
+    def shouldFit(self, id, trigger_context):
         # Check if fit should be called
         return False
 
-    def fit(self, id, triggered_by):
+    def fit(self, id, trigger_context):
         # Fine-tune or fit the query suggestion model
         pass
 
-    def shouldInfer(self, id, triggered_by):
+    def shouldInfer(self, id, trigger_context):
         return True
 
-    def infer(self, id, triggered_by):
+    def infer(self, id, trigger_context):
         # Generate the query suggestions
-        query = triggered_by.value
+        query = trigger_context.value
         prompt = (
             f"Give a detailed outfit ideas for a woman to wear to {query}."
         )
@@ -168,7 +168,7 @@ The store API provides methods to read and write data to the store. The followin
 
 * `store.addrelation(name, schema)`: Adds a relation to the store with the given name and schema
 * `store.deleterelation(name)`: Deletes the relation with the given name
-* `store.addTrigger(name, keys, trigger)`: Adds a trigger to the store with the given name, keys (list of strings, where each string is of the form `relation.key`), and trigger (subclass of `motion.Trigger` or function that accepts `id`, `triggered_by`, and `store` as parameters)
+* `store.addTrigger(name, keys, trigger)`: Adds a trigger to the store with the given name, keys (list of strings, where each string is of the form `relation.key`), and trigger (subclass of `motion.Trigger` or function that accepts `id`, `trigger_context`, and `store` as parameters)
 * `store.deleteTrigger(name)`: Deletes the trigger with the given name
 * `store.getTriggersForKey(relation, key)`: Returns a list of triggers that are listening to the given key in the given relation
 * `store.getTriggersForAllKeys`: Returns a list of triggers that are listening to all keys
@@ -188,9 +188,9 @@ The store API provides methods to read and write data to the store. The followin
 Sometimes you may want to duplicate records in a trigger. For example, if a user submits a query to the fashion search, you may want `SuggestIdea` to return 5 different outfit ideas instead of just one. In this case, you can duplicate the record in the `SuggestIdea` trigger, and then set the `text_suggestion` key for each of the 5 records. This is done by calling `self.store.duplicate` in the `SuggestIdea` trigger, and then calling `self.store.set` for each of the 5 records. The new `infer` method for `SuggestIdea` looks like this:
 
 ```python
-def infer(self, id, triggered_by):
+def infer(self, id, trigger_context):
     # Generate the query suggestions
-    query = triggered_by.value
+    query = trigger_context.value
     prompt = (
         f"List 5 detailed outfit ideas for a woman to wear to {query}."
     )
@@ -227,28 +227,28 @@ class Retrieval(motion.Trigger):
     def setUp(self):
         pass
 
-    def shouldFit(self, id, triggered_by):
+    def shouldFit(self, id, trigger_context):
         # Call fit on new images
         if (
-            triggered_by.relation == "catalog"
-            and triggered_by.key == "img_blob"
+            trigger_context.relation == "catalog"
+            and trigger_context.key == "img_blob"
         ):
             return True
 
 
         return False
 
-    def fit(self, id, triggered_by):
+    def fit(self, id, trigger_context):
         print("Fitting...")
 
-    def shouldInfer(self, id, triggered_by):
+    def shouldInfer(self, id, trigger_context):
         # Call infer only on text suggestions
-        if triggered_by.key == "text_suggestion":
+        if trigger_context.key == "text_suggestion":
             return True
 
         return False
 
-    def infer(self, id, triggered_by):
+    def infer(self, id, trigger_context):
         print("Inferring...")
 
 store.addTrigger(

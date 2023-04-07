@@ -1,7 +1,9 @@
+from enum import Enum
+
 import motion
 
 
-class RecipeSource(motion.MEnum):
+class RecipeSource(Enum):
     BONAPPETIT = "Bon Appetit"
 
 

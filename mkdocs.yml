@@ -1,0 +1,107 @@
+site_name: Motion Docs
+repo_url: https://github.com/dm4ml/motion
+repo_name: dm4ml/motion
+nav:
+  - Getting Started:
+      - Welcome: index.md
+      - Installation: getting_started/installation.md
+      - Configuration: getting_started/configuration.md
+  - Motion Concepts:
+      - Introduction: concepts/index.md
+      - Relations: concepts/relation.md
+      - Cursors: concepts/cursor.md
+      - Triggers: concepts/trigger.md
+      - Project Structure: concepts/project.md
+  - Deployment:
+      - Local: deployment/local.md
+      - Testing: deployment/testing.md
+      - Remote: deployment/remote.md
+      - HTTP API: deployment/http.md
+      - CLI Utilities: deployment/cli.md
+  - Tutorials:
+      - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
+      - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
+      - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
+  - API Reference:
+      - Schema: api/schema.md
+      - Trigger: api/trigger.md
+      - Route: api/route.md
+      - Cursor: api/cursor.md
+      - ClientConnection: api/clientconn.md
+      - Entry: api/entry.md
+      - Command Line Interface: api/cli.md
+      - REST: api/rest.md
+theme:
+  name: material
+  icon:
+    logo: material/motion-outline
+    repo: fontawesome/brands/git-alt
+  favicon: res/logo.png
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      primary: blue
+      accent: orange
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      primary: blue
+      accent: orange
+      scheme: default 
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      primary: blue
+      accent: orange
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: Fira Sans
+    code: Fira Code
+  
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.expand
+    - navigation.path
+    - toc.follow
+    - header.autohide
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings
+  - autorefs
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - pymdownx.snippets
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
