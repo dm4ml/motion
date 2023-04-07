@@ -1,4 +1,5 @@
 import os
+import typing
 from collections import namedtuple
 from typing import Dict, List, Tuple
 
@@ -80,7 +81,10 @@ class SearchRecipe(motion.Trigger):
         return recipe_index, recipe_index_to_id
 
     def addRecipeToIndex(
-        self, cursor: motion.Cursor, trigger_context: motion.TriggerElement
+        self,
+        cursor: motion.Cursor,
+        trigger_context: motion.TriggerElement,
+        infer_context: typing.Any,
     ) -> Dict:
         # Keep a stream of the last 20 recipes
 
