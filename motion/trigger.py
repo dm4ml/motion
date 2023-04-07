@@ -134,12 +134,13 @@ class Trigger(ABC):
                 cursor,
                 trigger_name,
                 trigger_context,
+                infer_context,
                 fit_event,
             ) = self._fit_queue.get()
 
             new_state = self.route_map[
                 f"{trigger_context.relation}.{trigger_context.key}"
-            ].fit(cursor, trigger_context)
+            ].fit(cursor, trigger_context, infer_context)
 
             if not isinstance(new_state, dict):
                 fit_event.set()
@@ -165,8 +166,11 @@ class Trigger(ABC):
         cursor: Cursor,
         trigger_name: str,
         trigger_context: TriggerElement,
+        infer_context: typing.Any,
     ) -> threading.Event:
         fit_event = threading.Event()
-        self._fit_queue.put((cursor, trigger_name, trigger_context, fit_event))
+        self._fit_queue.put(
+            (cursor, trigger_name, trigger_context, infer_context, fit_event)
+        )
 
         return fit_event

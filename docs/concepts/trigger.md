@@ -129,7 +129,13 @@ Both methods accept the following arguments:
     - `key`: The key that was updated.
     - `value`: The new value for the key.
 
-The `infer` method is allowed to access the trigger state but _should not_ modify trigger state. This is because the `infer` method is designed to use existing state to transform a record (e.g., make a prediction). 
+The `fit` method accepts a third argument, `infer_context`, which is the return value of the `infer` method. This allows the `fit` method to access any context returned by the `infer` method.
+
+
+#### Allowed Operations, Arguments, and Return Values
+
+
+The `infer` method is allowed to access the trigger state but _should not_ modify trigger state. This is because the `infer` method is designed to use existing state to transform a record (e.g., make a prediction). The `infer` method returns some context to pass to the `fit` method.
 
 The `fit` method is allowed to access and modify the trigger state, as it is designed to update state (e.g., fine-tune a model). The `fit` method must return a dictionary representing any updates to the trigger state (or `{}` if there are no updates). Fit methods are queued and executed asynchronously in the background, first come first serve.
 
@@ -138,13 +144,11 @@ Each `Route` object can have either an `infer` method or a `fit` method (or both
 
 !!! info "Allowed and disallowed operations for trigger methods"
 
-    The `setUp` method must accept `self` and `cursor` arguments and return a dictionary representing the initial state of the trigger. An empty dictionary can be returned if the trigger is stateless (e.g., a website scraper). Motion will error if the `setUp` method does not return a dictionary.
-
-    | Method Type | Cursor Operations Allowed? | Trigger State Reads Allowed? | Trigger State Writes Allowed? | Returns Dictionary? |
-    |--------|----------------------------|-----------------------------|------------------------------|-------------------------|
-    | `setUp` | :fontawesome-solid-check:  | N/A (state not available yet) | N/A (state not available yet) | :fontawesome-solid-check: |
-    | `infer` | :fontawesome-solid-check: | :fontawesome-solid-check: | :fontawesome-solid-xmark: | :fontawesome-solid-xmark: |
-    | `fit` | :fontawesome-solid-check: | :fontawesome-solid-check: | :fontawesome-solid-check: | :fontawesome-solid-check: |
+    | Method Type | Cursor Operations Allowed? | State Reads Allowed? | State Writes Allowed? | Arguments | Returns | 
+    |--------|----------------------------|-----------------------------|------------------------------| --------| --------|
+    | `setUp` | :fontawesome-solid-check:  | N/A (state not available yet) | :fontawesome-solid-check: | `cursor` | Dictionary of state updates |
+    | `infer` | :fontawesome-solid-check: | :fontawesome-solid-check: | :fontawesome-solid-xmark: |  `cursor`, `trigger_context` | Anything (passed to `fit` method) |
+    | `fit` | :fontawesome-solid-check: | :fontawesome-solid-check: | :fontawesome-solid-check: |  `cursor`, `trigger_context`, `infer_context` | Dictionary of state updates |
 
 
 ## Example
@@ -204,16 +208,12 @@ class Chatbot(motion.Trigger):
                 identifier=new_id,
                 key_values={"llm_completion": completion},
             )
-    
-    def update_index(self, cursor, trigger_context):
-        # Get the prompt and completions from the store
-        prompts_and_completions = cursor.get(
-            relation=trigger_context.relation,
-            identifier=trigger_context.identifier,
-            keys=["prompt", "llm_completion"],
-            include_derived = True # (5)!
-        )
         
+        # Return the prompt completions to the fit method
+        return [prompt] * len(response["completions"]), response["completions"]
+    
+    def update_index(self, cursor, trigger_context, infer_context): # (5)!
+        prompts, completions = infer_context
 
         # Update the index
         new_index = update_index(
@@ -227,7 +227,7 @@ class Chatbot(motion.Trigger):
 2.  Some function that creates an index of prompts and completions, so we can use the index to prompt-engineer future completions
 3.  Some function that queries the model for multiple completions, based on some engineered prompt
 4.  Need to duplicate the existing record, so we can write multiple completions for a single query to the store
-5.  Need to include derived identifiers in the `get` operation, so we can retrieve all prompts and completions for a given query
+5.  This method runs in the background, after the `infer` method has finished
 6.  Some function that updates the index with new prompts and completions
 
 

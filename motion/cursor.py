@@ -302,8 +302,9 @@ class Cursor:
             )
 
         # Execute the transform lifecycle: infer -> fit
+        infer_context = None
         if route.infer is not None:
-            route.infer(new_connection, trigger_context)
+            infer_context = route.infer(new_connection, trigger_context)
             self.logTriggerExecution(
                 trigger_name, trigger_fn.version, "infer", trigger_context
             )
@@ -311,9 +312,7 @@ class Cursor:
         # Fit is asynchronous
         if route.fit is not None:
             fit_thread = trigger_fn.fitWrapper(
-                new_connection,
-                trigger_name,
-                trigger_context,
+                new_connection, trigger_name, trigger_context, infer_context
             )
             self.fit_events.append(fit_thread)
         else:

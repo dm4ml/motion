@@ -2,9 +2,9 @@
 
 Motion is a framework for building machine learning (ML) applications in Python, designed to give developers **fine-grained control** over **continually-updating** state (e.g., models, indexes, or other data structures).
 
-!!! note
+!!! tip "Alpha Release"
 
-    Motion is currently in **alpha**. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at shreyashankar@berkeley.edu.
+    Motion is currently in alpha. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at [shreyashankar@berkeley.edu](mailto:shreyashankar@berkeley.edu).
 
 
 ## Why Motion?
@@ -33,7 +33,7 @@ Finally, Motion is a framework, not necessarily just a library, and thus support
 
 ## Where did Motion come from?
 
-Motion is developed and maintained by researchers at the UC Berkeley EPIC Lab who specialize in data management for ML pipelines.
+Motion is developed and maintained by researchers at the [UC Berkeley EPIC Lab](https://epic.berkeley.edu) who specialize in data management for ML pipelines.
 
 
 <!-- ## Commands

@@ -42,7 +42,7 @@ class Route(BaseModel):
                     f"Trigger {trigger_object.name} does not have a fit function named {self.fit.__name__}."
                 )
 
-            if len(inspect.signature(self.fit).parameters) != 2:
+            if len(inspect.signature(self.fit).parameters) != 3:
                 raise ValueError(
-                    f"Fit method {self.fit.__name__} should have 2 arguments: cursor and trigger_context."
+                    f"Fit method {self.fit.__name__} should have 3 arguments: cursor, trigger_context, and infer_context."
                 )

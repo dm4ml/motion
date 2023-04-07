@@ -217,7 +217,7 @@ def StatefulTrigger(entry):
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, trigger_context):
+        def fit(self, cursor, trigger_context, infer_context):
             new_multiplier = self.state["multiplier"] + 1
 
             return {

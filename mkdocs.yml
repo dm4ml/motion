@@ -1,5 +1,6 @@
 site_name: Motion Docs
 repo_url: https://github.com/shreyashankar/motion
+repo_name: shreyashankar/motion
 nav:
   - Getting Started:
       - Welcome: index.md
@@ -32,6 +33,10 @@ nav:
       - REST: api/rest.md
 theme:
   name: material
+  icon:
+    logo: material/motion-outline
+    repo: fontawesome/brands/git-alt
+  favicon: res/logo.png
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
