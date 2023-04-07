@@ -316,3 +316,14 @@ def routes(self):
 ```
 
 1.  Some method that fine-tunes the LLM on a batch of examples
+
+### Are there race conditions in the `fit` and `infer` methods?
+
+Suppose our trigger runs for id `A` and then id `B`. Motion guarantees the following orderings:
+
+1. `infer` for id `A` -> `fit` for id `A`
+2. `infer` for id `B` -> `fit` for id `B`
+3. `infer` for id `A` -> `infer` for id `B`
+4. `fit` for id `A` -> `fit` for id `B`
+
+This means, it is possible that `infer` for id `B` runs before `fit` for id `A`. But the resulting state, after all operations have finished, will be the same as if `fit` for id `A` ran before `infer` for id `B`. `fit` methods execute one at a time.
