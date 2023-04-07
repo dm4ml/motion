@@ -14,7 +14,7 @@ To verify motion is working as intended, run `motion` in your terminal. An usage
 Motion is developed and maintained on Github. We use `poetry` to manage dependencies and build the package. To install Motion from source, run the following commands:
 
 ```bash
-git clone https://github.com/shreyashankar/motion
+git clone https://github.com/dm4ml/motion
 cd motion
 poetry install
 ```
