@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import typing
+import uuid
 
 import colorlog
 import uvicorn
