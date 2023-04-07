@@ -2,7 +2,6 @@ import logging
 import os
 import shutil
 import typing
-import uuid
 
 import colorlog
 import uvicorn
@@ -19,7 +18,7 @@ def create_token() -> str:
     Returns:
         str: The token.
     """
-    return str(uuid.uuid4())
+    return str(os.urandom(20).hex())
 
 
 def create_example_app(name: str, author: str) -> None:
