@@ -37,6 +37,6 @@ Motion is developed and maintained by researchers at the [UC Berkeley EPIC Lab](
 
 ## Getting Started
 
-Check out the [docs](https://motion.readthedocs.io/en/latest/) for more information.
+Check out the [docs](https://dm4ml.github.io/motion/) for more information.
 
 Motion is currently in alpha. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at [shreyashankar@berkeley.edu](mailto:shreyashankar@berkeley.edu).
