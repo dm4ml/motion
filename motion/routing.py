@@ -33,7 +33,7 @@ class Route(BaseModel):
 
             if len(inspect.signature(self.infer).parameters) != 2:
                 raise ValueError(
-                    f"Infer method {self.infer.__name__} should have 2 arguments: cursor and triggered_by."
+                    f"Infer method {self.infer.__name__} should have 2 arguments: cursor and trigger_context."
                 )
 
         if self.fit is not None:
@@ -44,5 +44,5 @@ class Route(BaseModel):
 
             if len(inspect.signature(self.fit).parameters) != 2:
                 raise ValueError(
-                    f"Fit method {self.fit.__name__} should have 2 arguments: cursor and triggered_by."
+                    f"Fit method {self.fit.__name__} should have 2 arguments: cursor and trigger_context."
                 )

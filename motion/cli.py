@@ -57,7 +57,7 @@ def create(name: str, author: str) -> None:
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
 def serve(host: str, port: int, logging_level: str) -> None:
-    """Serves a motion application."""
+    """Serves a Motion application."""
 
     # Check that the project is created
     if not os.path.exists("mconfig.py"):

@@ -22,7 +22,7 @@ class Chatbot(motion.Trigger):
 Within your implementation of `setUp`, you can use the `cursor` object to access data within relations and create state based on existing data. This is especially useful when stopping and restarting your Motion application. For example, suppose our trigger maintains an index of historical queries that can be used to engineer a better prompt:
 
 ```python
-class RetrChatbotieval(motion.Trigger):
+class Chatbot(motion.Trigger):
 
     def setUp(self, cursor):
         llm = OpenAIModel(...)
@@ -87,7 +87,7 @@ class Chatbot(motion.Trigger):
 
 ## Trigger Life Cycle
 
-**On Creation**: Upon initialization or restart of a motion application, the `setUp` method is called to initialize the trigger state. Then, the `routes` method is called to initialize the user-defined routes for keys. 
+**On Creation**: Upon initialization or restart of a Motion application, the `setUp` method is called to initialize the trigger state. Then, the `routes` method is called to initialize the user-defined routes for keys. 
 
 **On Update**: When data is added or changed for a key in a relation that corresponds to a route, the route's `infer` method is called. After the  `infer` method is called, the `fit` method is called. Fit methods are queued and executed asynchronously in the background, first come first serve. This means another trigger of an `infer` method can be called before the enqueued `fit` method actually executes.
 
@@ -123,7 +123,7 @@ The `infer` and `fit` methods are the core of a trigger. The `infer` method is c
 Both methods accept the following arguments:
 
 - `cursor`: A `motion.Cursor` object that can be used to access and write data in relations.
-- `triggered_by`: A named tuple with the following fields:
+- `trigger_context`: A named tuple with the following fields:
     - `relation`: The relation that was updated.
     - `identifier`: The identifier of the record that was updated.
     - `key`: The key that was updated.
@@ -155,7 +155,7 @@ To retrieve semantically similar prompts, the trigger maintains an index of hist
 
 
 ```python
-class QAChatbot(motion.Trigger):
+class Chatbot(motion.Trigger):
     def setUp(self, cursor):
         llm = OpenAIModel(...)
 
@@ -179,9 +179,9 @@ class QAChatbot(motion.Trigger):
             )
         ]
 
-    def llm_infer(self, cursor, triggered_by):
+    def llm_infer(self, cursor, trigger_context):
         # Get the prompt from the record
-        prompt = triggered_by.value
+        prompt = trigger_context.value
 
         # Search the index for similar prompts and completions
         similar_prompts_and_completions = retrieve_similar(
@@ -197,19 +197,19 @@ class QAChatbot(motion.Trigger):
         # Write the completions to the store
         for completion in response["completions"]:
             new_id = cursor.duplicate(
-                triggered_by.relation, triggered_by.identifier
+                trigger_context.relation, trigger_context.identifier
             )  # (4)!
             cursor.set(
-                relation=triggered_by.relation,
+                relation=trigger_context.relation,
                 identifier=new_id,
                 key_values={"llm_completion": completion},
             )
     
-    def update_index(self, cursor, triggered_by):
+    def update_index(self, cursor, trigger_context):
         # Get the prompt and completions from the store
         prompts_and_completions = cursor.get(
-            relation=triggered_by.relation,
-            identifier=triggered_by.identifier,
+            relation=trigger_context.relation,
+            identifier=trigger_context.identifier,
             keys=["prompt", "llm_completion"],
             include_derived = True # (5)!
         )
@@ -240,9 +240,9 @@ class QAChatbot(motion.Trigger):
 
 ## Frequently Asked Questions
 
-### Are the `triggered_by` arguments passed to `infer` and `fit` methods the same?
+### Are the `trigger_context` arguments passed to `infer` and `fit` methods the same?
 
-Yes, the `triggered_by` arguments passed to `infer` and `fit` methods are the same. The `triggered_by` argument is a `TriggeredBy` object that contains the relation, identifier, key, and value that triggered the method, which can be accessed as attributes: `triggered_by.relation`, `triggered_by.identifier`, `triggered_by.key`, and `triggered_by.value`.
+Yes, the `trigger_context` arguments passed to `infer` and `fit` methods are the same. The `trigger_context` argument is a `TriggeredBy` object that contains the relation, identifier, key, and value that triggered the method, which can be accessed as attributes: `trigger_context.relation`, `trigger_context.identifier`, `trigger_context.key`, and `trigger_context.value`.
 
 ### Can I use the `cursor` object to access the trigger state?
 
@@ -250,10 +250,10 @@ No, trigger state is accessible only through the `self.state` attribute. The `cu
 
 ### How do I maintain a counter in the trigger state?
 
-Suppose, in our `QAChatbot` example above, we want to update the index only every 10 new prompts. We can maintain a counter in the trigger state, increment the counter in the `fit` method, and update the index every 10 new prompts:
+Suppose, in our `Chatbot` example above, we want to update the index only every 10 new prompts. We can maintain a counter in the trigger state, increment the counter in the `fit` method, and update the index every 10 new prompts:
 
 ```python
-class QAChatbot(motion.Trigger):
+class Chatbot(motion.Trigger):
 
     def setUp(self, cursor):
         ... # Same as above
@@ -262,7 +262,7 @@ class QAChatbot(motion.Trigger):
 
     ... # Same routes, llm_infer as above
 
-    def update_index(self, cursor, triggered_by):
+    def update_index(self, cursor, trigger_context):
         ... # Same as above
 
         # Increment the counter
@@ -281,7 +281,7 @@ We'll use this design pattern more in the tutorials.
 
 ### `infer`-only and `fit`-only routes
 
-Why would we want to set `fit` or `infer` to `None` in the `Route` constructor? Suppose we aren't interested in prompt engineering in our QAChatbot, and we only want to query the LLM for completions based on the vanilla prompt. Then, the `fit` method would be unnecessary, and we can set `fit` to `None` in the `Route` constructor:
+Why would we want to set `fit` or `infer` to `None` in the `Route` constructor? Suppose we aren't interested in prompt engineering in our Chatbot, and we only want to query the LLM for completions based on the vanilla prompt. Then, the `fit` method would be unnecessary, and we can set `fit` to `None` in the `Route` constructor:
 
 ```python
 def routes(self):

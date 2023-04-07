@@ -47,7 +47,7 @@ class CronThread(threading.Thread):
                     continue
 
             # Run trigger
-            triggered_by = TriggerElement(
+            trigger_context = TriggerElement(
                 relation="_cron",
                 identifier="SCHEDULED",
                 key=self.cron_expression,
@@ -57,7 +57,7 @@ class CronThread(threading.Thread):
             try:
                 self.cur.executeTrigger(
                     trigger=self.trigger_fn,
-                    triggered_by=triggered_by,
+                    trigger_context=trigger_context,
                 )
 
                 self.cur.waitForResults()

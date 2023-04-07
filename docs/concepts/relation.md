@@ -1,6 +1,6 @@
 # Relations
 
-Relations are the primary way that data is stored in Motion.
+A Motion application stores data in a data store, which comprises of different relations.
 
 ## Defining a Relation
 

@@ -9,7 +9,7 @@ $ motion serve --help
 
 Usage: motion serve [OPTIONS] [HOST] [PORT]
 
-  Serves a motion application.
+  Serves a Motion application.
 
 Options:
   -l, --logging-level TEXT  Logging level for motion. Can be DEBUG, INFO,

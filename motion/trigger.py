@@ -133,13 +133,13 @@ class Trigger(ABC):
             (
                 cursor,
                 trigger_name,
-                triggered_by,
+                trigger_context,
                 fit_event,
             ) = self._fit_queue.get()
 
             new_state = self.route_map[
-                f"{triggered_by.relation}.{triggered_by.key}"
-            ].fit(cursor, triggered_by)
+                f"{trigger_context.relation}.{trigger_context.key}"
+            ].fit(cursor, trigger_context)
 
             if not isinstance(new_state, dict):
                 fit_event.set()
@@ -151,10 +151,12 @@ class Trigger(ABC):
             self.update(new_state)
 
             logger.info(
-                f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier} and key {triggered_by.key}."
+                f"Finished running trigger {trigger_name} for identifier {trigger_context.identifier} and key {trigger_context.key}."
             )
 
-            cursor.logTriggerExecution(trigger_name, old_version, "fit", triggered_by)
+            cursor.logTriggerExecution(
+                trigger_name, old_version, "fit", trigger_context
+            )
 
             fit_event.set()
 
@@ -162,9 +164,9 @@ class Trigger(ABC):
         self,
         cursor: Cursor,
         trigger_name: str,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
     ) -> threading.Event:
         fit_event = threading.Event()
-        self._fit_queue.put((cursor, trigger_name, triggered_by, fit_event))
+        self._fit_queue.put((cursor, trigger_name, trigger_context, fit_event))
 
         return fit_event

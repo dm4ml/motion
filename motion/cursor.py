@@ -182,7 +182,7 @@ class Cursor:
             if f"{relation}.{key}" not in self.triggers:
                 continue
 
-            triggered_by = TriggerElement(
+            trigger_context = TriggerElement(
                 relation=relation,
                 identifier=identifier,
                 key=key,
@@ -192,16 +192,16 @@ class Cursor:
                 if trigger in triggers_to_run.keys():
                     continue
 
-                triggers_to_run[trigger] = triggered_by
+                triggers_to_run[trigger] = trigger_context
 
         # Run triggers, passing in remainder of triggers_to_run
-        for trigger, triggered_by in triggers_to_run.items():
+        for trigger, trigger_context in triggers_to_run.items():
             other_triggers_to_run = {
                 k: triggers_to_run[k] for k in triggers_to_run if k != trigger
             }
             self.executeTrigger(
                 trigger=trigger,
-                triggered_by=triggered_by,
+                trigger_context=trigger_context,
                 triggers_to_run_on_duplicate=other_triggers_to_run,
             )
 
@@ -212,7 +212,7 @@ class Cursor:
         trigger_name: str,
         trigger_version: int,
         trigger_action: str,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
     ) -> None:
         """Logs a trigger execution.
 
@@ -220,7 +220,7 @@ class Cursor:
             trigger_name (str): The name of the trigger.
             trigger_version (int): The version of the trigger.
             trigger_action (str): The action of the trigger.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
         """
 
         # Append to the log table
@@ -230,9 +230,9 @@ class Cursor:
             "trigger_name": trigger_name,
             "trigger_version": trigger_version,
             "trigger_action": trigger_action,
-            "relation": triggered_by.relation,
-            "identifier": triggered_by.identifier,
-            "trigger_key": triggered_by.key,
+            "relation": trigger_context.relation,
+            "identifier": trigger_context.identifier,
+            "trigger_key": trigger_context.key,
         }
         new_row = pa.Table.from_pandas(
             pd.DataFrame(new_row, index=[0]), schema=self.log_table.schema
@@ -245,18 +245,18 @@ class Cursor:
         self,
         *,
         trigger: TriggerFn,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
         triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         try:
-            self._executeTrigger(trigger, triggered_by, triggers_to_run_on_duplicate)
+            self._executeTrigger(trigger, trigger_context, triggers_to_run_on_duplicate)
         except RecursionError:
             raise RecursionError(
                 f"Recursion error in trigger {trigger[0]}. Please make sure you do not have a cycle in your triggers."
@@ -265,19 +265,19 @@ class Cursor:
     def _executeTrigger(
         self,
         trigger: TriggerFn,
-        triggered_by: TriggerElement,
+        trigger_context: TriggerElement,
         triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
         """Execute a trigger.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
-            triggered_by (TriggerElement): The element that triggered the trigger.
+            trigger_context (TriggerElement): The element that triggered the trigger.
             triggers_to_run (typing.Dict[TriggerFn, TriggerElement], optional): The triggers to run whenever duplicate is called within a trigger. Defaults to {}.
         """
         trigger_name, trigger_fn = trigger
         logger.info(
-            f"Running trigger {trigger_name} for identifier {triggered_by.identifier}, key {triggered_by.key}..."
+            f"Running trigger {trigger_name} for identifier {trigger_context.identifier}, key {trigger_context.key}..."
         )
         new_connection = Cursor(
             name=self.name,
@@ -289,23 +289,23 @@ class Cursor:
             session_id=self.session_id,
             wait_for_results=self.wait_for_results,
             triggers_to_run_on_duplicate=triggers_to_run_on_duplicate,
-            spawned_by=triggered_by,
+            spawned_by=trigger_context,
         )
 
         # Get route for key
         route = trigger_fn.route_map.get(
-            f"{triggered_by.relation}.{triggered_by.key}", None
+            f"{trigger_context.relation}.{trigger_context.key}", None
         )
         if route is None:
             raise NotImplementedError(
-                f"Route not found for {triggered_by.relation}.{triggered_by.key}."
+                f"Route not found for {trigger_context.relation}.{trigger_context.key}."
             )
 
         # Execute the transform lifecycle: infer -> fit
         if route.infer is not None:
-            route.infer(new_connection, triggered_by)
+            route.infer(new_connection, trigger_context)
             self.logTriggerExecution(
-                trigger_name, trigger_fn.version, "infer", triggered_by
+                trigger_name, trigger_fn.version, "infer", trigger_context
             )
 
         # Fit is asynchronous
@@ -313,12 +313,12 @@ class Cursor:
             fit_thread = trigger_fn.fitWrapper(
                 new_connection,
                 trigger_name,
-                triggered_by,
+                trigger_context,
             )
             self.fit_events.append(fit_thread)
         else:
             logger.info(
-                f"Finished running trigger {trigger_name} for identifier {triggered_by.identifier}."
+                f"Finished running trigger {trigger_name} for identifier {trigger_context.identifier}."
             )
 
     def duplicate(self, relation: str, identifier: str) -> str:
@@ -359,17 +359,17 @@ class Cursor:
         ):
             for (
                 trigger,
-                triggered_by,
+                trigger_context,
             ) in self.triggers_to_run_on_duplicate.items():
                 other_triggers_to_run = {
                     k: self.triggers_to_run_on_duplicate[k]
                     for k in self.triggers_to_run_on_duplicate
                     if k != trigger
                 }
-                new_triggered_by = triggered_by._replace(identifier=new_id)
+                new_trigger_context = trigger_context._replace(identifier=new_id)
                 self.executeTrigger(
                     trigger=trigger,
-                    triggered_by=new_triggered_by,
+                    trigger_context=new_trigger_context,
                     triggers_to_run_on_duplicate=other_triggers_to_run,
                 )
 

@@ -139,7 +139,7 @@ def serve(
     port: int = 5000,
     motion_logging_level: str = "INFO",
 ) -> None:
-    """Serve a motion application.
+    """Serve a Motion application.
 
     Args:
         mconfig (dict): The motion configuration.
@@ -184,18 +184,18 @@ def test(
     motion_logging_level: str = "WARNING",
     session_id: str = "",
 ) -> ClientConnection:
-    """Creates a test connection to a motion application, defined by a mconfig. This will run the application
+    """Creates a test connection to a Motion application, defined by a mconfig. This will run the application
     and then shut it down.
 
     Args:
-        mconfig (dict): Config for the motion application.
+        mconfig (dict): Config for the Motion application.
         wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
         disable_cron_triggers (bool, optional): Whether cron triggers should be disabled for this session (can speed up testing some non-cron triggers). Defaults to False.
         motion_logging_level (str, optional): Logging level for motion. Use "INFO" if you want to see all trigger execution logs.
         session_id (str, optional): Session ID to use for this connection. Defaults to a random UUID if empty.
 
     Returns:
-        connection: A cannection to the motion application.
+        connection: A cannection to the Motion application.
     """
     if wait_for_triggers and disable_cron_triggers:
         raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
@@ -228,17 +228,17 @@ def connect(
     wait_for_triggers: typing.List[str] = [],
     motion_api_token: str = "",
 ) -> ClientConnection:
-    """Connects to a motion application that is already being served.
+    """Connects to a Motion application that is already being served.
 
     Args:
-        name (str): The name of the motion application.
-        host (str, optional): The host of the motion application. Defaults to localhost.
-        port (int, optional): The port of the motion application. Defaults to 5000.
+        name (str): The name of the Motion application.
+        host (str, optional): The host of the Motion application. Defaults to localhost.
+        port (int, optional): The port of the Motion application. Defaults to 5000.
         wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
-        motion_api_token (str, optional): API token set as the environment variable on the host serving the motion application. If not provided as an argument, the token will be read from environment (possibly throwing an error if the environment doesn't have an API token defined).
+        motion_api_token (str, optional): API token set as the environment variable on the host serving the Motion application. If not provided as an argument, the token will be read from environment (possibly throwing an error if the environment doesn't have an API token defined).
 
     Returns:
-        connection: A connection to the motion application.
+        connection: A connection to the Motion application.
     """
     #  Check logs
     MOTION_API_TOKEN = (

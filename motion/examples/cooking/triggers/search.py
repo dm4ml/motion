@@ -80,13 +80,13 @@ class SearchRecipe(motion.Trigger):
         return recipe_index, recipe_index_to_id
 
     def addRecipeToIndex(
-        self, cursor: motion.Cursor, triggered_by: motion.TriggerElement
+        self, cursor: motion.Cursor, trigger_context: motion.TriggerElement
     ) -> Dict:
         # Keep a stream of the last 20 recipes
 
         recipe_stream = self.state["recipe_stream"]
         recipe_stream.append(
-            IngredientsList(triggered_by.identifier, triggered_by.value)
+            IngredientsList(trigger_context.identifier, trigger_context.value)
         )
         new_state = {"recipe_stream": recipe_stream}
 
@@ -122,17 +122,17 @@ class SearchRecipe(motion.Trigger):
         return scores[0], recipe_ids
 
     def findNearestRecipes(
-        self, cursor: motion.Cursor, triggered_by: motion.TriggerElement
+        self, cursor: motion.Cursor, trigger_context: motion.TriggerElement
     ) -> None:
         # Find the nearest recipes for the query
-        ingredients = triggered_by.value
+        ingredients = trigger_context.value
         response = self.state["cohere"].embed(texts=[ingredients])
         embedding = np.array(response.embeddings[0]).reshape(1, -1)
 
         scores, recipe_ids = self._searchIndex(embedding)
         for score, recipe_id in zip(scores, recipe_ids):
             duplicate_id = cursor.duplicate(
-                relation="Query", identifier=triggered_by.identifier
+                relation="Query", identifier=trigger_context.identifier
             )
             cursor.set(
                 relation="Query",

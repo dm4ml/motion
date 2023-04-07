@@ -1,10 +1,12 @@
 # Cursors
 
-Within Motion applications, cursors are the primary way to access data in relations.
+To access data store objects (i.e., relations) within Motion applications, you must use a cursor object. A cursor object is a Python object that provides methods to read and write data to a relation.
 
 ## Using a Cursor
 
-You should not need to define cursor objects yourself. Cursor objects will be given to you when you write your ML logic within triggers (more in the next section).
+!!! info
+
+    You should not need to define cursor objects yourself. Cursors are given to you when you write your ML logic within triggers (more in the next section).
 
 The following cursor methods are most commonly used:
 
@@ -37,9 +39,13 @@ The following cursor methods are most commonly used:
       show_root_heading: false
       show_source: false
 
+!!! note
+
+    The `set` method returns the identifier of the record that was set. If you are inserting a brand-new record (instead of modifying an existing record), you can call `set` with `identifier = ""` and Motion will create an identifier. The identifier is returned.
+
 ## Relational Access Method
 
-Sometimes you will want to join data between two relations or perform more complicated queries. This can be done with a combination of `get`s; however, you may find it easier to use the relational access method (i.e., `cursor.sql`). The statement passed to `cursor.sql` should query the relation name as is, for example:
+Sometimes you will want to join data between two relations or perform more complicated queries. This can be done with a combination of `get` statements; however, you may find it easier to use the relational access method (i.e., `cursor.sql`). The statement passed to `cursor.sql` should query the relation name as is, for example:
 
 ```python
 cursor.sql("SELECT prompt, llm_completion FROM Query WHERE llm_completion IS NOT NULL")
@@ -49,7 +55,10 @@ By default, the `sql` method returns results as a pandas dataframe. The `sql` me
 
 You can pass the optional argument `as_df = False` to `cursor.sql` if you want the results to be returned as a list of records, not a pandas dataframe.
 
-Under the hood, Motion uses `duckdb` to query relations with an Apache Arrow scanner.
+!!! info
+
+    Under the hood, Motion uses `duckdb` to query relations with an Apache Arrow scanner.
+
 
 ## Less-Commonly Used Cursor Methods
 

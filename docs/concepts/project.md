@@ -132,7 +132,7 @@ class Chatbot(motion.Trigger):
 
     ... # Same routes, llm_infer as Trigger docs
 
-    def update_index(self, cursor, triggered_by):
+    def update_index(self, cursor, trigger_context):
         ... # Same as trigger docs
 
         # Increment the counter

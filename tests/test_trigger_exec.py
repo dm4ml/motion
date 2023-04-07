@@ -87,15 +87,15 @@ def ImproperFit():
                 "multiplier": multiplier,
             }
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context):
             return 1
 
     return ImproperFit
@@ -148,15 +148,15 @@ def ImproperSetup():
         def setUp(self, cursor):
             return "hello world"
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context):
             return {}
 
     return ImproperSetup
@@ -230,15 +230,15 @@ def KeyNotFoundInState():
         def setUp(self, cursor):
             return {}
 
-        def infer(self, cursor, triggered_by):
-            multiplied_value = self.state["model"](triggered_by.value)
+        def infer(self, cursor, trigger_context):
+            multiplied_value = self.state["model"](trigger_context.value)
             cursor.set(
-                relation=triggered_by.relation,
-                identifier=triggered_by.identifier,
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
                 key_values={"multiplied_age": multiplied_value},
             )
 
-        def fit(self, cursor, triggered_by):
+        def fit(self, cursor, trigger_context):
             return {}
 
     return KeyNotFoundInState

@@ -1,8 +1,8 @@
 # HTTP Documentation
 
-A motion application can also be connected to using HTTP requests; however, request data must be JSON-serializable. This is useful for connecting to a motion application in a different language (e.g., Javascript UI).
+A Motion application can also be connected to using HTTP requests; however, request data must be JSON-serializable. This is useful for connecting to a Motion application in a different language (e.g., Javascript UI).
 
-The main endpoints and example usages are listed in this section.
+The main endpoints and example usages are listed in this section. We include examples using the `fetch` API in Javascript, but you can use any HTTP client to make requests to a served Motion application.
 
 ## Endpoints
 
@@ -38,7 +38,29 @@ The main endpoints and example usages are listed in this section.
 === "Javascript"
 
     ```javascript
-    console.log("Hello world")
+    const url = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+            relation: 'Test',
+            identifier: '',
+            key_values: {
+                name: 'Mary',
+                age: 25,
+            },
+        }),
+    };
+
+    fetch(`${apiUrl}/json/set/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
     ```
 
 ### Get data
@@ -69,6 +91,32 @@ The main endpoints and example usages are listed in this section.
     }
     ```
 
+=== "Javascript"
+
+    ```javascript
+    const apiUrl = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+            relation: 'Test',
+            identifier: 'abc',
+            keys: ['*'],
+            include_derived: true,
+        }),
+    };
+
+    fetch(`${apiUrl}/json/get/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
+    ```
+
 ### Get data for multiple identifiers
 
 | Attribute | Value |
@@ -94,7 +142,31 @@ The main endpoints and example usages are listed in this section.
         "identifiers": ["abc", "def"],
         "keys": ["*"],
         "include_derived": true
-        }
+    }
+    ```
+=== "Javascript"
+    ```javascript
+    const apiUrl = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+            relation: 'Test',
+            identifiers: ['abc', 'def'],
+            keys: ['*'],
+            include_derived: true,
+        }),
+    };
+
+    fetch(`${apiUrl}/json/mget/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
     ```
 
 ### Execute SQL Queries
@@ -120,6 +192,27 @@ The main endpoints and example usages are listed in this section.
         "query": "SELECT * FROM Test"
     }
     ```
+=== "Javascript"
+    ```javascript
+    const apiUrl = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+            query: 'SELECT * FROM Test',
+        }),
+    };
+
+    fetch(`${apiUrl}/json/sql/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
+    ```
 
 ### Get Session ID
 
@@ -138,6 +231,25 @@ The main endpoints and example usages are listed in this section.
     Host: your_api_url
     Content-Type: application/json
     Authorization: Bearer your_motion_api_token
+    ```
+
+=== "Javascript"
+    ```javascript
+    const apiUrl = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+    };
+
+    fetch(`${apiUrl}/json/session_id/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
     ```
 
 ### Wait for Trigger
@@ -162,4 +274,25 @@ The main endpoints and example usages are listed in this section.
     {
         "trigger": "TestTrigger"
     }
+    ```
+=== "Javascript"
+    ```javascript
+    const apiUrl = 'your_api_url';
+    const apiToken = 'your_motion_api_token';
+
+    const requestOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+            trigger: 'TestTrigger',
+        }),
+    };
+
+    fetch(`${apiUrl}/json/wait_for_trigger/`, requestOptions)
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error(error));
     ```
