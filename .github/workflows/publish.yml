@@ -55,7 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.AUTORELEASE_TOKEN }}
           RELEASE_NUMBER: ${{ env.RELEASE_NUMBER }}
         with:
-          tag_name: ${{ github.ref }}
+          tag_name: v${{ env.RELEASE_NUMBER }}
           release_name: Release ${{ env.RELEASE_NUMBER }}
           body: |
             An autorelease from the latest version of main.
