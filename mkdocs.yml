@@ -1,6 +1,6 @@
 site_name: Motion Docs
-repo_url: https://github.com/shreyashankar/motion
-repo_name: shreyashankar/motion
+repo_url: https://github.com/dm4ml/motion
+repo_name: dm4ml/motion
 nav:
   - Getting Started:
       - Welcome: index.md
