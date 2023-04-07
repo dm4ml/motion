@@ -1,60 +1,42 @@
-# motion
+# Motion
 
 [![](https://github.com/shreyashankar/motion/workflows/motion/badge.svg)](https://github.com/motion/motion/actions)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A framework for building ML applications, using a trigger-based execution model.
+Motion is a framework for building machine learning (ML) applications in Python, designed to give developers **fine-grained control** over **continually-updating** state (e.g., models, indexes, or other data structures).
+
+
+## Why Motion?
+
+Building production ML applications with reasonable degrees of customization (e.g., fine-tuning on user feedback) can be tedious. First, a developer must set up a database to store their data, data collection pipelines, data preprocessing pipelines, model training pipelines, model serving pipelines, and an interface to interact with the application. To run all pipelines regularly, a developer must also configure and maintain some workflow orchestrator, painstakingly encoding interactions between different pipelines. 
+
+Motion makes this easier by:
+
+1. Abstracting away the details of coordinating different components and pipelines in an ML application, 
+2. Automating recurring operations (e.g., data ingestion, model retraining, updating an index), and
+3. (In progress) Automatically monitoring data for drift and anomalies, recomputing state (e.g., models) as needed.
+
+
+## Should I use Motion?
+
+Motion is especially useful for applications that:
+
+* Have dynamic data ingestion (e.g., regularly scrape a website)
+* Run models with stateful information (e.g. recent user queries), or
+* Regularly update (e.g., fine-tune) state such as models, indexes, or other data structures
+* Have different pipelines that share the same state
+
+Motion is built for developers who know how to code in Python and want to be able to control operations in their ML applications. For low-code and domain-specific development patterns (e.g., enhancing videos), you may want to check out other tools.
+
+Finally, Motion is a framework, not necessarily just a library, and thus supports the usage of any Python libraries or ML models for individual operations in an ML pipeline. 
+
+## Where did Motion come from?
+
+Motion is developed and maintained by researchers at the [UC Berkeley EPIC Lab](https://epic.berkeley.edu) who specialize in data management for ML pipelines.
 
 ## Getting Started
 
-You must use Python 3.7. We recommend using poetry to manage your virtual environment and dependencies. You can install poetry [here](https://python-poetry.org/docs/). Once you have poetry installed, clone this repo and run the following command to install the dependencies:
+Check out the [docs](https://motion.readthedocs.io/en/latest/) for more information.
 
-```bash
-poetry install
-```
-
-## Using API
-
-Run `motion serve` to start the API server from your application directory.
-
-Writing a get request:
-
-```js
-
-const identifier = await fetch('http://localhost:5000/js/set/', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    "relation": "query",
-    "key_values": {"prompt": "the beach"}
-  }),
-});
-```
-
-This should return an identifier, like "cb1f1cd1-67d3-40b5-88a1-25e0ba1b0663".
-
-You can then use this identifier to get the result:
-
-```js
-
-const getresponse = await fetch('http://localhost:5000/js/get/', {
-  method: 'GET',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    "relation": "query",
-    "identifier": identifier,
-    "keys": [
-        "identifier",
-        "text_suggestion",
-        "catalog_img_id",
-        "catalog_img_score",
-    ],
-    "include_derived": true
-  }),
-});
-```
+Motion is currently in alpha. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at [shreyashankar@berkeley.edu](mailto:shreyashankar@berkeley.edu).
