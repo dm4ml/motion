@@ -47,7 +47,7 @@ jobs:
           branch: main
 
       - name: Set release number
-        run: echo $(poetry version --no-ansi | awk -F' ' '{print $2}') >> $GITHUB_ENV
+        run: echo "RELEASE_NUMBER=$(poetry version --no-ansi | awk -F' ' '{print $2}')" >> $GITHUB_ENV
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
