@@ -1,16 +1,31 @@
 import inspect
 from typing import Callable, Dict, Union
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, Field, root_validator
 
 from motion.trigger import Trigger
 
 
 class Route(BaseModel):
-    relation: str
-    key: str
-    infer: Union[Callable, None] = None
-    fit: Union[Callable, None] = None
+    """A route is a mapping from a relation and key to trigger infer and fit methods. See the trigger [life cycle](/concepts/trigger) for more information.
+
+    Args:
+        relation (str): The relation to which this route applies.
+        key (str): The key to which this route applies.
+        infer (Union[Callable, None], optional): The method to call on infer. Typically a method of the trigger (e.g., `self.infer`). If None, no infer function will be called. Defaults to None.
+        fit (Union[Callable, None], optional): The method to call on fit. Typically a method of the trigger (e.g., `self.fit`). If None, no fit function will be called. Runs asynchronously. Defaults to None.
+    """
+
+    relation: str = Field(..., description="The relation to which this route applies.")
+    key: str = Field(..., description="The key to which this route applies.")
+    infer: Union[Callable, None] = Field(
+        None,
+        description="The method to call on infer. Typically a method of the trigger (e.g., `self.infer`). If None, no infer function will be called.",
+    )
+    fit: Union[Callable, None] = Field(
+        None,
+        description="The method to call on fit. Typically a method of the trigger (e.g., `self.fit`). If None, no fit function will be called. Runs asynchronously.",
+    )
 
     @root_validator()
     def key_has_no_periods(cls, values: Dict) -> Dict:

@@ -31,6 +31,8 @@ class CustomDict(dict):
 
 
 class Trigger(ABC):
+    """A trigger is a class that defines the logic for a particular type of inference. Triggers are instantiated once per project and are responsible for maintaining their own state. Triggers are responsible for defining their setup, routes that they respond to, and the logic for infer and fit. See the [trigger life cycle](/concepts/trigger) for more information."""
+
     def __init__(
         self,
         cursor: Cursor,
@@ -101,11 +103,26 @@ class Trigger(ABC):
 
     @abstractmethod
     def routes(self) -> list:
+        """Specifies mappings from trigger keys to lifecycle functions (i.e., infer, fit methods).
+        Returns:
+            list: List of routes that this trigger responds to. Each route is a motion.Route object.
+        """
         pass
 
     @abstractmethod
     def setUp(self, cursor: Cursor) -> dict:
-        raise TypeError(f"Please implement setUp() for trigger {self.name}.")
+        """Sets up the initial state of the trigger. Called only when the application is started.
+
+        Args:
+            cursor (Cursor): Cursor object to access the Motion data store.
+
+        Raises:
+            NotImplementedError: Error if this method is not implemented.
+
+        Returns:
+            dict: Initial state of the trigger.
+        """
+        raise NotImplementedError(f"Please implement setUp() for trigger {self.name}.")
 
     @property
     def params(self) -> dict:

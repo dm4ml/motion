@@ -6,7 +6,7 @@ nav:
       - Welcome: index.md
       - Installation: getting_started/installation.md
       - Configuration: getting_started/configuration.md
-  - Motion Concepts:
+  - Concepts:
       - Introduction: concepts/index.md
       - Relations: concepts/relation.md
       - Cursors: concepts/cursor.md
@@ -23,14 +23,12 @@ nav:
       - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
       - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
   - API Reference:
+      - ClientConnection: api/clientconn.md
+      - Cursor: api/cursor.md
+      - Entry: api/entry.md
+      - Route: api/route.md
       - Schema: api/schema.md
       - Trigger: api/trigger.md
-      - Route: api/route.md
-      - Cursor: api/cursor.md
-      - ClientConnection: api/clientconn.md
-      - Entry: api/entry.md
-      - Command Line Interface: api/cli.md
-      - REST: api/rest.md
 theme:
   name: material
   icon:

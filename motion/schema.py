@@ -52,6 +52,27 @@ def get_arrow_type(t: type) -> pa.DataType:
 
 
 class Schema(BaseModel, extra=Extra.allow):
+    """Schema for a Motion relation. Read more about relations in Motion [here](/concepts/relation).
+
+    Example:
+
+    ```python
+    class User(Schema):
+        name: str
+        dob: date
+        hometown: str
+    ```
+
+    All schemas also have the following fields, by default:
+    - `identifier` (str): A unique identifier for each record in the relation.
+    - `create_at` (datetime): The time at which the record was created.
+    - `derived_id` (str): The identifier of the record that was derived from, if any.
+    - `session_id` (str): The identifier of the session that created the record.
+
+    Raises:
+        TypeError: If a type is not supported. Supported types are: int, str, float, bool, date, datetime, bytes, list, dict, numpy types, and enums.
+    """
+
     identifier: str
     derived_id: str
     create_at: datetime
@@ -59,7 +80,7 @@ class Schema(BaseModel, extra=Extra.allow):
 
     @classmethod
     def formatPaSchema(cls, relation: str) -> pa.Schema:
-        """Formats a pyarrow schema for the given relation.
+        """Formats a pyarrow schema for the given relation. This is used internally by Motion.
 
         Returns:
             pa.Schema: Schema for table based on annotations.

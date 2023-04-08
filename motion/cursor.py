@@ -19,6 +19,8 @@ from motion.utils import TriggerElement, TriggerFn, logger
 
 
 class Cursor:
+    """A connection to a Motion data store, only accessible within Motion triggers."""
+
     def __init__(
         self,
         *,
@@ -56,7 +58,7 @@ class Cursor:
         self.fit_events = []
 
     def getNewId(self, relation: str, key: str = "identifier") -> str:
-        """Get a new id for a relation.
+        """Gets a new id for a relation.
 
         Args:
             relation (str): The relation to get the new id for.
@@ -78,11 +80,11 @@ class Cursor:
         relation: str,
         identifier: str,
     ) -> bool:
-        """Determine if a record exists in a relation.
+        """Determines if a record exists in a relation.
 
         Args:
             relation (str): The relation to check.
-            identifier (str): The primary key of the record.
+            identifier (str): The record's identifier.
 
         Returns:
             bool: True if the record exists, False otherwise.
@@ -214,7 +216,7 @@ class Cursor:
         trigger_action: str,
         trigger_context: TriggerElement,
     ) -> None:
-        """Logs a trigger execution.
+        """Logs the execution of a trigger.
 
         Args:
             trigger_name (str): The name of the trigger.
@@ -248,7 +250,7 @@ class Cursor:
         trigger_context: TriggerElement,
         triggers_to_run_on_duplicate: typing.Dict[TriggerFn, TriggerElement] = {},
     ) -> None:
-        """Execute a trigger.
+        """Executes a trigger, logging completion of infer and fit methods.
 
         Args:
             trigger (TriggerFn): The trigger to execute.
@@ -333,9 +335,6 @@ class Cursor:
         new_id = self.getNewId(relation)
 
         with self.write_lock:
-            # self.cur.execute(
-            #     f"INSERT INTO {self.name}.{relation} SELECT '{new_id}' AS identifier, '{identifier}' AS derived_id, {', '.join(self.table_columns[relation])} FROM {self.name}.{relation} WHERE identifier = '{identifier}'"
-            # )
             table = self.relations[relation]
             condition = pc.equal(table["identifier"], identifier)
 
@@ -345,7 +344,6 @@ class Cursor:
 
             new_row = pa.Table.from_pandas(row, schema=table.schema)
 
-            # filtered_table = pc.filter(table, pc.invert(condition))
             final_table = pa.concat_tables([table, new_row])
             self.relations[relation] = final_table
 

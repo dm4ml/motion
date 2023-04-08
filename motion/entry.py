@@ -14,7 +14,7 @@ from motion.utils import PRODUCTION_SESSION_ID
 
 
 def create_token() -> str:
-    """Create a token for the API.
+    """Creates a token for the API.
 
     Returns:
         str: The token.
@@ -79,7 +79,7 @@ def create_app(name: str, author: str) -> None:
 def init(
     mconfig: dict, disable_cron_triggers: bool = False, session_id: str = ""
 ) -> Store:
-    """Initialize the motion store.
+    """Initializes a motion application by creating a data store and adding relations and triggers.
 
     Args:
         mconfig (dict): The motion configuration.
@@ -139,13 +139,13 @@ def serve(
     port: int = 5000,
     motion_logging_level: str = "INFO",
 ) -> None:
-    """Serve a Motion application.
+    """Serves a Motion application. Uses the MOTION_API_TOKEN environment variable to authenticate API requests.
 
     Args:
-        mconfig (dict): The motion configuration.
+        mconfig (dict): The motion config, found in the mconfig.py file.
         host (str, optional): The host to serve on. Defaults to "0.0.0.0".
         port (int, optional): The port to serve on. Defaults to 5000.
-        motion_logging_level (str, optional): The logging level for motion.
+        motion_logging_level (str, optional): The logging level for motion. Can be one of "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL". Defaults to "INFO".
     """
     configureLogging(motion_logging_level)
     store = init(mconfig, session_id=PRODUCTION_SESSION_ID)
@@ -184,18 +184,17 @@ def test(
     motion_logging_level: str = "WARNING",
     session_id: str = "",
 ) -> ClientConnection:
-    """Creates a test connection to a Motion application, defined by a mconfig. This will run the application
-    and then shut it down.
+    """Creates a test connection to a Motion application, defined by a mconfig. This will run the application and then shut it down when the connection goes out of scope. Uses the MOTION_API_TOKEN environment variable to authenticate.
 
     Args:
-        mconfig (dict): Config for the Motion application.
+        mconfig (dict): Config for the Motion application, found in the mconfig.py file.
         wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
-        disable_cron_triggers (bool, optional): Whether cron triggers should be disabled for this session (can speed up testing some non-cron triggers). Defaults to False.
-        motion_logging_level (str, optional): Logging level for motion. Use "INFO" if you want to see all trigger execution logs.
+        disable_cron_triggers (bool, optional): Whether cron triggers should be disabled for this session (can speed up testing some non-cron triggers). Defaults to False. Cannot be True if wait_for_triggers is not empty.
+        motion_logging_level (str, optional): Logging level for motion. Can be one of "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL". Defaults to "WARNING". Use "INFO" if you want to see all trigger execution logs.
         session_id (str, optional): Session ID to use for this connection. Defaults to a random UUID if empty.
 
     Returns:
-        connection: A cannection to the Motion application.
+        connection (motion.ClientConnection): A cannection to the Motion application.
     """
     if wait_for_triggers and disable_cron_triggers:
         raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
@@ -238,7 +237,7 @@ def connect(
         motion_api_token (str, optional): API token set as the environment variable on the host serving the Motion application. If not provided as an argument, the token will be read from environment (possibly throwing an error if the environment doesn't have an API token defined).
 
     Returns:
-        connection: A connection to the Motion application.
+        connection (motion.ClientConnection): A connection to the Motion application.
     """
     #  Check logs
     MOTION_API_TOKEN = (

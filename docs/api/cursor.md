@@ -4,13 +4,13 @@
     handler: python
     options:
       members:
-        - set
         - duplicate
-        - get
-        - mget
-        - sql
-        - getNewId
-        - getIdsForKey
         - exists
+        - get
+        - getIdsForKey
+        - getNewId
+        - mget
+        - set
+        - sql
       show_root_heading: false
       show_source: false
