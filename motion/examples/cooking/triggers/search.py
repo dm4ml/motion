@@ -30,7 +30,7 @@ class SearchRecipe(motion.Trigger):
         ]
 
     def setUp(self, cursor: motion.Cursor) -> Dict:
-        # Set up the embedding store
+        # Set up the recipe index and cohere client
         co = cohere.Client(os.environ["COHERE_API_KEY"])
         recipe_index = faiss.IndexFlatIP(4096)
         recipe_index_to_id: Dict[int, str] = {}
@@ -86,7 +86,9 @@ class SearchRecipe(motion.Trigger):
         trigger_context: motion.TriggerElement,
         infer_context: typing.Any,
     ) -> Dict:
-        # Keep a stream of the last 20 recipes
+        # Keep a stream of the last 20 recipes,
+        # adding them to the index every 20 iterations.
+        # This is to speed up the process of adding recipes
 
         recipe_stream = self.state["recipe_stream"]
         recipe_stream.append(
@@ -136,10 +138,11 @@ class SearchRecipe(motion.Trigger):
         scores, recipe_ids = self._searchIndex(embedding)
         for score, recipe_id in zip(scores, recipe_ids):
             duplicate_id = cursor.duplicate(
-                relation="Query", identifier=trigger_context.identifier
+                relation=trigger_context.relation,
+                identifier=trigger_context.identifier,
             )
             cursor.set(
-                relation="Query",
+                relation=trigger_context.relation,
                 identifier=duplicate_id,
                 key_values={"recipe_id": recipe_id, "recipe_score": score},
             )

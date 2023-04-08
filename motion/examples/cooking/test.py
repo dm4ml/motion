@@ -10,7 +10,7 @@ def test_scrape() -> None:
     connection = motion.test(
         MCONFIG,
         wait_for_triggers=["ScrapeBonAppetit"],
-        motion_logging_level="WARNING",  # Can be "INFO" or "DEBUG" for more verbose logging
+        motion_logging_level="INFO",  # Can be "INFO" or "DEBUG" for more verbose logging
         session_id="EXAMPLE_SESSION_ID",  # Can comment this out to generate a new session ID
     )
     print(f"Session ID: {connection.session_id}")

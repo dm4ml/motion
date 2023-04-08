@@ -15,7 +15,6 @@ class Recipe(motion.Schema):
     instructions: str
     image_url: str
     recipe_url: str
-    image_bytes: bytes
 
 
 class Query(motion.Schema):
