@@ -22,6 +22,8 @@ nav:
       - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
       - (Intermediate) Recipe Retrieval Engine with Multimodal Inputs: tutorials/recipe/intermediate.md
       - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
+      - Connecting to a Motion application in Javascript: tutorials/js.md
+      - Using Langchain in a Trigger: tutorials/langchain.md
   - API Reference:
       - ClientConnection: api/clientconn.md
       - Cursor: api/cursor.md
