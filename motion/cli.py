@@ -47,8 +47,8 @@ def create(name: str, author: str) -> None:
 
 
 @motioncli.command("serve")
-@click.argument("host", required=False, default="0.0.0.0")
-@click.argument("port", required=False, default=5000)
+@click.option("host", "--host", default="0.0.0.0", help="Host to serve on.")
+@click.option("port", "--port", default=5000, help="Port to serve on.")
 @click.option(
     "logging_level",
     "--logging-level",
