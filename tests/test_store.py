@@ -9,6 +9,7 @@ Tests the following store functions:
 """
 import motion
 import os
+import random
 import pytest
 
 
@@ -60,6 +61,91 @@ def test_cron(basic_config_with_cron):
     assert results["session_id"] == store.session_id
 
 
+@pytest.fixture
+def cron_trigger_duplicate_route(entry):
+    class Cron(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="",
+                    key="* * * * *",
+                    infer=self.infer,
+                    fit=None,
+                ),
+                motion.Route(
+                    relation="",
+                    key="* * * * *",
+                    infer=self.infer2,
+                    fit=None,
+                ),
+            ]
+
+        def setUp(self, cursor):
+            return {}
+
+        def infer2(self, cursor, trigger_context):
+            cursor.set(
+                relation="Test",
+                identifier="",
+                key_values={"name": "Vicky", "age": random.randint(10, 30)},
+            )
+
+        def infer(self, cursor, trigger_context):
+            cursor.set(
+                relation="Test",
+                identifier="",
+                key_values={"name": "Johnny", "age": random.randint(10, 30)},
+            )
+
+    return Cron
+
+
+def test_duplicate_cron_triggers(
+    schema, double_age_trigger, cron_trigger_duplicate_route
+):
+    config = {
+        "application": {
+            "name": "test_duplicate_cron",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, cron_trigger_duplicate_route],
+    }
+
+    # Duplicate cron triggers should raise an error
+    with pytest.raises(ValueError):
+        store = motion.init(config)
+
+    # Cron triggers with different keys should raise an error
+    cron_trigger_duplicate_route.routes = lambda self: [
+        motion.Route(
+            relation="",
+            key="0 * * * *",
+            infer=self.infer,
+            fit=None,
+        ),
+        motion.Route(
+            relation="",
+            key="1 * * * *",
+            infer=self.infer2,
+            fit=None,
+        ),
+    ]
+
+    config2 = {
+        "application": {
+            "name": "test_duplicate_cron_2",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, cron_trigger_duplicate_route],
+    }
+    with pytest.raises(ValueError):
+        store = motion.init(config2)
+
+
 def create_sample_config(relation):
     sample_config = {
         "application": {
@@ -91,6 +177,7 @@ def test_migration(entry):
     assert results["key1"] == "something"
     store.checkpoint_pa()
     store.stop(wait=False)
+    cursor.close()
 
     # Do a migration
     class TestRel(motion.Schema):
@@ -101,28 +188,27 @@ def test_migration(entry):
     store = motion.init(sample_config_2, session_id=session_id)
 
     # Check if data is still there
+    cursor = store.cursor()
     results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
-    print(results)
-    assert False
+    assert results["key1"] == "something"
+    assert results["key2"] == None
 
+    # Add key2
+    cursor.set(
+        relation="TestRel",
+        identifier=testid,
+        key_values={"key2": "somethingelse"},
+    )
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["key2"])
+    assert results["key2"] == "somethingelse"
+    store.checkpoint_pa()
+    store.stop(wait=False)
+    cursor.close()
 
-#     ids = []
-# session_id = ""
-# for _ in range(2):
-#     connection = motion.test(
-#         MCONFIG, motion_logging_level="INFO", session_id=session_id
-#     )
-#     session_id = connection.session_id
-
-#     testid = connection.set(
-#         relation="TestRel",
-#         identifier="",
-#         key_values={"key1": "something", "key2": "somethingelse"},
-#     )
-#     ids.append(testid)
-#     results = connection.mget(
-#         relation="TestRel", identifiers=ids, keys=["*"], as_df=True
-#     )
-#     print(results)
-
-#     connection.checkpoint()
+    # Reread and check
+    sample_config_2 = create_sample_config(TestRel)
+    store = motion.init(sample_config_2, session_id=session_id)
+    cursor = store.cursor()
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
+    assert results["key1"] == "something"
+    assert results["key2"] == "somethingelse"
