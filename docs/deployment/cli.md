@@ -24,11 +24,13 @@ The `motion serve` command serves a Motion application. It takes the host and po
 
 ```bash
 $ motion serve --help
-Usage: motion serve [OPTIONS] [HOST] [PORT]
+Usage: motion serve [OPTIONS]
 
   Serves a Motion application.
 
 Options:
+  --host TEXT               Host to serve on.
+  --port INTEGER            Port to serve on.
   -l, --logging-level TEXT  Logging level for motion. Can be DEBUG, INFO,
                             WARNING, ERROR, CRITICAL.
   --help                    Show this message and exit.
