@@ -496,4 +496,4 @@ The dashboard may take some time to load initial trigger state and run initial t
 
 Here's a screenshot of the dashboard:
 
-![Dashboard Screenshot](/images/starter-dashboard.png)
+![Dashboard Screenshot](images/starter-dashboard.png)
