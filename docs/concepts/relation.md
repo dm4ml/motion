@@ -80,7 +80,7 @@ Motion's roadmap includes automatic data validation and monitoring, which signif
 
 ### What if I don't know all the relations and keys I want to have in my application?
 
-That is okay! You can add new keys in your relation definitions, even when your application is deployed. Motion's roadmap includes automatic schema migration.
+That is okay! You can add new keys in your relation definitions, even when your application is deployed.
 
 ### Is Motion a new database management system?
 

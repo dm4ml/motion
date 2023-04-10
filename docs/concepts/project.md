@@ -163,4 +163,4 @@ If you want to add a new trigger to your application, you can do so by adding a 
 
 ### How do I add a new key to a relation?
 
-If you want to add a new key to a relation, you can do so by adding a new key to the schema definition. You do not need to update the `MCONFIG` in `mconfig.py`. We recommend running `motion clear {application_name}` in your terminal to clear the data store before running your application again, since our schema migration functionality is still in development.
+If you want to add a new key to a relation, you can do so by adding a new key to the schema definition. You do not need to update the `MCONFIG` in `mconfig.py`.
