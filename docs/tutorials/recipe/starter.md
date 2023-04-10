@@ -14,7 +14,7 @@ Your name: shreyashankar
 
 If you navigate into the `cooking` directory (`cd cooking`), you'll see the following directory structure:
 
-    cooking-starter/
+    cooking/
     ├── schemas/
     |   |── __init__.py
     │   └── all.py
