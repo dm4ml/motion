@@ -24,4 +24,7 @@ jobs:
         uses: snok/install-poetry@v1
       - name: Install dependencies
         run: poetry install
-      - run: poetry run mkdocs gh-deploy --force
+      - name: Build docs
+        run: poetry run mkdocs build
+      - name: Deploy docs
+        run: poetry run mkdocs gh-deploy --force

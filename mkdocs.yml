@@ -37,9 +37,9 @@ theme:
   icon:
     logo: material/motion-outline
     repo: fontawesome/brands/git-alt
-  favicon: res/logo.png
+  favicon: img/logo.png
   extra_files:
-    - res/
+    - img/
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
