@@ -31,14 +31,15 @@ nav:
       - Route: api/route.md
       - Schema: api/schema.md
       - Trigger: api/trigger.md
-extra_files:
-  - res/
+
 theme:
   name: material
   icon:
     logo: material/motion-outline
     repo: fontawesome/brands/git-alt
   favicon: res/logo.png
+  extra_files:
+    - res/
   palette:
     # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
