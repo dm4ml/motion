@@ -12,11 +12,7 @@ from motion.store import Store
 
 
 class ClientConnection:
-    """A client connection to a motion store.
-
-    Args:
-        name (str): The name of the store.
-    """
+    """A client connection to a Motion application."""
 
     def __init__(
         self,
@@ -112,7 +108,7 @@ class ClientConnection:
         return response.json()
 
     def waitForTrigger(self, trigger: str) -> typing.Any:
-        """Wait for a trigger to fire.
+        """Waits for a cron-scheduled trigger to complete its first run.
 
         Args:
             trigger (str): The name of the trigger.
@@ -127,6 +123,21 @@ class ClientConnection:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
+        """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys. Wrapper for the cursor's get method.
+
+        Args:
+            relation (str): The relation to get the value from.
+            identifier (str): The identifier of the record to get the value for.
+            keys (typing.List[str]): The keys to get the values for.
+
+        Keyword Args:
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
+
+        Returns:
+            typing.Any: The values for the keys.
+        """
         args = {
             "relation": relation,
             "identifier": identifier,
@@ -150,6 +161,22 @@ class ClientConnection:
         keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
+        """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys. Wrapper for the cursor's mget method.
+
+        Args:
+            relation (str): The relation to get the value from.
+            identifiers (typing.List[int]): The ids of the records to get the value for.
+            keys (typing.List[str]): The keys to get the values for.
+
+        Keyword Args:
+            include_derived (bool, optional): Whether to include derived ids in the result. Defaults to False.
+            filter_null (bool, optional): Whether to filter out null values. Filters all records with any null walue for any of the keys requested. Only used in conjuction with include_derived. Defaults to True.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to False.
+
+
+        Returns:
+            pd.DataFrame: The values for the key.
+        """
         args = {
             "relation": relation,
             "identifiers": identifiers,
@@ -168,6 +195,17 @@ class ClientConnection:
         identifier: str,
         key_values: typing.Dict[str, typing.Any],
     ) -> typing.Any:
+        """Sets given key-value pairs for an identifier in a relation.
+        Overwrites existing values. Wrapper for the cursor's set method.
+
+        Args:
+            relation (str): The relation to set the value in.
+            identifier (str): The id of the record to set the value for.
+            key_values (typing.Dict[str, typing.Any]): The key-value pairs to set.
+
+        Returns:
+            str: The identifier of the record.
+        """
         # Convert enums to their values
 
         for key, value in key_values.items():
@@ -199,16 +237,35 @@ class ClientConnection:
         )
 
     def sql(self, *, query: str, as_df: bool = True) -> typing.Any:
+        """Executes a SQL query on the relations. Specify the relations as tables in the query. Wrapper for the cursor's sql method.
+
+        Args:
+            query (str): SQL query to execute.
+            as_df (bool, optional): Whether to return the result as a pandas dataframe. Defaults to True.
+
+        Returns:
+            typing.Any: Pandas dataframe if as_df is True, else list of tuples.
+        """
         args = {"query": query, "as_df": as_df}
 
         return self.getWrapper("/sql/", **args)
 
     def duplicate(self, *, relation: str, identifier: str) -> typing.Any:
+        """Duplicates a record in a relation. Doesn't rerun any triggers for old keys on the new record. Wrapper for the cursor's duplicate method.
+
+        Args:
+            relation (str): The relation to duplicate the record in.
+            identifier (str): The identifier of the record to duplicate.
+
+        Returns:
+            str: The new identifier of the duplicated record.
+        """
         data = json.dumps({"relation": relation, "identifier": identifier})
         return self.postWrapper(
             "/duplicate/",
             data=data,
         )
 
-    def checkpoint(self) -> typing.Any:
-        return self.postWrapper("/checkpoint/", data={})
+    def checkpoint(self) -> None:
+        """Checkpoints the data store to disk. Wrapper for the store's checkpoint method. Takes no arguments and returns nothing."""
+        self.postWrapper("/checkpoint/", data={})

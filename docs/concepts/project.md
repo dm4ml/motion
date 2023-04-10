@@ -150,3 +150,17 @@ class Chatbot(motion.Trigger):
 1. In the [Trigger docs](/concepts/trigger/#how-do-i-maintain-a-counter-in-the-trigger-state), we hard-coded the `index_interval` parameter as 10.
 
 The format for `trigger_params` is a dictionary mapping triggers to a dictionary of parameters. Parameters have string keys and can have any JSON-serializable value.
+
+## Frequently Asked Questions
+
+### How do I add a new relation to my application?
+
+If you want to add a new relation to your application, you can do so by adding a new schema definition to the `schemas` directory. Then, you can add the schema to the `relations` list in the `MCONFIG` in `mconfig.py`.
+
+### How do I add a new trigger to my application?
+
+If you want to add a new trigger to your application, you can do so by adding a new trigger definition to the `triggers` directory. Then, you can add the trigger to the `triggers` list in the `MCONFIG` in `mconfig.py`.
+
+### How do I add a new key to a relation?
+
+If you want to add a new key to a relation, you can do so by adding a new key to the schema definition. You do not need to update the `MCONFIG` in `mconfig.py`. We recommend running `motion clear {application_name}` in your terminal to clear the data store before running your application again, since our schema migration functionality is still in development.

@@ -28,12 +28,12 @@ class ScrapeBonAppetit(motion.Trigger):
     def scrape(
         self, cursor: motion.Cursor, trigger_context: motion.TriggerElement
     ) -> None:
-        # Set lower bound
+        # Set lower time bound to avoid scraping recipes we've already scraped
         lower_bound = cursor.sql(
             "SELECT MAX(create_at) AS lower_bound FROM Recipe WHERE src='Bon Appetit'"
         )["lower_bound"].values[0]
         if pd.isnull(lower_bound):
-            lower_bound = "2020-01-01"
+            lower_bound = "2019-01-01"
         else:
             lower_bound = str(lower_bound)
 
