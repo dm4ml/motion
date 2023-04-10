@@ -191,20 +191,34 @@ class Store:
         pa_schema = schema.formatPaSchema(name)
 
         if name in self.relations:
-            pa_schema_names = pa_schema.names
-            pa_schema_types = pa_schema.types
+            # Try to cast existing table to current schema
+            try:
+                union_schema = pa.unify_schemas(
+                    [self.relations[name].schema, pa_schema]
+                )
+                self.relations[name] = self.relations[name].cast(union_schema)
+            except pa.ArrowInvalid as e:
+                logger.error(
+                    f"Could not cast existing table {name} to new schema. Please clear the data store with `motion clear {self.name}` and try again."
+                )
+                raise e
+            except ValueError as e:
+                # Perform schema migration
+                logger.warning(f"Performing schema migration for table {name}.")
+                # Find fields that are in the new schema but not the old
+                for field_idx in range(len(pa_schema.names)):
+                    field = pa_schema.field(field_idx)
+                    if field.name not in self.relations[name].schema.names:
+                        # Add field to existing table
+                        self.relations[name] = self.relations[name].append_column(
+                            field.name,
+                            pa.array(
+                                [None] * len(self.relations[name]),
+                                type=field.type,
+                            ),
+                        )
 
-            for old_name, old_type in zip(
-                self.relations[name].schema.names,
-                self.relations[name].schema.types,
-            ):
-                if old_name == "session_id":
-                    continue
-                name_idx = pa_schema_names.index(old_name)
-                if not old_type.equals(pa_schema_types[name_idx]):
-                    logger.error(
-                        f"relation {name} already exists with a different schema. Please clear the data store with `motion clear {self.name}` and try again."
-                    )
+                # raise e
 
         else:
             logger.info(f"Adding relation {name} with schema {pa_schema}")

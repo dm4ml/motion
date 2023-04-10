@@ -80,10 +80,10 @@ class CronThread(threading.Thread):
                 self.first_run = False
 
             self.checkpoint_fn()
-            logger.info(f"Checkpointed store from task {self.trigger_fn.name}.")
+            logger.debug(f"Checkpointed store from task {self.trigger_fn.name}.")
 
     def stop(self) -> None:
-        logger.info(f"Stopping task thread for name {self.trigger_fn.name}")
+        logger.debug(f"Stopping task thread for name {self.trigger_fn.name}")
         self.running = False
 
 
@@ -112,10 +112,10 @@ class CheckpointThread(threading.Thread):
             else:
                 continue
 
-            logger.info(f"Checkpointing store {self.name}")
+            logger.debug(f"Checkpointing store {self.name}")
             self.checkpoint_fn()
-            logger.info(f"Finished checkpointing store {self.name}")
+            logger.debug(f"Finished checkpointing store {self.name}")
 
     def stop(self) -> None:
-        logger.info(f"Stopping checkpoint thread for store {self.name}")
+        logger.debug(f"Stopping checkpoint thread for store {self.name}")
         self.running = False
