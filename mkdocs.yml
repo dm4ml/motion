@@ -31,6 +31,8 @@ nav:
       - Route: api/route.md
       - Schema: api/schema.md
       - Trigger: api/trigger.md
+extra_files:
+  - res/
 theme:
   name: material
   icon:
