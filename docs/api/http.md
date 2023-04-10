@@ -2,7 +2,7 @@
 
 A Motion application can also be connected to using HTTP requests; however, request data must be JSON-serializable. This is useful for connecting to a Motion application in a different language (e.g., Javascript UI).
 
-The main endpoints and example usages are listed in this section. We include examples using the `fetch` API in Javascript, but you can use any HTTP client to make requests to a served Motion application.
+The main endpoints and example usages are listed in this section. We include examples using the `axios` API in Javascript, but you can use any HTTP client to make requests to a served Motion application.
 
 ## Endpoints
 
@@ -38,29 +38,29 @@ The main endpoints and example usages are listed in this section. We include exa
 === "Javascript"
 
     ```javascript
-    const url = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-            relation: 'Test',
-            identifier: '',
-            key_values: {
-                name: 'Mary',
-                age: 25,
-            },
-        }),
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
     };
 
-    fetch(`${apiUrl}/json/set/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    var setConfig = {
+        method: 'post',
+        url: 'http://127.0.0.1:5000/json/set/', // Replace with your API URL
+        headers: headers,
+        data: JSON.stringify({
+            "relation": "Test",
+            "identifier": "",
+            "key_values": {
+                "name": "Mary",
+                "age": 25
+            }
+        })
+    };
+
+    const response = await axios(setConfig); // Wrap in async function
+    identifier = response.data;
     ```
 
 ### Get data
@@ -93,17 +93,19 @@ The main endpoints and example usages are listed in this section. We include exa
 
 === "Javascript"
 
-    ```javascript
-    const apiUrl = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    ```javascript    
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
+    };
+
+    var getConfig = {
+        method: 'get',
+        url: 'http://127.0.0.1:5000/json/get/', // Replace with your API URL
+        headers: headers,
+        data: JSON.stringify({
             relation: 'Test',
             identifier: 'abc',
             keys: ['*'],
@@ -111,10 +113,8 @@ The main endpoints and example usages are listed in this section. We include exa
         }),
     };
 
-    fetch(`${apiUrl}/json/get/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    const response = await axios(getConfig); // Wrap in async function
+    results = response.data;
     ```
 
 ### Get data for multiple identifiers
@@ -146,16 +146,18 @@ The main endpoints and example usages are listed in this section. We include exa
     ```
 === "Javascript"
     ```javascript
-    const apiUrl = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
+    };
+
+    var mgetConfig = {
+        method: 'get',
+        url: 'http://127.0.0.1:5000/json/mget/', // Replace with your API URL
+        headers: headers,
+        data: JSON.stringify({
             relation: 'Test',
             identifiers: ['abc', 'def'],
             keys: ['*'],
@@ -163,10 +165,8 @@ The main endpoints and example usages are listed in this section. We include exa
         }),
     };
 
-    fetch(`${apiUrl}/json/mget/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    const response = await axios(mgetConfig); // Wrap in async function
+    results = response.data;
     ```
 
 ### Execute SQL Queries
@@ -194,24 +194,24 @@ The main endpoints and example usages are listed in this section. We include exa
     ```
 === "Javascript"
     ```javascript
-    const apiUrl = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
+    };
+
+    var sqlConfig = {
+        method: 'get',
+        url: 'http://127.0.0.1:5000/json/sql/', // Replace with your API URL
+        headers: headers,
+        data: JSON.stringify({
             query: 'SELECT * FROM Test',
         }),
     };
 
-    fetch(`${apiUrl}/json/sql/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    const response = await axios(sqlConfig); // Wrap in async function
+    results = response.data;
     ```
 
 ### Get Session ID
@@ -234,22 +234,22 @@ The main endpoints and example usages are listed in this section. We include exa
     ```
 
 === "Javascript"
-    ```javascript
-    const apiUrl = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    ```javascript    
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
     };
 
-    fetch(`${apiUrl}/json/session_id/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    var sessionConfig = {
+        method: 'get',
+        url: 'http://127.0.0.1:5000/json/session_id/', // Replace with your API URL
+        headers: headers,
+    };
+
+    const response = await axios(sessionConfig); // Wrap in async function
+    session_id = response.data;
     ```
 
 ### Wait for Trigger
@@ -277,22 +277,21 @@ The main endpoints and example usages are listed in this section. We include exa
     ```
 === "Javascript"
     ```javascript
-    const apiUrl = 'your_api_url';
-    const apiToken = 'your_motion_api_token';
+    var axios = require('axios');
 
-    const requestOptions = {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer MOTION_API_TOKEN' // Replace with your MOTION_API_TOKEN
+    };
+
+    var waitConfig = {
+        method: 'post',
+        url: 'http://127.0.0.1:5000/json/wait_for_trigger/', // Replace with your API URL
+        headers: headers,
+        data: JSON.stringify({
             trigger: 'TestTrigger',
         }),
     };
 
-    fetch(`${apiUrl}/json/wait_for_trigger/`, requestOptions)
-        .then(response => response.json())
-        .then(data => console.log(data))
-        .catch(error => console.error(error));
+    await axios(waitConfig); // Wrap in async function
     ```

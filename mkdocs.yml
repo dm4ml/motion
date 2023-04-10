@@ -17,7 +17,6 @@ nav:
       - Local: deployment/local.md
       - Testing: deployment/testing.md
       - Remote: deployment/remote.md
-      - HTTP API: deployment/http.md
       - CLI Utilities: deployment/cli.md
   - Tutorials:
       - (Starter) Recipe Retrieval Engine: tutorials/recipe/starter.md
@@ -29,6 +28,7 @@ nav:
       - ClientConnection: api/clientconn.md
       - Cursor: api/cursor.md
       - Entry: api/entry.md
+      - HTTP API: api/http.md
       - Route: api/route.md
       - Schema: api/schema.md
       - Trigger: api/trigger.md
