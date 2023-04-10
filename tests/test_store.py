@@ -9,6 +9,7 @@ Tests the following store functions:
 """
 import motion
 import os
+import random
 import pytest
 
 
@@ -58,3 +59,88 @@ def test_cron(basic_config_with_cron):
     assert results["doubled_age"] == 2 * results["age"]
     assert results["name"] == "Johnny"
     assert results["session_id"] == store.session_id
+
+
+@pytest.fixture
+def cron_trigger_duplicate_route(entry):
+    class Cron(motion.Trigger):
+        def routes(self):
+            return [
+                motion.Route(
+                    relation="",
+                    key="* * * * *",
+                    infer=self.infer,
+                    fit=None,
+                ),
+                motion.Route(
+                    relation="",
+                    key="* * * * *",
+                    infer=self.infer2,
+                    fit=None,
+                ),
+            ]
+
+        def setUp(self, cursor):
+            return {}
+
+        def infer2(self, cursor, trigger_context):
+            cursor.set(
+                relation="Test",
+                identifier="",
+                key_values={"name": "Vicky", "age": random.randint(10, 30)},
+            )
+
+        def infer(self, cursor, trigger_context):
+            cursor.set(
+                relation="Test",
+                identifier="",
+                key_values={"name": "Johnny", "age": random.randint(10, 30)},
+            )
+
+    return Cron
+
+
+def test_duplicate_cron_triggers(
+    schema, double_age_trigger, cron_trigger_duplicate_route
+):
+    config = {
+        "application": {
+            "name": "test_duplicate_cron",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, cron_trigger_duplicate_route],
+    }
+
+    # Duplicate cron triggers should raise an error
+    with pytest.raises(ValueError):
+        store = motion.init(config)
+
+    # Cron triggers with different keys should raise an error
+    cron_trigger_duplicate_route.routes = lambda self: [
+        motion.Route(
+            relation="",
+            key="0 * * * *",
+            infer=self.infer,
+            fit=None,
+        ),
+        motion.Route(
+            relation="",
+            key="1 * * * *",
+            infer=self.infer2,
+            fit=None,
+        ),
+    ]
+
+    config2 = {
+        "application": {
+            "name": "test_duplicate_cron_2",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [schema],
+        "triggers": [double_age_trigger, cron_trigger_duplicate_route],
+    }
+    with pytest.raises(ValueError):
+        store = motion.init(config2)
