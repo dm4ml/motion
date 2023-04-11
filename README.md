@@ -3,6 +3,7 @@
 [![](https://github.com/dm4ml/motion/workflows/motion/badge.svg)](https://github.com/motion/motion/actions)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![GitHub tag](https://img.shields.io/github/tag/dm4ml/motion?include_prereleases=&sort=semver&color=blue)](https://github.com/dm4ml/motion/releases/)
 
 Motion is a framework for building machine learning (ML) applications in Python, designed to give developers **fine-grained control** over **continually-updating** state (e.g., models, indexes, or other data structures).
 
