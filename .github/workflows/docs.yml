@@ -26,5 +26,7 @@ jobs:
         run: poetry install
       - name: Build docs
         run: poetry run mkdocs build
+      - name: linkcheck
+        run: poetry run linkchecker site/index.html
       - name: Deploy docs
         run: poetry run mkdocs gh-deploy --force
