@@ -39,6 +39,7 @@ mkdocs-terminal = "^4.2.0"
 mkdocs-material = "^9.1.5"
 mkdocstrings = {version="^0.20.0", extras = ["python"] }
 pytkdocs = "^0.16.1"
+linkchecker = "^10.2.1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

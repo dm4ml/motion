@@ -1,4 +1,5 @@
 site_name: Motion Docs
+site_url: https://dm4ml.github.io/motion/
 repo_url: https://github.com/dm4ml/motion
 repo_name: dm4ml/motion
 remote_branch: gh-pages
