@@ -144,3 +144,71 @@ def test_duplicate_cron_triggers(
     }
     with pytest.raises(ValueError):
         store = motion.init(config2)
+
+
+def create_sample_config(relation):
+    sample_config = {
+        "application": {
+            "name": "testmigration",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [relation],
+        "triggers": [],
+    }
+    return sample_config
+
+
+def test_migration(entry):
+    class TestRel(motion.Schema):
+        key1: str
+
+    sample_config = create_sample_config(TestRel)
+
+    store = motion.init(sample_config)
+    session_id = store.session_id
+
+    # Add some data
+    cursor = store.cursor()
+    testid = cursor.set(
+        relation="TestRel", identifier="", key_values={"key1": "something"}
+    )
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
+    assert results["key1"] == "something"
+    store.checkpoint_pa()
+    store.stop(wait=False)
+    cursor.close()
+
+    # Do a migration
+    class TestRel(motion.Schema):
+        key1: str
+        key2: str
+
+    sample_config_2 = create_sample_config(TestRel)
+    store = motion.init(sample_config_2, session_id=session_id)
+
+    # Check if data is still there
+    cursor = store.cursor()
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
+    assert results["key1"] == "something"
+    assert results["key2"] == None
+
+    # Add key2
+    cursor.set(
+        relation="TestRel",
+        identifier=testid,
+        key_values={"key2": "somethingelse"},
+    )
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["key2"])
+    assert results["key2"] == "somethingelse"
+    store.checkpoint_pa()
+    store.stop(wait=False)
+    cursor.close()
+
+    # Reread and check
+    sample_config_2 = create_sample_config(TestRel)
+    store = motion.init(sample_config_2, session_id=session_id)
+    cursor = store.cursor()
+    results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
+    assert results["key1"] == "something"
+    assert results["key2"] == "somethingelse"

@@ -51,6 +51,10 @@ class Cursor:
         if self.wait_for_results:
             self.waitForResults()
 
+    def close(self) -> None:
+        """Closes the cursor."""
+        self.__del__()
+
     def waitForResults(self) -> None:
         """Waits for all fit events to finish."""
         for t in self.fit_events:

@@ -96,14 +96,13 @@ class Schema(BaseModel, extra=Extra.allow):
             and not f.name == "session_id"
         ]
         pa_fields = [
-            pa.field("identifier", pa.string(), nullable=False),
+            pa.field("identifier", pa.string()),
             pa.field(
                 "create_at",
                 pa.timestamp("us"),
-                nullable=False,
             ),
             pa.field("derived_id", pa.string()),
-            pa.field("session_id", pa.string(), nullable=False),
+            pa.field("session_id", pa.string()),
         ]
 
         for field in user_defined_fields:
