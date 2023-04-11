@@ -85,6 +85,29 @@ class Chatbot(motion.Trigger):
         ]
 ```
 
+#### Cron-Scheduled Routes
+
+Sometimes, you may want to run a trigger on a schedule. For example, you may want to run a trigger every day to update a model with new data. You can also specify routes as cron-scheduled: the relation should be the empty string, and the key should be the cron schedule. For example:
+
+```python
+class Chatbot(motion.Trigger):
+
+    def setUp(self, cursor):
+        ...
+
+    def routes(self):
+        return [
+            motion.Route(
+                relation="",
+                key="0 0 * * *", ! (1)!
+                infer=self.llm_infer,
+                fit=self.update_index
+            )
+        ]
+```
+
+1.  This route will run every day at midnight.
+
 ## Trigger Life Cycle
 
 **On Creation**: Upon initialization or restart of a Motion application, the `setUp` method is called to initialize the trigger state. Then, the `routes` method is called to initialize the user-defined routes for keys. 
@@ -131,6 +154,15 @@ Both methods accept the following arguments:
 
 The `fit` method accepts a third argument, `infer_context`, which is the return value of the `infer` method. This allows the `fit` method to access any context returned by the `infer` method.
 
+
+!!! note Cron-scheduled trigger contexts
+
+    When a cron-scheduled route is triggered, the `trigger_context` will have the following fields:
+
+    - `relation`: "_cron".
+    - `identifier`: "SCHEDULED".
+    - `key`: The cron schedule.
+    - `value`: None
 
 #### Allowed Operations, Arguments, and Return Values
 
