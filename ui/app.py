@@ -1,28 +1,20 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify
 
-app = Flask(__name__, static_folder="public")
+app = Flask(__name__)
 
-
-@app.route("/names")
-def names():
-    return jsonify(["Alice", "Bob", "Charlie", "David", "Emily", "Frank"])
+items = [{"id": 1, "name": "Apples"}, {"id": 2, "name": "Oranges"}]
 
 
-@app.route("/timeline")
-def timeline():
-    query = request.args.get("query")
-    if query:
-        return jsonify(
-            [f"{query} result 1", f"{query} result 2", f"{query} result 3"]
-        )
-    else:
-        return jsonify([])
+@app.route("/items")
+def get_items():
+    return jsonify(items)
 
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+@app.route("/item/<int:id>")
+def get_item(id):
+    item = [i for i in items if i["id"] == id]
+    return jsonify(item[0])
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
