@@ -166,25 +166,6 @@ class Store:
     def addLogTable(self) -> None:
         """Creates a table to store trigger logs."""
 
-        # schema = pa.schema(
-        #     [
-        #         pa.field(
-        #             "executed_time",
-        #             pa.timestamp("us"),
-        #             nullable=False,
-        #         ),
-        #         pa.field("session_id", pa.string(), nullable=False),
-        #         pa.field("trigger_name", pa.string(), nullable=False),
-        #         pa.field("trigger_version", pa.int64(), nullable=False),
-        #         pa.field("trigger_action", pa.string(), nullable=False),
-        #         pa.field("relation", pa.string(), nullable=False),
-        #         pa.field("identifier", pa.string(), nullable=False),
-        #         pa.field("trigger_key", pa.string(), nullable=False),
-        #     ]
-        # )
-        # # Create table with schema
-        # self.log_table = schema.empty_table()
-
         schema = {
             "executed_time": "datetime64[ns]",
             "session_id": "string",
