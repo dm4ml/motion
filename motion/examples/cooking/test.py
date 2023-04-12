@@ -40,5 +40,7 @@ def test_scrape() -> None:
     print(f"Ingredient list: {ingredients}")
     print(f"Response: {result}")
 
+    connection.checkpoint()
+
 
 test_scrape()

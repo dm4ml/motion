@@ -5,6 +5,7 @@ import typing
 import uuid
 
 import colorlog
+import pandas as pd
 import uvicorn
 
 from motion.api import create_fastapi_app
@@ -20,6 +21,34 @@ def create_token() -> str:
         str: The token.
     """
     return str(os.urandom(20).hex())
+
+
+def get_logs(name: str, session_id: str = "") -> pd.DataFrame:
+    """
+    Gets the log table for a given application. Can optionally filter by session ID.
+
+    Args:
+        name (str): The name of the application.
+        session_id (str, optional): The session ID to filter by. Defaults to "".
+
+    Returns:
+        pd.DataFrame: The log table.
+    """
+
+    MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
+    dirname = os.path.join(MOTION_HOME, "datastores", name)
+    if not os.path.exists(dirname):
+        raise KeyError(f"Application {name} does not exist.")
+
+    log_file = os.path.join(dirname, "logs.parquet")
+    if not os.path.exists(log_file):
+        raise ValueError(f"Application {name} does not have any logs.")
+
+    log_table = pd.read_parquet(log_file)
+    if session_id:
+        log_table = log_table[log_table["session_id"] == session_id]
+
+    return log_table
 
 
 def create_example_app(name: str, author: str) -> None:

@@ -2,6 +2,8 @@ import os
 import shutil
 
 import click
+from rich.console import Console
+from rich.table import Table
 
 import motion
 
@@ -98,3 +100,37 @@ def token() -> None:
     """Generate a new API token."""
     token = motion.create_token()
     click.echo(token)
+
+
+@motioncli.command("logs", help="Show logs for a Motion application")
+@click.argument("name", required=True)
+@click.option(
+    "session_id",
+    "--session-id",
+    help="Session ID to show logs for.",
+    default="",
+)
+@click.option("limit", "--limit", help="Limit number of logs to show.", default=100)
+def logs(name: str, session_id: str, limit: int) -> None:
+    """Show logs for a Motion application."""
+    # Read logs
+    log_table = motion.get_logs(name, session_id=session_id)
+    log_table = log_table.tail(limit)
+
+    # create a Rich table and add columns
+    console = Console()
+    table = Table(show_header=True, header_style="bold magenta")
+    for column_name in log_table.columns:
+        if "trigger_" in column_name:
+            table.add_column(column_name.replace("trigger_", ""))
+        else:
+            table.add_column(column_name)
+
+    # add rows to the Rich table
+    for _, row in log_table.iterrows():
+        table.add_row(
+            *[str(row[column_name]) for column_name in log_table.columns],
+        )
+
+    # print the Rich table
+    console.print(table)

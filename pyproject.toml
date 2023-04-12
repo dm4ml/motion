@@ -22,6 +22,8 @@ httpx = "^0.23.3"
 python-multipart = "^0.0.6"
 pydantic = "^1.10.7"
 urllib3 = "^1.26.15"
+flask = "^2.2.3"
+rich = "^13.3.4"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"

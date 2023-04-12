@@ -14,7 +14,7 @@ import pytest
 
 
 def test_checkpoint(basic_config):
-    store = motion.init(basic_config)
+    store = motion.init(basic_config, session_id="test_checkpoint")
     session_id = store.session_id
 
     # Add some data
@@ -36,6 +36,16 @@ def test_checkpoint(basic_config):
 
     # Restore from checkpoint
     new_store = motion.init(basic_config, session_id=session_id)
+    log_table = motion.get_logs(
+        basic_config["application"]["name"], session_id
+    )
+
+    assert len(log_table) == 1
+    assert log_table["trigger_version"].values[0] == 0
+    assert log_table["trigger_name"].values[0] == "DoubleAge"
+    assert log_table["trigger_action_type"].values[0] == "INFER"
+    assert log_table["trigger_action"].values[0] == "infer"
+
     new_cursor = new_store.cursor()
     new_doubled_age = new_cursor.get(
         relation="Test", identifier=student_id, keys=["doubled_age"]
