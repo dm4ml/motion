@@ -62,7 +62,7 @@ def create_fastapi_app(store: Store, testing: bool = False) -> FastAPI:
 
         # Check if the result is a pandas df
         if isinstance(res, dict):
-            res = pd.DataFrame(res, index=[0])
+            res = pd.DataFrame([res])
 
         elif not isinstance(res, pd.DataFrame):
             res = pd.DataFrame(res)
@@ -77,7 +77,7 @@ def create_fastapi_app(store: Store, testing: bool = False) -> FastAPI:
         )
         # Check if the result is a pandas df
         if isinstance(res, dict):
-            res = pd.DataFrame(res, index=[0])
+            res = pd.DataFrame([res])
 
         elif not isinstance(res, pd.DataFrame):
             res = pd.DataFrame(res)

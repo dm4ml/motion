@@ -124,6 +124,55 @@ def test_python_get(test_client):
     assert not results
 
 
+@pytest.fixture
+def test_client_with_list_key(double_age_trigger):
+    class Test(motion.Schema):
+        name: str
+        age: int
+        doubled_age: int
+        likes: list[str]
+
+    config = {
+        "application": {
+            "name": "testlistkey",
+            "author": "shreyashankar",
+            "version": "0.1",
+        },
+        "relations": [Test],
+        "triggers": [double_age_trigger],
+    }
+
+    connection = motion.test(config, session_id="TESTING")
+    yield connection
+
+    # Close connection
+    connection.close(wait=False)
+
+
+def test_python_get_with_list_key(test_client_with_list_key):
+    # Create store and client
+    connection = test_client_with_list_key
+
+    # Set some data
+    student_id = connection.set(
+        relation="Test",
+        identifier="",  # Let the client generate an identifier
+        key_values={
+            "name": "Mary",
+            "age": random.randint(10, 30),
+            "likes": ["cats", "dogs"],
+        },
+    )
+
+    # Specify all keywords
+    results = connection.get(
+        identifier=student_id, relation="Test", keys=["*"]
+    )
+
+    assert results["likes"][0] == "cats"
+    assert results["likes"][1] == "dogs"
+
+
 def test_python_mget(test_client):
     connection = test_client
 
