@@ -14,3 +14,4 @@ applications*
 *wandb*
 dist*
 site*
+*package-lock.json
