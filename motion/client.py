@@ -177,6 +177,12 @@ class ClientConnection:
         Returns:
             pd.DataFrame: The values for the key.
         """
+        if not isinstance(identifiers, list):
+            try:
+                identifiers = list(identifiers)
+            except Exception:
+                raise TypeError("identifiers must be a list or iterable")
+
         args = {
             "relation": relation,
             "identifiers": identifiers,
@@ -216,7 +222,7 @@ class ClientConnection:
         if identifier is None:
             identifier = ""
 
-        df = pd.DataFrame(key_values, index=[0])
+        df = pd.DataFrame([key_values])
         memory_buffer = io.BytesIO()
         df.to_parquet(memory_buffer, engine="pyarrow", index=False)
         memory_buffer.seek(0)

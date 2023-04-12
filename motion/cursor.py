@@ -155,7 +155,7 @@ class Cursor:
                     }
                 )
                 new_row_dict.update(key_values)
-                new_row_df = pd.DataFrame(new_row_dict, index=[0])
+                new_row_df = pd.DataFrame([new_row_dict])
                 new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
 
                 # Check schemas match
