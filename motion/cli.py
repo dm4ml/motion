@@ -114,7 +114,7 @@ def token() -> None:
 def logs(name: str, session_id: str, limit: int) -> None:
     """Show logs for a Motion application."""
     # Read logs
-    log_table = motion.get_log_table(name, session_id=session_id)
+    log_table = motion.get_logs(name, session_id=session_id)
     log_table = log_table.tail(limit)
 
     # create a Rich table and add columns

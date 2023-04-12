@@ -23,7 +23,7 @@ def create_token() -> str:
     return str(os.urandom(20).hex())
 
 
-def get_log_table(name: str, session_id: str = "") -> pd.DataFrame:
+def get_logs(name: str, session_id: str = "") -> pd.DataFrame:
     """
     Gets the log table for a given application. Can optionally filter by session ID.
 

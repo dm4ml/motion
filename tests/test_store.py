@@ -36,7 +36,7 @@ def test_checkpoint(basic_config):
 
     # Restore from checkpoint
     new_store = motion.init(basic_config, session_id=session_id)
-    log_table = motion.get_log_table(
+    log_table = motion.get_logs(
         basic_config["application"]["name"], session_id
     )
 

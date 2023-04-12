@@ -81,3 +81,19 @@ Options:
 ```
 
 Note that you can only create an example application from the list of available examples (i.e., `cooking`).
+
+## `motion logs`
+
+The `motion logs` command prints the logs of a Motion application. It takes the application name as an argument, and optional `session_id` and `limit` arguments.
+
+```bash
+$ motion logs --help
+Usage: motion logs [OPTIONS] NAME
+
+  Show logs for a Motion application
+
+Options:
+  --session-id TEXT  Session ID to show logs for.
+  --limit INTEGER    Limit number of logs to show.
+  --help             Show this message and exit.
+```
