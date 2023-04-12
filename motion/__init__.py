@@ -8,6 +8,7 @@ from motion.entry import (
     create_token,
     create_app,
     create_example_app,
+    get_log_table,
 )
 from motion.routing import Route
 from motion.utils import update_params
@@ -30,4 +31,5 @@ __all__ = [
     "create_example_app",
     "Cursor",
     "TriggerElement",
+    "get_log_table",
 ]

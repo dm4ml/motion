@@ -218,6 +218,7 @@ class Cursor:
         trigger_name: str,
         trigger_version: int,
         trigger_action: str,
+        trigger_action_type: str,
         trigger_context: TriggerElement,
     ) -> None:
         """Logs the execution of a trigger.
@@ -225,7 +226,8 @@ class Cursor:
         Args:
             trigger_name (str): The name of the trigger.
             trigger_version (int): The version of the trigger.
-            trigger_action (str): The action of the trigger.
+            trigger_action (str): The action of the trigger (method name).
+            trigger_action_type (str): The type of action (infer or fit).
             trigger_context (TriggerElement): The element that triggered the trigger.
         """
 
@@ -236,16 +238,13 @@ class Cursor:
             "trigger_name": trigger_name,
             "trigger_version": trigger_version,
             "trigger_action": trigger_action,
+            "trigger_action_type": trigger_action_type,
             "relation": trigger_context.relation,
             "identifier": trigger_context.identifier,
             "trigger_key": trigger_context.key,
         }
-        new_row = pa.Table.from_pandas(
-            pd.DataFrame(new_row, index=[0]), schema=self.log_table.schema
-        )
-
         with self.write_lock:
-            self.log_table = pa.concat_tables([self.log_table, new_row])
+            self.log_table.loc[len(self.log_table)] = pd.Series(new_row)
 
     def executeTrigger(
         self,
@@ -312,7 +311,11 @@ class Cursor:
         if route.infer is not None:
             infer_context = route.infer(new_connection, trigger_context)
             self.logTriggerExecution(
-                trigger_name, trigger_fn.version, "infer", trigger_context
+                trigger_name,
+                trigger_fn.version,
+                route.infer.__name__,
+                "INFER",
+                trigger_context,
             )
 
         # Fit is asynchronous

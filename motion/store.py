@@ -2,10 +2,10 @@ import os
 import threading
 import typing
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.dataset as ds
-import pyarrow.parquet as pq
 from croniter import croniter
 
 from motion import Schema, Trigger
@@ -46,7 +46,7 @@ class Store:
             self.log_table,
         ) = self.loadFromCheckpoint_pa()
         if self.log_table is None:
-            self.addLogTable_pa()
+            self.addLogTable()
 
         # Set up triggers
         self.triggers: typing.Dict[str, list[TriggerFn]] = {}
@@ -103,17 +103,20 @@ class Store:
             )
 
         # Save logs
-        pq.write_table(self.log_table, os.path.join(base_path, "logs.parquet"))
+        self.log_table.to_parquet(os.path.join(base_path, "logs.parquet"))
 
         # TODO: checkpoint trigger objects
 
     def loadFromCheckpoint_pa(self) -> tuple[dict, dict, pa.Table]:
         """Load store object from checkpoint."""
+        # Check if log table exists
+        base_path = os.path.join(self.datastore_prefix, self.name)
+        if not os.path.exists(os.path.join(base_path, "logs.parquet")):
+            return {}, {}, None
+
         try:
             relations = {}
             table_columns = {}
-
-            base_path = os.path.join(self.datastore_prefix, self.name)
 
             # Iterate through all folders in base_path
             for relation in os.listdir(base_path):
@@ -147,7 +150,8 @@ class Store:
                 )
 
             # Load logs
-            log_table = pq.read_table(os.path.join(base_path, "logs.parquet"))
+            # log_table = pq.read_table(os.path.join(base_path, "logs.parquet"))
+            log_table = pd.read_parquet(os.path.join(base_path, "logs.parquet"))
 
             return relations, table_columns, log_table
 
@@ -159,27 +163,42 @@ class Store:
 
         # TODO: load trigger objects
 
-    def addLogTable_pa(self) -> None:
+    def addLogTable(self) -> None:
         """Creates a table to store trigger logs."""
 
-        schema = pa.schema(
-            [
-                pa.field(
-                    "executed_time",
-                    pa.timestamp("us"),
-                    nullable=False,
-                ),
-                pa.field("session_id", pa.string(), nullable=False),
-                pa.field("trigger_name", pa.string(), nullable=False),
-                pa.field("trigger_version", pa.int64(), nullable=False),
-                pa.field("trigger_action", pa.string(), nullable=False),
-                pa.field("relation", pa.string(), nullable=False),
-                pa.field("identifier", pa.string(), nullable=False),
-                pa.field("trigger_key", pa.string(), nullable=False),
-            ]
+        # schema = pa.schema(
+        #     [
+        #         pa.field(
+        #             "executed_time",
+        #             pa.timestamp("us"),
+        #             nullable=False,
+        #         ),
+        #         pa.field("session_id", pa.string(), nullable=False),
+        #         pa.field("trigger_name", pa.string(), nullable=False),
+        #         pa.field("trigger_version", pa.int64(), nullable=False),
+        #         pa.field("trigger_action", pa.string(), nullable=False),
+        #         pa.field("relation", pa.string(), nullable=False),
+        #         pa.field("identifier", pa.string(), nullable=False),
+        #         pa.field("trigger_key", pa.string(), nullable=False),
+        #     ]
+        # )
+        # # Create table with schema
+        # self.log_table = schema.empty_table()
+
+        schema = {
+            "executed_time": "datetime64[ns]",
+            "session_id": "string",
+            "trigger_name": "string",
+            "trigger_version": "int64",
+            "trigger_action": "string",
+            "trigger_action_type": "string",
+            "relation": "string",
+            "identifier": "string",
+            "trigger_key": "string",
+        }
+        self.log_table = pd.DataFrame(
+            {col: pd.Series(dtype=dtype) for col, dtype in schema.items()}
         )
-        # Create table with schema
-        self.log_table = schema.empty_table()
 
     def addrelation_pa(self, name: str, schema: Schema) -> None:
         """_Add a relation to the store.
@@ -278,14 +297,12 @@ class Store:
         # Add the trigger to the store
         self.trigger_names[name] = keys
 
-        version = pc.max(
-            pc.filter(
-                self.log_table["trigger_version"],
-                pc.equal(self.log_table["trigger_name"], name),
-            )
-        ).as_py()
+        version = self.log_table[self.log_table["trigger_name"] == name][
+            "trigger_version"
+        ].max()
 
-        version = version if version is not None else 0
+        if pd.isnull(version):
+            version = 0
 
         trigger_exec = trigger(
             self.cursor(bypass_listening=True), name, version, params

@@ -155,9 +155,8 @@ class Trigger(ABC):
                 fit_event,
             ) = self._fit_queue.get()
 
-            new_state = self.route_map[
-                f"{trigger_context.relation}.{trigger_context.key}"
-            ].fit(cursor, trigger_context, infer_context)
+            route = self.route_map[f"{trigger_context.relation}.{trigger_context.key}"]
+            new_state = route.fit(cursor, trigger_context, infer_context)
 
             if not isinstance(new_state, dict):
                 fit_event.set()
@@ -173,7 +172,11 @@ class Trigger(ABC):
             )
 
             cursor.logTriggerExecution(
-                trigger_name, old_version, "fit", trigger_context
+                trigger_name,
+                old_version,
+                route.fit.__name__,
+                "FIT",
+                trigger_context,
             )
 
             fit_event.set()
