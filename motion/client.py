@@ -177,6 +177,12 @@ class ClientConnection:
         Returns:
             pd.DataFrame: The values for the key.
         """
+        if not isinstance(identifiers, list):
+            try:
+                identifiers = list(identifiers)
+            except Exception:
+                raise TypeError("identifiers must be a list or iterable")
+
         args = {
             "relation": relation,
             "identifiers": identifiers,

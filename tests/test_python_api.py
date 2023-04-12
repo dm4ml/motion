@@ -6,6 +6,7 @@ Tests the following api functions:
 
 """
 import motion
+import numpy as np
 import os
 import pytest
 import random
@@ -238,6 +239,15 @@ def test_python_mget(test_client):
         include_derived=False,
     )
     assert len(results) == 1
+
+    # Test passing in numpy array of IDs
+    results = connection.mget(
+        identifiers=np.array([student_id, student_id_2]),
+        relation="Test",
+        keys=["*"],
+        as_df=True,
+        include_derived=True,
+    )
 
 
 def test_python_sql(test_client):
