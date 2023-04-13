@@ -85,7 +85,7 @@ def test_set_failures(basic_config):
             key_values={"name": "John", "lllage": 20},
         )
 
-    with pytest.raises(pa.lib.ArrowInvalid):
+    with pytest.raises(TypeError):
         cursor.set(
             relation="Test",
             identifier=None,
