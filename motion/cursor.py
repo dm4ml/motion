@@ -154,9 +154,20 @@ class Cursor:
                         "session_id": self.session_id,  # type: ignore
                     }
                 )
+
                 new_row_dict.update(key_values)
                 new_row_df = pd.DataFrame([new_row_dict])
-                new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
+
+                try:
+                    new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
+                except pa.ArrowInvalid:
+                    raise ValueError(
+                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
+                    )
+                except pa.ArrowTypeError:
+                    raise ValueError(
+                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
+                    )
 
                 # Check schemas match
                 if collections.Counter(new_row.schema.names) != collections.Counter(
