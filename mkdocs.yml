@@ -25,6 +25,7 @@ nav:
       - (Advanced) Recipe Retrieval Engine with Fine-Tuning: tutorials/recipe/advanced.md
       - Connecting to a Motion application in Javascript: tutorials/js.md
       - Using Langchain in a Trigger: tutorials/langchain.md
+      - Fine-Tuning on Another Machine: tutorials/finetune.md
   - API Reference:
       - ClientConnection: api/clientconn.md
       - Cursor: api/cursor.md
