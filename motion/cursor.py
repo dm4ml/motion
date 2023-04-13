@@ -160,13 +160,13 @@ class Cursor:
 
                 try:
                     new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
-                except pa.ArrowInvalid:
+                except pa.ArrowInvalid as e:
                     raise TypeError(
-                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
+                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. Full error: {e}"
                     )
-                except pa.ArrowTypeError:
+                except pa.ArrowTypeError as e:
                     raise TypeError(
-                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
+                        f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. Full error: {e}"
                     )
 
                 # Check schemas match
