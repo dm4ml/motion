@@ -161,11 +161,11 @@ class Cursor:
                 try:
                     new_row = pa.Table.from_pandas(new_row_df, schema=table.schema)
                 except pa.ArrowInvalid:
-                    raise ValueError(
+                    raise TypeError(
                         f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
                     )
                 except pa.ArrowTypeError:
-                    raise ValueError(
+                    raise TypeError(
                         f"Invalid key-value pair for relation {relation}. Make sure the values are of the correct type. key_values: {key_values}"
                     )
 
