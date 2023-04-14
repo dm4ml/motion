@@ -21,14 +21,14 @@ class Store:
         session_id: str,
         datastore_prefix: str = "datastores",
         checkpoint: str = "0 * * * *",
-        disable_cron_triggers: bool = False,
+        disable_triggers: typing.List[str] = [],
     ) -> None:
         self.name = name
         self.session_id: str = session_id
 
         self.datastore_prefix = datastore_prefix
         self.checkpoint_interval = checkpoint
-        self.disable_cron_triggers = disable_cron_triggers
+        self.disable_triggers = disable_triggers
 
         # Set listening to false
         self._listening = False
@@ -52,7 +52,7 @@ class Store:
         self.triggers: typing.Dict[str, list[TriggerFn]] = {}
         self.cron_triggers: typing.Dict[str, list[TriggerFn]] = {}
         self.cron_threads: typing.Dict[str, CronThread] = {}
-        self.trigger_names: typing.Dict[str, list[str]] = {}
+        self.trigger_names_to_keys: typing.Dict[str, list[str]] = {}
         self.trigger_fns: typing.Dict[str, Trigger] = {}
 
     def __del__(self) -> None:
@@ -244,7 +244,13 @@ class Store:
         Raises:
             ValueError: If there is already a trigger with the given name.
         """
-        if name in self.trigger_names:
+        if name in self.disable_triggers:
+            logger.warning(
+                f"Trigger {name} is disabled for this session. Doing nothing."
+            )
+            return
+
+        if name in self.trigger_names_to_keys:
             logger.warning(f"Trigger {name} already exists. Doing nothing.")
             return
 
@@ -276,7 +282,7 @@ class Store:
                 cron_key_exists = True
 
         # Add the trigger to the store
-        self.trigger_names[name] = keys
+        self.trigger_names_to_keys[name] = keys
 
         version = self.log_table[self.log_table["trigger_name"] == name][
             "trigger_version"
@@ -308,11 +314,11 @@ class Store:
         Args:
             name (str): The name of the trigger.
         """
-        if name not in self.trigger_names:
+        if name not in self.trigger_names_to_keys:
             raise ValueError(f"Trigger {name} does not exist.")
 
         # Remove the trigger from the store
-        keys = self.trigger_names[name]
+        keys = self.trigger_names_to_keys[name]
         fn = self.trigger_fns[name]
         for key in keys:
             if croniter.is_valid(key):
@@ -323,7 +329,7 @@ class Store:
             else:
                 self.triggers[key].remove(TriggerFn(name, fn))
 
-        del self.trigger_names[name]
+        del self.trigger_names_to_keys[name]
         del self.trigger_fns[name]
 
     def getTriggersForKey(self, relation: str, key: str) -> list[str]:
@@ -350,27 +356,35 @@ class Store:
             for k in self.triggers.keys()
         }
 
+    @property
+    def trigger_names(self) -> typing.List[str]:
+        """Get the list of trigger names.
+
+        Returns:
+             typing.List[str]: The list of trigger names.
+        """
+        return list(self.trigger_names_to_keys.keys())
+
     def start(self) -> None:
         """Start the store."""
         # Start cron triggers
         self._listening = True
         self.cron_threads = {}
 
-        if not self.disable_cron_triggers:
-            for full_key, triggers in self.cron_triggers.items():
-                _, cron_expression = full_key.split(".")
-                for trigger_fn in triggers:
-                    e = threading.Event()
-                    t = CronThread(
-                        cron_expression,
-                        self.cursor(wait_for_results=True),
-                        trigger_fn,
-                        self.checkpoint_pa,
-                        e,
-                        self.session_id,
-                    )
-                    self.cron_threads[trigger_fn.name] = t
-                    t.start()
+        for full_key, triggers in self.cron_triggers.items():
+            _, cron_expression = full_key.split(".")
+            for trigger_fn in triggers:
+                e = threading.Event()
+                t = CronThread(
+                    cron_expression,
+                    self.cursor(wait_for_results=True),
+                    trigger_fn,
+                    self.checkpoint_pa,
+                    e,
+                    self.session_id,
+                )
+                self.cron_threads[trigger_fn.name] = t
+                t.start()
 
         # Start a thread to checkpoint the store every 5 minutes
         self.checkpoint_thread = CheckpointThread(
@@ -384,9 +398,9 @@ class Store:
         Args:
             trigger_name (str): The name of the trigger to wait for.
         """
-        if self.disable_cron_triggers:
+        if trigger_name in self.disable_triggers:
             raise ValueError(
-                f"Cannot wait for trigger {trigger_name} because cron triggers are disabled."
+                f"Cannot wait for trigger {trigger_name} because it is disabled."
             )
 
         if trigger_name not in self.cron_threads.keys():
