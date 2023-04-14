@@ -294,6 +294,33 @@ def test_wait_for_triggers(basic_config_with_cron):
     connection.close(wait=False)
 
 
+def test_disabled_triggers(basic_config):
+    connection = motion.test(
+        basic_config,
+        disable_triggers=["DoubleAge"],
+        session_id="test_disabled",
+    )
+
+    new_id = connection.set(
+        relation="Test", identifier="", key_values={"name": "Mary", "age": 10}
+    )
+
+    # Make sure trigger did not run
+    res = connection.get(
+        relation="Test", identifier=new_id, keys=["doubled_age"]
+    )
+    assert res["doubled_age"] == None
+    connection.close()
+
+    # Try disabling incorrect trigger name
+    with pytest.raises(ValueError):
+        connection = motion.test(
+            basic_config,
+            disable_triggers=["DoubleAgeeeeee"],
+            session_id="test_disabled",
+        )
+
+
 def test_blob_data(basic_config_with_blob):
     # Create connection
     connection = motion.test(basic_config_with_blob, session_id="TESTING")

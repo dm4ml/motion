@@ -106,13 +106,15 @@ def create_app(name: str, author: str) -> None:
 
 
 def init(
-    mconfig: dict, disable_cron_triggers: bool = False, session_id: str = ""
+    mconfig: dict,
+    disable_triggers: typing.List[str] = [],
+    session_id: str = "",
 ) -> Store:
     """Initializes a motion application by creating a data store and adding relations and triggers.
 
     Args:
         mconfig (dict): The motion configuration.
-        disable_cron_triggers (bool, optional): Whether to disable cron triggers. Used during testing. Defaults to False.
+        disable_triggers (typing.List[str], optional): A list of triggers to disable. Defaults to [].
         prod (bool, optional): Whether to run in production mode. Defaults to False.
 
     Returns:
@@ -134,12 +136,20 @@ def init(
 
     MOTION_HOME = os.environ.get("MOTION_HOME", os.path.expanduser("~/.cache/motion"))
 
+    # Check that disabled triggers exist
+    all_trigger_names = [t.__name__ for t in mconfig["triggers"]]
+    for trigger_name in disable_triggers:
+        if trigger_name not in all_trigger_names:
+            raise ValueError(
+                f"Trigger {trigger_name} specified in disable_triggers list does not exist."
+            )
+
     store = Store(
         name,
         session_id=session_id,
         datastore_prefix=os.path.join(MOTION_HOME, "datastores"),
         checkpoint=checkpoint,
-        disable_cron_triggers=disable_cron_triggers,
+        disable_triggers=disable_triggers,
     )
 
     # Create relations
@@ -209,7 +219,7 @@ def configureLogging(level: str) -> None:
 def test(
     mconfig: dict,
     wait_for_triggers: typing.List[str] = [],
-    disable_cron_triggers: bool = False,
+    disable_triggers: typing.List[str] = [],
     motion_logging_level: str = "WARNING",
     session_id: str = "",
 ) -> ClientConnection:
@@ -218,20 +228,22 @@ def test(
     Args:
         mconfig (dict): Config for the Motion application, found in the mconfig.py file.
         wait_for_triggers (typing.List[str], optional): List of cron-scheduled trigger names to wait for a first completion of. Typically used to wait for a first scrape of data.
-        disable_cron_triggers (bool, optional): Whether cron triggers should be disabled for this session (can speed up testing some non-cron triggers). Defaults to False. Cannot be True if wait_for_triggers is not empty.
+        disable_triggers (typing.List[str], optional): List of cron-scheduled trigger names to disable. Typically used to disable scrapes of data.
         motion_logging_level (str, optional): Logging level for motion. Can be one of "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL". Defaults to "WARNING". Use "INFO" if you want to see all trigger execution logs.
         session_id (str, optional): Session ID to use for this connection. Defaults to a random UUID if empty.
 
     Returns:
         connection (motion.ClientConnection): A cannection to the Motion application.
     """
-    if wait_for_triggers and disable_cron_triggers:
-        raise ValueError("Cannot wait for triggers if cron triggers are disabled.")
+    if len(set(wait_for_triggers).intersection(set(disable_triggers))) > 0:
+        raise ValueError(
+            f"Cannot wait for triggers that are disabled. Please remove the following triggers from either the wait_for_triggers or disable_triggers lists: {set(wait_for_triggers).intersection(set(disable_triggers))}"
+        )
 
     configureLogging(motion_logging_level)
     store = init(
         mconfig,
-        disable_cron_triggers=disable_cron_triggers,
+        disable_triggers=disable_triggers,
         session_id=session_id,
     )
     app = create_fastapi_app(store, testing=True)
