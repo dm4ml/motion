@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from motion.store import Store
 
+from typing import Any
 
 class ClientConnection:
     """A client connection to a Motion application."""
@@ -120,7 +121,7 @@ class ClientConnection:
         *,
         relation: str,
         identifier: str,
-        keys: list[str],
+        keys: Any,
         **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys. Wrapper for the cursor's get method.
@@ -157,8 +158,8 @@ class ClientConnection:
         self,
         *,
         relation: str,
-        identifiers: list[str],
-        keys: list[str],
+        identifiers: Any,
+        keys: Any,
         **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys. Wrapper for the cursor's mget method.

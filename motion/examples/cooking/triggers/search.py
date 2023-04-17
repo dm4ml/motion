@@ -59,8 +59,8 @@ class SearchRecipe(motion.Trigger):
     def _populateRecipeIndex(
         self,
         co: cohere.Client,
-        ingredients_list: List[str],
-        recipe_ids: List[str],
+        ingredients_list: Any,
+        recipe_ids: Any,
         recipe_index: faiss.IndexFlatIP,
         recipe_index_to_id: Dict[int, str],
     ) -> Tuple[faiss.IndexFlatIP, Dict[int, str]]:

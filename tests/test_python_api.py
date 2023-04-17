@@ -131,7 +131,7 @@ def test_client_with_list_key(double_age_trigger):
         name: str
         age: int
         doubled_age: int
-        likes: list[str]
+        likes: Any
 
     config = {
         "application": {

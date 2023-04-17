@@ -17,6 +17,7 @@ import pyarrow.compute as pc
 
 from motion.utils import TriggerElement, TriggerFn, logger
 
+from typing import Any
 
 class Cursor:
     """A connection to a Motion data store, only accessible within Motion triggers."""
@@ -27,8 +28,8 @@ class Cursor:
         name: str,
         relations: typing.Dict[str, pa.Table],
         log_table: pa.Table,
-        table_columns: typing.Dict[str, list[str]],
-        triggers: typing.Dict[str, list[TriggerFn]],
+        table_columns: Any,
+        triggers: Any,
         write_lock: threading.Lock,
         session_id: str,
         wait_for_results: bool = False,
@@ -395,7 +396,7 @@ class Cursor:
         *,
         relation: str,
         identifier: str,
-        keys: list[str],
+        keys: Any,
         **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
@@ -475,7 +476,7 @@ class Cursor:
 
     def _get_derived_ids(
         self, con: duckdb.DuckDBPyConnection, identifier: str
-    ) -> list[str]:
+    ) -> Any:
         """Get all derived ids for an identifier.
 
         Args:
@@ -503,8 +504,8 @@ class Cursor:
         self,
         *,
         relation: str,
-        identifiers: list[str],
-        keys: list[str],
+        identifiers: Any,
+        keys: Any,
         **kwargs: typing.Any,
     ) -> pd.DataFrame:
         """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
@@ -569,7 +570,7 @@ class Cursor:
 
         return res.to_dict("records")
 
-    def getIdsForKey(self, relation: str, key: str, value: typing.Any) -> list[int]:
+    def getIdsForKey(self, relation: str, key: str, value: Any) -> Any:
         """Get ids for a key-value pair in a relation.
 
         Args:

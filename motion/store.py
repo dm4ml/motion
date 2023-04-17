@@ -13,6 +13,7 @@ from motion.cursor import Cursor
 from motion.task import CheckpointThread, CronThread
 from motion.utils import TriggerFn, logger
 
+from typing import Any
 
 class Store:
     def __init__(
@@ -107,7 +108,7 @@ class Store:
 
         # TODO: checkpoint trigger objects
 
-    def loadFromCheckpoint_pa(self) -> tuple[dict, dict, pa.Table]:
+    def loadFromCheckpoint_pa(self) -> Any:
         """Load store object from checkpoint."""
         # Check if log table exists
         base_path = os.path.join(self.datastore_prefix, self.name)
@@ -332,7 +333,7 @@ class Store:
         del self.trigger_names_to_keys[name]
         del self.trigger_fns[name]
 
-    def getTriggersForKey(self, relation: str, key: str) -> list[str]:
+    def getTriggersForKey(self, relation: str, key: str) -> Any:
         """Get the list of triggers for a given key.
 
         Args:
@@ -345,7 +346,7 @@ class Store:
         names_and_fns = self.triggers.get(f"{relation}.{key}", [])
         return [t[0] for t in names_and_fns]
 
-    def getTriggersForAllKeys(self) -> typing.Dict[str, list[str]]:
+    def getTriggersForAllKeys(self) -> Any:
         """Get the list of triggers for all keys.
 
         Returns:
