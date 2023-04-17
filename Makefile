@@ -1,3 +1,5 @@
+PROJECT=
+
 install:
 	echo "motion quickstart"
 	pip3 install poetry
@@ -8,7 +10,7 @@ create:
 	motion create
 	
 up:
-	MOTION_API_TOKEN=$$(motion token) motion serve --name motiononazure
+	MOTION_API_TOKEN=$$(motion token) motion serve --name $(PROJECT)
 
 # todo: run all the tests
 test:
