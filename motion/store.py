@@ -15,6 +15,7 @@ from motion.utils import TriggerFn, logger
 
 from typing import Any
 
+
 class Store:
     def __init__(
         self,

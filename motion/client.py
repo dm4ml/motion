@@ -12,6 +12,7 @@ from motion.store import Store
 
 from typing import Any
 
+
 class ClientConnection:
     """A client connection to a Motion application."""
 

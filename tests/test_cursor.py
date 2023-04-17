@@ -19,9 +19,7 @@ def test_empty(basic_config):
     store = motion.init(basic_config)
     new_cursor = store.cursor()
 
-    res = new_cursor.get(
-        relation="Test", identifier="hehehehe", keys=["doubled_age"]
-    )
+    res = new_cursor.get(relation="Test", identifier="hehehehe", keys=["doubled_age"])
     assert not res
 
 

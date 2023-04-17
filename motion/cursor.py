@@ -19,6 +19,7 @@ from motion.utils import TriggerElement, TriggerFn, logger
 
 from typing import Any
 
+
 class Cursor:
     """A connection to a Motion data store, only accessible within Motion triggers."""
 
@@ -474,9 +475,7 @@ class Cursor:
             **kwargs,
         )
 
-    def _get_derived_ids(
-        self, con: duckdb.DuckDBPyConnection, identifier: str
-    ) -> Any:
+    def _get_derived_ids(self, con: duckdb.DuckDBPyConnection, identifier: str) -> Any:
         """Get all derived ids for an identifier.
 
         Args:

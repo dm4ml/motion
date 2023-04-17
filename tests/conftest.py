@@ -44,9 +44,7 @@ def double_age_trigger(entry):
     class DoubleAge(motion.Trigger):
         def routes(self):
             return [
-                motion.Route(
-                    relation="Test", key="age", infer=self.infer, fit=None
-                )
+                motion.Route(relation="Test", key="age", infer=self.infer, fit=None)
             ]
 
         def setUp(self, cursor):
@@ -138,9 +136,7 @@ def basic_config(schema, double_age_trigger):
 
 
 @pytest.fixture
-def config_with_two_triggers(
-    schema_with_liked, double_age_trigger, liked_trigger
-):
+def config_with_two_triggers(schema_with_liked, double_age_trigger, liked_trigger):
     # os.environ["MOTION_HOME"] = "/tmp/motion"
     config = {
         "application": {

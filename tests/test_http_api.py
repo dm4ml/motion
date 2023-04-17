@@ -38,9 +38,7 @@ def test_create_headers(entry):
 
 
 def test_http_set_get(test_http_client, test_create_headers):
-
     with TestClient(test_http_client) as client:
-
         set_response = client.request(
             "post",
             "/json/set/",
@@ -74,9 +72,7 @@ def test_http_set_get(test_http_client, test_create_headers):
 
 
 def test_http_mget(test_http_client, test_create_headers):
-
     with TestClient(test_http_client) as client:
-
         # Create some data
         identifiers = []
         for i in range(10):
@@ -117,7 +113,6 @@ def test_http_mget(test_http_client, test_create_headers):
 
 def test_http_sql(test_http_client, test_create_headers):
     with TestClient(test_http_client) as client:
-
         # Create some data
         set_response = client.request(
             "post",
@@ -154,7 +149,6 @@ def test_http_sql(test_http_client, test_create_headers):
 
 def test_http_utils(test_http_client, test_create_headers):
     with TestClient(test_http_client) as client:
-
         # No cron triggers in this one
         response = client.request(
             "post",
@@ -181,7 +175,6 @@ def test_wait_for_cron_triggers(basic_config_with_cron, test_create_headers):
     app = motion.api.create_fastapi_app(store, testing=True)
 
     with TestClient(app) as client:
-
         response = client.request(
             "post",
             "/json/wait_for_trigger/",
