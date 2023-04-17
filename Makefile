@@ -12,6 +12,5 @@ create:
 up:
 	MOTION_API_TOKEN=$$(motion token) motion serve --name $(PROJECT)
 
-# todo: run all the tests
 test:
-	echo "test"
+	pytest

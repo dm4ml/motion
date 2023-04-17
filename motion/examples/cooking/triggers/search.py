@@ -1,7 +1,7 @@
 import os
 import typing
 from collections import namedtuple
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 import cohere
 import faiss
