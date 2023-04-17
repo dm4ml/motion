@@ -84,14 +84,16 @@ def create_app(name: str, author: str) -> None:
     if len(name.split(" ")) > 1:
         raise ValueError("Name cannot contain spaces.")
 
-    if os.path.exists(name):
+    project_path = os.path.join('projects', name)
+    if os.path.exists(project_path):
         raise ValueError(f"Directory {name} already exists.")
 
     # Copy over the example project
     shutil.copytree(os.path.join(os.path.dirname(__file__), "examples/basic"), name)
 
     # Create store setup file
-    with open(os.path.join(name, "mconfig.py"), "w") as f:
+    os.makedirs(project_path)
+    with open(os.path.join(project_path, "mconfig.py"), "w") as f:
         f.write(
             open(
                 os.path.join(

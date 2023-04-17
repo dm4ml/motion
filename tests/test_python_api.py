@@ -13,6 +13,7 @@ import random
 
 from typing import Any
 
+
 @pytest.fixture
 def test_client(basic_config_with_cron):
     # Create store and client
