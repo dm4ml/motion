@@ -92,7 +92,9 @@ def test_python_get(test_client):
     )
 
     # Specify all keywords
-    results = connection.get(identifier=student_id, relation="Test", keys=["*"])
+    results = connection.get(
+        identifier=student_id, relation="Test", keys=["*"]
+    )
     assert results["name"] == "Mary"
     assert results["doubled_age"] == 2 * results["age"]
     assert results["session_id"] == connection.session_id
@@ -131,7 +133,7 @@ def test_client_with_list_key(double_age_trigger):
         name: str
         age: int
         doubled_age: int
-        likes: Any
+        likes: list[str]
 
     config = {
         "application": {
@@ -166,7 +168,9 @@ def test_python_get_with_list_key(test_client_with_list_key):
     )
 
     # Specify all keywords
-    results = connection.get(identifier=student_id, relation="Test", keys=["*"])
+    results = connection.get(
+        identifier=student_id, relation="Test", keys=["*"]
+    )
 
     assert results["likes"][0] == "cats"
     assert results["likes"][1] == "dogs"
@@ -217,7 +221,9 @@ def test_python_mget(test_client):
 
     # Test derived ids
     derived_id = connection.duplicate(relation="Test", identifier=student_id)
-    derived_id_2 = connection.duplicate(relation="Test", identifier=student_id_2)
+    derived_id_2 = connection.duplicate(
+        relation="Test", identifier=student_id_2
+    )
     results = connection.mget(
         identifiers=[student_id, student_id_2],
         relation="Test",
@@ -302,7 +308,9 @@ def test_disabled_triggers(basic_config):
     )
 
     # Make sure trigger did not run
-    res = connection.get(relation="Test", identifier=new_id, keys=["doubled_age"])
+    res = connection.get(
+        relation="Test", identifier=new_id, keys=["doubled_age"]
+    )
     assert res["doubled_age"] == None
     connection.close()
 

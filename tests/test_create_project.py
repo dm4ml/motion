@@ -9,15 +9,15 @@ from subprocess import run
 
 
 def test_create_project(entry):
-    os.makedirs("/tmp/motionapps/projects", exist_ok=True)
+    os.makedirs("/tmp/motionapps", exist_ok=True)
     os.makedirs("/tmp/motion", exist_ok=True)
-    os.chdir("/tmp/motion")
+    os.chdir("/tmp/motionapps")
 
     # Create a project
     motion.create_app(name="testproj", author="testauthor")
-    os.chdir("/tmp/motionapps/projects/testproj")
+    os.chdir("/tmp/motionapps/testproj")
 
     # Execute the test.py file in the testproject directory
     run(["python", "mconfig.py"])
 
-    shutil.rmtree("/tmp/motionapps/projects/testproj")
+    shutil.rmtree("/tmp/motionapps/testproj")

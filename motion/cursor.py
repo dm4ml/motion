@@ -9,6 +9,7 @@ import threading
 import typing
 import uuid
 from enum import Enum
+from typing import Any
 
 import duckdb
 import pandas as pd
@@ -16,8 +17,6 @@ import pyarrow as pa
 import pyarrow.compute as pc
 
 from motion.utils import TriggerElement, TriggerFn, logger
-
-from typing import Any
 
 
 class Cursor:
@@ -29,8 +28,8 @@ class Cursor:
         name: str,
         relations: typing.Dict[str, pa.Table],
         log_table: pa.Table,
-        table_columns: Any,
-        triggers: Any,
+        table_columns: typing.Dict[str, list[str]],
+        triggers: typing.Dict[str, list[TriggerFn]],
         write_lock: threading.Lock,
         session_id: str,
         wait_for_results: bool = False,
@@ -397,7 +396,7 @@ class Cursor:
         *,
         relation: str,
         identifier: str,
-        keys: Any,
+        keys: list[str],
         **kwargs: typing.Any,
     ) -> typing.Any:
         """Get values for an identifier's keys in a relation. Can pass in ["*"] as the keys argument to get all keys.
@@ -503,8 +502,8 @@ class Cursor:
         self,
         *,
         relation: str,
-        identifiers: Any,
-        keys: Any,
+        identifiers: list[str],
+        keys: list[str],
         **kwargs: typing.Any,
     ) -> pd.DataFrame:
         """Get values for a many identifiers' keys in a relation. Can pass in ["*"] as the keys argument to get all keys.

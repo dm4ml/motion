@@ -49,7 +49,7 @@ def create(name: str, author: str) -> None:
 
 
 @motioncli.command("serve")
-@click.option("name", "--name", default="project-name", help="Project name.")
+@click.option("name", "--name", default="", help="Project name.")
 @click.option("host", "--host", default="0.0.0.0", help="Host to serve on.")
 @click.option("port", "--port", default=5000, help="Port to serve on.")
 @click.option(
@@ -63,13 +63,12 @@ def serve(name: str, host: str, port: int, logging_level: str) -> None:
     """Serves a Motion application."""
 
     # Check that the project is created
-    config_path = os.path.join("projects", name, "mconfig.py")
-    if not os.path.exists(config_path):
+    if not os.path.exists("mconfig.py"):
         click.echo("Project is not created. Run `motion create` first.")
         return
 
     # Create object from mconfig.py
-    config_code = open(config_path).read() + "\nMCONFIG"
+    config_code = open("mconfig.py").read() + "\nMCONFIG"
 
     import sys
 
@@ -78,6 +77,9 @@ def serve(name: str, host: str, port: int, logging_level: str) -> None:
     exec(config_code)
     mconfig = locals()["MCONFIG"]
     click.echo(f"Serving application {mconfig['application']['name']}...")
+
+    if name != "":
+        assert name == mconfig["application"]["name"], "Name does not match."
 
     # Serve the application
     motion.serve(mconfig, host=host, port=port, motion_logging_level=logging_level)

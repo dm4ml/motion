@@ -87,7 +87,7 @@ async def async_scrape_recipe(url: str, session: aiohttp.ClientSession) -> Any:
         print(f"Failed to scrape recipe: {url} with error {e}")
 
 
-async def scrape_all_recipes(url_list: Any) -> Any:
+async def scrape_all_recipes(url_list: List[str]) -> Any:
     async with aiohttp.ClientSession() as session:
         tasks = [async_scrape_recipe(url, session) for url in url_list]
 

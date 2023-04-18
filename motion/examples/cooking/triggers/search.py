@@ -1,7 +1,7 @@
 import os
 import typing
 from collections import namedtuple
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 
 import cohere
 import faiss
@@ -59,8 +59,8 @@ class SearchRecipe(motion.Trigger):
     def _populateRecipeIndex(
         self,
         co: cohere.Client,
-        ingredients_list: Any,
-        recipe_ids: Any,
+        ingredients_list: List[str],
+        recipe_ids: List[str],
         recipe_index: faiss.IndexFlatIP,
         recipe_index_to_id: Dict[int, str],
     ) -> Tuple[faiss.IndexFlatIP, Dict[int, str]]:
