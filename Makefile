@@ -13,4 +13,7 @@ up:
 	MOTION_API_TOKEN=$$(motion token) motion serve --name $(PROJECT)
 
 test:
-	pytest
+	poetry run pytest
+
+mypy:
+	poetry run mypy
