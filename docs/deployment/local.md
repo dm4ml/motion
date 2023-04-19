@@ -11,6 +11,7 @@ Usage: motion serve [OPTIONS]
   Serves a Motion application.
 
 Options:
+  --name TEXT               Project name.
   --host TEXT               Host to serve on.
   --port INTEGER            Port to serve on.
   -l, --logging-level TEXT  Logging level for motion. Can be DEBUG, INFO,

@@ -9,6 +9,7 @@ import threading
 import typing
 import uuid
 from enum import Enum
+from typing import Any
 
 import duckdb
 import pandas as pd
@@ -473,9 +474,7 @@ class Cursor:
             **kwargs,
         )
 
-    def _get_derived_ids(
-        self, con: duckdb.DuckDBPyConnection, identifier: str
-    ) -> list[str]:
+    def _get_derived_ids(self, con: duckdb.DuckDBPyConnection, identifier: str) -> Any:
         """Get all derived ids for an identifier.
 
         Args:
@@ -569,7 +568,7 @@ class Cursor:
 
         return res.to_dict("records")
 
-    def getIdsForKey(self, relation: str, key: str, value: typing.Any) -> list[int]:
+    def getIdsForKey(self, relation: str, key: str, value: Any) -> Any:
         """Get ids for a key-value pair in a relation.
 
         Args:

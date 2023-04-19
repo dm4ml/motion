@@ -36,9 +36,7 @@ def test_checkpoint(basic_config):
 
     # Restore from checkpoint
     new_store = motion.init(basic_config, session_id=session_id)
-    log_table = motion.get_logs(
-        basic_config["application"]["name"], session_id
-    )
+    log_table = motion.get_logs(basic_config["application"]["name"], session_id)
 
     assert len(log_table) == 1
     assert log_table["trigger_version"].values[0] == 0
@@ -62,9 +60,7 @@ def test_cron(basic_config_with_cron):
 
     # Read doubled age
     cursor = store.cursor()
-    results = cursor.sql("SELECT * FROM Test", as_df=True).to_dict("records")[
-        0
-    ]
+    results = cursor.sql("SELECT * FROM Test", as_df=True).to_dict("records")[0]
 
     assert results["doubled_age"] == 2 * results["age"]
     assert results["name"] == "Johnny"

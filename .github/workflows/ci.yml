@@ -24,7 +24,7 @@ jobs:
         run: poetry install
 
       - name: Run pytest
-        run: poetry run pytest
+        run: make test
 
       - name: Run mypy
-        run: poetry run mypy
+        run: make mypy

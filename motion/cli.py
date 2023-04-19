@@ -49,6 +49,7 @@ def create(name: str, author: str) -> None:
 
 
 @motioncli.command("serve")
+@click.option("name", "--name", default="", help="Project name.")
 @click.option("host", "--host", default="0.0.0.0", help="Host to serve on.")
 @click.option("port", "--port", default=5000, help="Port to serve on.")
 @click.option(
@@ -58,7 +59,7 @@ def create(name: str, author: str) -> None:
     default="WARNING",
     help="Logging level for motion. Can be DEBUG, INFO, WARNING, ERROR, CRITICAL.",
 )
-def serve(host: str, port: int, logging_level: str) -> None:
+def serve(name: str, host: str, port: int, logging_level: str) -> None:
     """Serves a Motion application."""
 
     # Check that the project is created
@@ -76,6 +77,9 @@ def serve(host: str, port: int, logging_level: str) -> None:
     exec(config_code)
     mconfig = locals()["MCONFIG"]
     click.echo(f"Serving application {mconfig['application']['name']}...")
+
+    if name != "":
+        assert name == mconfig["application"]["name"], "Name does not match."
 
     # Serve the application
     motion.serve(mconfig, host=host, port=port, motion_logging_level=logging_level)
