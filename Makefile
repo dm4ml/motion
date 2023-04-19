@@ -24,3 +24,6 @@ test:
 
 mypy:
 	poetry run mypy
+
+lint:
+	poetry run ruff .
