@@ -63,12 +63,13 @@ def serve(name: str, host: str, port: int, logging_level: str) -> None:
     """Serves a Motion application."""
 
     # Check that the project is created
-    if not os.path.exists("mconfig.py"):
+    config_path = os.path.join(name, "mconfig.py")
+    if not os.path.exists(config_path):
         click.echo("Project is not created. Run `motion create` first.")
         return
 
     # Create object from mconfig.py
-    config_code = open("mconfig.py").read() + "\nMCONFIG"
+    config_code = open(config_path).read() + "\nMCONFIG"
 
     import sys
 
