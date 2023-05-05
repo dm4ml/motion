@@ -12,7 +12,6 @@ import pytest
 import random
 
 from fastapi.testclient import TestClient
-from fastapi import HTTPException
 
 
 @pytest.fixture

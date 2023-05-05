@@ -2,7 +2,6 @@
 
 import motion
 import os
-import pytest
 import shutil
 
 from subprocess import run

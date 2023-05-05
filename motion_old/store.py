@@ -134,7 +134,7 @@ class Store:
                     table = dataset.to_table(
                         filter=pc.equal(ds.field("session_id"), self.session_id)
                     )
-                except pa.ArrowInvalid as e:
+                except pa.ArrowInvalid:
                     # If no session_id partition exists, move on
                     continue
 
@@ -202,7 +202,7 @@ class Store:
                     f"Could not cast existing table {name} to new schema. Please clear the data store with `motion clear {self.name}` and try again."
                 )
                 raise e
-            except ValueError as e:
+            except ValueError:
                 # Perform schema migration
                 logger.warning(f"Performing schema migration for table {name}.")
                 # Find fields that are in the new schema but not the old
@@ -256,7 +256,7 @@ class Store:
 
         # Check that the class implements the Trigger interface
         if not issubclass(trigger, Trigger):
-            raise ValueError(f"Trigger class must implement the Trigger interface.")
+            raise ValueError("Trigger class must implement the Trigger interface.")
 
         # Retrieve keys
         keys = trigger.getRouteKeys()

@@ -105,7 +105,7 @@ def test_python_get(test_client):
     assert results["doubled_age"].values[0] == 2 * results["age"].values[0]
 
     # Test derived ids
-    derived_id = connection.duplicate(relation="Test", identifier=student_id)
+    connection.duplicate(relation="Test", identifier=student_id)
     results = connection.get(
         identifier=student_id,
         relation="Test",
@@ -218,8 +218,8 @@ def test_python_mget(test_client):
     assert results["doubled_age"].values[1] == 2 * results["age"].values[1]
 
     # Test derived ids
-    derived_id = connection.duplicate(relation="Test", identifier=student_id)
-    derived_id_2 = connection.duplicate(
+    connection.duplicate(relation="Test", identifier=student_id)
+    connection.duplicate(
         relation="Test", identifier=student_id_2
     )
     results = connection.mget(
@@ -309,7 +309,7 @@ def test_disabled_triggers(basic_config):
     res = connection.get(
         relation="Test", identifier=new_id, keys=["doubled_age"]
     )
-    assert res["doubled_age"] == None
+    assert res["doubled_age"] is None
     connection.close()
 
     # Try disabling incorrect trigger name

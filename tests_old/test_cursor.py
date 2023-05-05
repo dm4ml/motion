@@ -10,9 +10,7 @@ Tests the following cursor functions:
 
 """
 import motion
-import os
 import pytest
-import pyarrow as pa
 
 
 def test_empty(basic_config):

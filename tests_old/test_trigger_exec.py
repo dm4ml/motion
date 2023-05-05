@@ -13,7 +13,6 @@ Tests the following trigger functions:
 """
 
 import motion
-import os
 import pytest
 
 
@@ -176,7 +175,7 @@ def test_improper_setup(entry, MultipliedAges, ImproperSetup):
     }
 
     with pytest.raises(TypeError):
-        store = motion.init(config)
+        motion.init(config)
 
 
 def test_route_errors(entry, StatefulTrigger, MultipliedAges):

@@ -196,7 +196,7 @@ def create_fastapi_app(store: Store, testing: bool = False) -> FastAPI:
 
     @json_app.post("/wait_for_trigger/")
     async def json_wait_for_trigger(args: WaitRequest) -> typing.Any:
-        cur = app.state.store.cursor()
+        app.state.store.cursor()
         try:
             app.state.store.waitForTrigger(args.trigger)
             return args.trigger

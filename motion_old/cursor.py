@@ -427,7 +427,7 @@ class Cursor:
             raise ValueError(f"Not all keys {keys} not found in relation {relation}.")
 
         con = duckdb.connect()
-        scanner = pa.dataset.Scanner.from_dataset(
+        pa.dataset.Scanner.from_dataset(
             pa.dataset.dataset(self.relations[relation])
         )
 
@@ -524,7 +524,7 @@ class Cursor:
         """
 
         con = duckdb.connect()
-        scanner = pa.dataset.Scanner.from_dataset(
+        pa.dataset.Scanner.from_dataset(
             pa.dataset.dataset(self.relations[relation])
         )
 
@@ -580,7 +580,7 @@ class Cursor:
             typing.List[int]: The ids for the key-value pair.
         """
         con = duckdb.connect()
-        scanner = pa.dataset.Scanner.from_dataset(
+        pa.dataset.Scanner.from_dataset(
             pa.dataset.dataset(self.relations[relation])
         )
         # table = self.relations[relation]

@@ -125,8 +125,8 @@ def init(
 
     try:
         name = mconfig["application"]["name"]
-        author = mconfig["application"]["author"]
-    except Exception as e:
+        mconfig["application"]["author"]
+    except Exception:
         raise Exception("Motion config must have application name and author.")
 
     checkpoint = mconfig["checkpoint"] if "checkpoint" in mconfig else "0 * * * *"

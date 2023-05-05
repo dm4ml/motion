@@ -8,7 +8,6 @@ Tests the following store functions:
 * cron
 """
 import motion
-import os
 import random
 import pytest
 
@@ -121,7 +120,7 @@ def test_duplicate_cron_triggers(
 
     # Duplicate cron triggers should raise an error
     with pytest.raises(ValueError):
-        store = motion.init(config)
+        motion.init(config)
 
     # Cron triggers with different keys should raise an error
     cron_trigger_duplicate_route.routes = lambda self: [
@@ -149,7 +148,7 @@ def test_duplicate_cron_triggers(
         "triggers": [double_age_trigger, cron_trigger_duplicate_route],
     }
     with pytest.raises(ValueError):
-        store = motion.init(config2)
+        motion.init(config2)
 
 
 def create_sample_config(relation):
@@ -197,7 +196,7 @@ def test_migration(entry):
     cursor = store.cursor()
     results = cursor.get(relation="TestRel", identifier=testid, keys=["*"])
     assert results["key1"] == "something"
-    assert results["key2"] == None
+    assert results["key2"] is None
 
     # Add key2
     cursor.set(

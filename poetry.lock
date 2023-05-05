@@ -84,6 +84,38 @@ typing = ["importlib-metadata (>=5.1)", "mypy (==0.991)", "tomli", "typing-exten
 virtualenv = ["virtualenv (>=20.0.35)"]
 
 [[package]]
+name = "bytewax"
+version = "0.16.0"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "bytewax-0.16.0-cp310-cp310-macosx_10_7_x86_64.whl", hash = "sha256:171b3969c5b9e657824174efa6a32e74e7f882eda984dc5e0cd0e78ce75cdddc"},
+    {file = "bytewax-0.16.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:86ce6360e939a73b110a0d18f017909f66b0229db2e456f5bad56f571c1d4ae2"},
+    {file = "bytewax-0.16.0-cp310-cp310-manylinux_2_27_x86_64.whl", hash = "sha256:80b6ee41ca47f1535511e3f7280589447505c19e90b9041cd66283803ffb2f2b"},
+    {file = "bytewax-0.16.0-cp310-cp310-manylinux_2_31_x86_64.whl", hash = "sha256:c59f2276b228dd1a6729538fa4e56f8c26d579473c92049b6524209c675c8893"},
+    {file = "bytewax-0.16.0-cp37-cp37m-macosx_10_7_x86_64.whl", hash = "sha256:a0c0e1c5b5821fc21698ac55a9a1b20fdb08d019ca6a337a573e6df847fd3b84"},
+    {file = "bytewax-0.16.0-cp37-cp37m-macosx_11_0_arm64.whl", hash = "sha256:8038e309f9e8d7fd41bb67ce8c40d34c4c596e29063c128821498356a090e7ff"},
+    {file = "bytewax-0.16.0-cp37-cp37m-manylinux_2_27_x86_64.whl", hash = "sha256:2a6e6a8fa5014737cc5f0b9d277b269a8d5e8cc9e235df2f0aa5ba69ece3693c"},
+    {file = "bytewax-0.16.0-cp37-cp37m-manylinux_2_31_x86_64.whl", hash = "sha256:268d99dd512c5ca80fc420b3ee8ceb54627e54de40edde77b96a83cf23e8e740"},
+    {file = "bytewax-0.16.0-cp38-cp38-macosx_10_7_x86_64.whl", hash = "sha256:4a6297090a72a764557eb99e5b4fd104e68c4508e38df1ac1fd91c31a0772f3a"},
+    {file = "bytewax-0.16.0-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:7fc0948cc3f07c22e9809411458d47aca387f0b186b4e7f2b9aee5d466aa74c3"},
+    {file = "bytewax-0.16.0-cp38-cp38-manylinux_2_27_x86_64.whl", hash = "sha256:8516c0555d6b021e1d33cb718e9d5d7f23f6910b6bab1a151e4516967829672e"},
+    {file = "bytewax-0.16.0-cp38-cp38-manylinux_2_31_x86_64.whl", hash = "sha256:d7cc84777ee59b7b7de037084104c20dbc675c6d0b45c54c0c47ae4195b629cd"},
+    {file = "bytewax-0.16.0-cp39-cp39-macosx_10_7_x86_64.whl", hash = "sha256:cfdd117a46a56e12bfb87d6130885b29a865e85ed1d22c6ce9a418e06d778b11"},
+    {file = "bytewax-0.16.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:c6d8ae20195c25f2b895fdb31013535bf3c9155101d77af8386b9769e9283d29"},
+    {file = "bytewax-0.16.0-cp39-cp39-manylinux_2_27_x86_64.whl", hash = "sha256:f38284a00bb9ac62f59fec79642ea2c3101394705e64d25300ca414f34a791ea"},
+    {file = "bytewax-0.16.0-cp39-cp39-manylinux_2_31_x86_64.whl", hash = "sha256:0b067f0213716cf183d401970e2c0e4950fed24765c024c243827968fe392949"},
+]
+
+[package.extras]
+dev = ["black (==22.3.0)", "bytewax[docs,kafka,test]", "flake8 (==4.0.1)", "isort (==5.10.1)", "pre-commit (==2.19.0)"]
+docs = ["pdoc3 (==0.10.0)"]
+kafka = ["confluent-kafka (<=2.0.2)"]
+test = ["myst-docutils (==0.17.0)", "pytest (==7.1.0)"]
+
+[[package]]
 name = "cachecontrol"
 version = "0.12.11"
 description = "httplib2 caching for requests"
@@ -1302,6 +1334,36 @@ files = [
     {file = "MarkupSafe-2.1.2-cp39-cp39-win_amd64.whl", hash = "sha256:0576fe974b40a400449768941d5d0858cc624e3249dfd1e0c33674e5c7ca7aed"},
     {file = "MarkupSafe-2.1.2.tar.gz", hash = "sha256:abcabc8c2b26036d62d4c746381a6f7cf60aafcc653198ad678306986b09450d"},
 ]
+
+[[package]]
+name = "maturin"
+version = "0.14.17"
+description = "Build and publish crates with pyo3, rust-cpython and cffi bindings as well as rust binaries as python packages"
+category = "dev"
+optional = false
+python-versions = ">= 3.7"
+files = [
+    {file = "maturin-0.14.17-py3-none-linux_armv6l.whl", hash = "sha256:2684302ded1559a26635ec45e91ae7913aeb386a8b658d5c2eb13ff410df7930"},
+    {file = "maturin-0.14.17-py3-none-macosx_10_7_x86_64.whl", hash = "sha256:7fef3950a34c0b5c1806637169fca12f89b7440d7608832bf7765b34f394b06a"},
+    {file = "maturin-0.14.17-py3-none-macosx_10_9_x86_64.macosx_11_0_arm64.macosx_10_9_universal2.whl", hash = "sha256:a7f06984bd3ffa4ab7be67f7352353a486f262d7a0dbd4dc305944e0b09c8f35"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_12_i686.manylinux2010_i686.musllinux_1_1_i686.whl", hash = "sha256:cf1429a7854ecd4830bb42407d30ff0625c3f6480fa7b1e90da2896ba7a1b2fc"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl", hash = "sha256:0308d4124311c92ec5c08600f93385a5ff16f7764410585261d1ca0aed739764"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.musllinux_1_1_aarch64.whl", hash = "sha256:8076993118089abb19e7d2312b138afea418dccea60be4198ab9f348618b47df"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.musllinux_1_1_armv7l.whl", hash = "sha256:3bf173adac3e9f84a84123ec0b5b4b28b2de79446a49da2b4549016614025b83"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.musllinux_1_1_ppc64le.whl", hash = "sha256:dcd44c2fa66d79497e2f4361654ed0d1c2ef1c58139469e8e0083409f948eea4"},
+    {file = "maturin-0.14.17-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:64dd1b017eab2f9c938d833522bb505506908d824388927011dbdfff26ccea2c"},
+    {file = "maturin-0.14.17-py3-none-win32.whl", hash = "sha256:683e1127b54b9fbdbd661ce3b27b073bd5d7c51d7e980870f4caffdb40f364b0"},
+    {file = "maturin-0.14.17-py3-none-win_amd64.whl", hash = "sha256:bb8f8ac375d022c5de5da3efed79e712129de13ebdb9f668b96bf5df0673bc03"},
+    {file = "maturin-0.14.17-py3-none-win_arm64.whl", hash = "sha256:abfd98529cfab59deb59639962d93df72121013d5151a5f01c66cda19d9c88a9"},
+    {file = "maturin-0.14.17.tar.gz", hash = "sha256:fb4e3311e8ce707843235fbe8748a05a3ae166c3efd6d2aa335b53dfc2bd3b88"},
+]
+
+[package.dependencies]
+tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
+
+[package.extras]
+patchelf = ["patchelf"]
+zig = ["ziglang (>=0.10.0,<0.11.0)"]
 
 [[package]]
 name = "mdurl"
@@ -3120,4 +3182,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "751c103e7cc9058465b173f53f1d30b84121dba705e990d4b329613089b6e0e2"
+content-hash = "7ea05da6251b99825ef39883463883a119041dee11ec986f36098e35d64775d7"

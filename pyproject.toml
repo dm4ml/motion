@@ -24,6 +24,7 @@ pydantic = "^1.10.7"
 urllib3 = "^1.26.15"
 flask = "^2.2.3"
 rich = "^13.3.4"
+bytewax = "^0.16.0"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
@@ -43,6 +44,7 @@ mkdocstrings = {version="^0.20.0", extras = ["python"] }
 pytkdocs = "^0.16.1"
 linkchecker = "^10.2.1"
 ruff = "^0.0.261"
+maturin = "^0.14.17"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
