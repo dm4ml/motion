@@ -21,15 +21,17 @@ class Component(ABC):
     def infer(key: str):
         def decorator(func):
             func._input_key = key
+            func._op = "infer"
             return func
 
         return decorator
 
     @staticmethod
-    def fit(key: str, batch_size: int = 10):
+    def fit(key: str, batch_size: int = 1):
         def decorator(func):
             func._input_key = key
             func._batch_size = batch_size
+            func._op = "fit"
             return func
 
         return decorator

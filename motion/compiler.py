@@ -10,8 +10,10 @@ class RouteCompiler:
 
     def get_decorated_methods(self, decorator_name: str) -> List[Callable]:
         methods = inspect.getmembers(self.component, predicate=inspect.ismethod)
+        # print(methods)
+
         decorated_methods = [
-            m[1] for m in methods if decorator_name in getattr(m[1], "__qualname__", "")
+            m[1] for m in methods if decorator_name in getattr(m[1], "_op", "")
         ]
         return decorated_methods
 

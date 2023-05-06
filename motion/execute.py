@@ -33,14 +33,16 @@ class Executor:
         self.batch_sizes = {
             getattr(m, "_input_key"): getattr(m, "_batch_size") for m in fit_methods
         }
-        self.fit_threads = {
-            getattr(m, "_input_key"): threading.Thread(
-                target=lambda: self.processFitQueue(getattr(m, "_input_key")),
+
+        self.fit_threads = {}
+        for m in fit_methods:
+            key = getattr(m, "_input_key")
+            self.fit_threads[key] = threading.Thread(
+                target=self.processFitQueue,
+                args=(key,),
                 daemon=True,
-                name=f"{self.component_name}_{getattr(m, '_input_key')}_fit",
+                name=f"{self.component_name}_{key}_fit",
             )
-            for m in fit_methods
-        }
         for t in self.fit_threads.values():
             t.start()
 

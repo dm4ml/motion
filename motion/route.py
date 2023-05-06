@@ -18,6 +18,7 @@ class Route(BaseModel):
     def validateOp(cls, values: Dict) -> Dict:
         udf = values.get("udf")
         op = values.get("op")
+
         if op == "infer" and len(inspect.signature(udf).parameters) != 2:
             raise ValueError(
                 f"Infer method {udf.__name__} should have 2 arguments `state` "

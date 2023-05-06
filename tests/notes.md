@@ -19,4 +19,5 @@
 ## Integration Tests
 
 - [PASS] DB connection in state
-- [PASS] HTTP connection in state
+- [PASS] ML model in state
+- [PASS] A pipeline with 2 components
