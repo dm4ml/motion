@@ -1,12 +1,12 @@
 import threading
 from queue import SimpleQueue
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from motion.compiler import RouteCompiler
 
 
 class Executor:
-    def __init__(self, component: object):
+    def __init__(self, component: Any):
         self.component = component
         self.component_name = component.__class__.__name__
 
@@ -20,7 +20,7 @@ class Executor:
         # Build routes and fit queue
         self.build()
 
-    def build(self):
+    def build(self) -> None:
         rc = RouteCompiler(self.component)
         (
             self.infer_routes,
@@ -29,7 +29,9 @@ class Executor:
 
         # Set up fit queues
         fit_methods = rc.get_decorated_methods("fit")
-        self.fit_queues = {getattr(m, "_input_key"): SimpleQueue() for m in fit_methods}
+        self.fit_queues: Dict[str, SimpleQueue] = {
+            getattr(m, "_input_key"): SimpleQueue() for m in fit_methods
+        }
         self.batch_sizes = {
             getattr(m, "_input_key"): getattr(m, "_batch_size") for m in fit_methods
         }
@@ -46,7 +48,7 @@ class Executor:
         for t in self.fit_threads.values():
             t.start()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         for t in self.fit_threads.values():
             t.join()
 
@@ -65,7 +67,7 @@ class Executor:
             "infer_results": [],
         }
 
-    def processFitQueue(self, route_key: str):
+    def processFitQueue(self, route_key: str) -> None:
         while True:
             batch = self.empty_batch()
 
@@ -89,7 +91,7 @@ class Executor:
             for fit_event in batch["fit_events"]:
                 fit_event.set()
 
-    def run(self, **kwargs: Dict[str, Any]) -> Tuple[Any, threading.Event]:
+    def run(self, **kwargs: Dict[str, Any]) -> Tuple[Any, Optional[threading.Event]]:
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
 

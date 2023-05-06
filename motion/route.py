@@ -19,6 +19,11 @@ class Route(BaseModel):
         udf = values.get("udf")
         op = values.get("op")
 
+        if not udf:
+            raise ValueError("udf cannot be None.")
+        if not op:
+            raise ValueError("op cannot be None.")
+
         if op == "infer" and len(inspect.signature(udf).parameters) != 2:
             raise ValueError(
                 f"Infer method {udf.__name__} should have 2 arguments `state` "
@@ -32,5 +37,5 @@ class Route(BaseModel):
             )
         return values
 
-    def run(self, **kwargs: Dict[str, Any]) -> Any:
+    def run(self, **kwargs: Any) -> Any:
         return self.udf(**kwargs)

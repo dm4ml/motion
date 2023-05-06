@@ -10,7 +10,7 @@ class Component(ABC):
         self._params = CustomDict(self.__class__.__name__, "params", params)
 
     @property
-    def params(self):
+    def params(self) -> CustomDict:
         return self._params
 
     @abstractmethod
@@ -18,8 +18,8 @@ class Component(ABC):
         pass
 
     @staticmethod
-    def infer(key: str):
-        def decorator(func):
+    def infer(key: str) -> Any:
+        def decorator(func: Any) -> Any:
             func._input_key = key
             func._op = "infer"
             return func
@@ -27,8 +27,8 @@ class Component(ABC):
         return decorator
 
     @staticmethod
-    def fit(key: str, batch_size: int = 1):
-        def decorator(func):
+    def fit(key: str, batch_size: int = 1) -> Any:
+        def decorator(func: Any) -> Any:
             func._input_key = key
             func._batch_size = batch_size
             func._op = "fit"
@@ -36,7 +36,7 @@ class Component(ABC):
 
         return decorator
 
-    def run(self, **kwargs: Dict[str, Any]) -> Any:
+    def run(self, **kwargs: Any) -> Any:
         return_fit_event = kwargs.pop("return_fit_event", False)
         wait_for_fit = kwargs.pop("wait_for_fit", False)
 
