@@ -72,35 +72,6 @@ class Executor:
                 raise TypeError(f"{self._component_name} setUp() should return a dict.")
             self.update(initial_state)
 
-    # def start(self):
-    #     # Set up state
-    #     self.setUp()
-
-    #     # Set up fit queues
-    #     self._fit_queues = {
-    #         key: {v.udf.__name__: SimpleQueue() for v in val}
-    #         for key, val in self._fit_routes.items()
-    #     }
-    #     self._batch_sizes = {
-    #         key: {v.udf.__name__: v.udf._batch_size for v in val}
-    #         for key, val in self._fit_routes.items()
-    #     }
-
-    #     # Set up fit threads
-    #     self._fit_threads = {}
-    #     for key, val in self._fit_routes.items():
-    #         self._fit_threads[key] = {}
-    #         for v in val:
-    #             self._fit_threads[key][v.udf.__name__] = threading.Thread(
-    #                 target=self.processFitQueue,
-    #                 args=(key, v.udf.__name__),
-    #                 daemon=True,
-    #                 name=f"{self._component_name}_{key}_{v.udf.__name__}_fit",
-    #             )
-    #     for key, val in self._fit_threads.items():
-    #         for v in val.values():
-    #             v.start()
-
     def shutdown(self, is_open: bool) -> None:
         if self._cleanup and is_open:
             logger.info("Running fit operations on remaining data...")
@@ -112,39 +83,6 @@ class Executor:
         for _, val in self._fit_threads.items():
             for v in val.values():
                 v.join()
-
-    # def build(self) -> None:
-    #     rc = RouteCompiler(self.component)
-    #     (
-    #         self.infer_routes,
-    #         self.fit_routes,
-    #     ) = rc.compile_routes()
-
-    #     # Set up fit queues
-    #     fit_methods = rc.get_decorated_methods("fit")
-    #     self.fit_queues: Dict[str, SimpleQueue] = {
-    #         getattr(m, "_input_key"): SimpleQueue() for m in fit_methods
-    #     }
-    #     self.batch_sizes = {
-    #         getattr(m, "_input_key"): getattr(m, "_batch_size")
-    #         for m in fit_methods
-    #     }
-
-    #     self.fit_threads = {}
-    #     for m in fit_methods:
-    #         key = getattr(m, "_input_key")
-    #         self.fit_threads[key] = threading.Thread(
-    #             target=self.processFitQueue,
-    #             args=(key,),
-    #             daemon=True,
-    #             name=f"{self._component_name}_{key}_fit",
-    #         )
-    #     for t in self.fit_threads.values():
-    #         t.start()
-
-    # def shutdown(self) -> None:
-    #     for t in self.fit_threads.values():
-    #         t.join()
 
     @property
     def state(self) -> Dict[str, Any]:
