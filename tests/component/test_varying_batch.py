@@ -1,31 +1,28 @@
 from motion import Component
 
-import pytest
-
-
-class VaryingBatch(Component):
-    def setUp(self):
-        return {"value": 0}
-
-    @Component.infer("get")
-    def get_value(self, state, value):
-        return state["value"]
-
-    @Component.fit("route1", batch_size=1)
-    def increment(self, state, values, infer_results):
-        return {"value": state["value"] + len(values)}
-
-    @Component.fit("route2", batch_size=10)
-    def increment2(self, state, values, infer_results):
-        return {"value": state["value"] + len(values)}
-
-    @Component.fit("route3", batch_size=100)
-    def increment3(self, state, values, infer_results):
-        return {"value": state["value"] + len(values)}
-
 
 def test_varying_batch():
-    c = VaryingBatch()
+    c = Component("VaryingBatch")
+
+    @c.setUp
+    def setUp():
+        return {"value": 0}
+
+    @c.infer("get")
+    def get_value(state, value):
+        return state["value"]
+
+    @c.fit("route1", batch_size=1)
+    def increment(state, values, infer_results):
+        return {"value": state["value"] + len(values)}
+
+    @c.fit("route2", batch_size=10)
+    def increment2(state, values, infer_results):
+        return {"value": state["value"] + len(values)}
+
+    @c.fit("route3", batch_size=100)
+    def increment3(state, values, infer_results):
+        return {"value": state["value"] + len(values)}
 
     # Test batch_size=1
     c.run(route1=1, wait_for_fit=True)

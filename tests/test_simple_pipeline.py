@@ -3,35 +3,34 @@ from motion import Component
 # Test a pipeline with multiple components
 
 
-class ComponentA(Component):
-    def setUp(self):
+def test_simple_pipeline():
+    a = Component("ComponentA")
+
+    @a.setUp
+    def setUp():
         return {"value": 0}
 
-    @Component.infer("add")
-    def plus(self, state, value):
+    @a.infer("add")
+    def plus(state, value):
         return state["value"] + value
 
-    @Component.fit("add", batch_size=1)
-    def increment(self, state, values, infer_results):
+    @a.fit("add", batch_size=1)
+    def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
+    b = Component("ComponentB")
 
-class ComponentB(Component):
-    def setUp(self):
+    @b.setUp
+    def setUp():
         return {"message": ""}
 
-    @Component.infer("concat")
-    def concat_message(self, state, value):
+    @b.infer("concat")
+    def concat_message(state, value):
         return state["message"] + " " + value
 
-    @Component.fit("concat", batch_size=1)
-    def update_message(self, state, values, infer_results):
+    @b.fit("concat", batch_size=1)
+    def update_message(state, values, infer_results):
         return {"message": state["message"] + " " + " ".join(values)}
-
-
-def test_simple_pipeline():
-    a = ComponentA()
-    b = ComponentB()
 
     add_result = a.run(add=1, wait_for_fit=True)
     assert add_result == 1

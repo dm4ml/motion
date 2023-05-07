@@ -1,14 +1,15 @@
-from typing import Any, Dict
 from motion import Component
 
-import sqlite3
 
 from sklearn.datasets import make_regression
 from sklearn.linear_model import LinearRegression
 
 
-class ModelComponent(Component):
-    def setUp(self):
+def test_model_component():
+    c = Component("ModelComponent")
+
+    @c.setUp
+    def setUp():
         # Generate a sample dataset for training
         X, y = make_regression(n_samples=100, n_features=1, noise=0.1)
 
@@ -18,12 +19,12 @@ class ModelComponent(Component):
 
         return {"model": model}
 
-    @Component.infer("value")
-    def predict(self, state, value):
+    @c.infer("value")
+    def predict(state, value):
         return state["model"].predict([[value]])[0]
 
-    @Component.fit("value", batch_size=2)
-    def finetune(self, state, values, infer_results):
+    @c.fit("value", batch_size=2)
+    def finetune(state, values, infer_results):
         # Perform training on the batch of data
 
         # Example training logic:
@@ -34,10 +35,6 @@ class ModelComponent(Component):
 
         # Return updated state if needed
         return {"model": model}
-
-
-def test_model_component():
-    c = ModelComponent()
 
     first_run = c.run(value=1)
     assert first_run == c.run(value=1, wait_for_fit=True)

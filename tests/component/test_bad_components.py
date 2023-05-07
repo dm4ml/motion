@@ -3,35 +3,41 @@ from motion import Component
 import pytest
 
 
-class BadInferComponent(Component):
-    def setUp(self):
+def test_bad_infer_component():
+    with pytest.raises(ValueError):
+        c = Component("BadInferComponent")
+
+        @c.setUp
+        def setUp():
+            return {"value": 0}
+
+        @c.infer("add")
+        def plus(state, value):
+            return state["value"] + value
+
+        @c.infer("add")
+        def plus2(state, value):
+            return state["value"] + value
+
+
+def test_double_fit_component():
+    c = Component(name="DoubleFit", params={})
+
+    @c.setUp
+    def setUp():
         return {"value": 0}
 
-    @Component.infer("add")
-    def plus(self, state, value):
-        return state["value"] + value
+    @c.fit("add")
+    def plus(state, values, infer_results):
+        return {"value": state["value"] + sum(values)}
 
-    @Component.infer("add")
-    def plus2(self, state, value):
-        return state["value"] + value
+    @c.fit("add")
+    def plus2(state, values, infer_results):
+        return {"value": state["value"] + sum(values)}
 
+    @c.infer("read")
+    def read(state, value):
+        return state["value"]
 
-class BadFitComponent(Component):
-    def setUp(self):
-        return {"value": 0}
-
-    @Component.fit("add")
-    def plus(self, state, value):
-        return state["value"] + value
-
-    @Component.fit("add")
-    def plus2(self, state, value):
-        return state["value"] + value
-
-
-def test_bad_component():
-    with pytest.raises(ValueError):
-        c = BadInferComponent()
-
-    with pytest.raises(ValueError):
-        c = BadFitComponent()
+    c.run(add=1, wait_for_fit=True)
+    assert c.run(read=1) == 2

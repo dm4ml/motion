@@ -1,56 +1,150 @@
 import threading
-from queue import SimpleQueue
-from typing import Any, Dict, List, Optional, Tuple
+from queue import Empty, SimpleQueue
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from motion.compiler import RouteCompiler
+from motion.route import Route
+from motion.utils import CustomDict, FitEventGroup, logger
 
 
 class Executor:
-    def __init__(self, component: Any):
-        self.component = component
-        self.component_name = component.__class__.__name__
+    def __init__(self, component_name: str, cleanup: bool):
+        self._component_name = component_name
+        self._cleanup = cleanup
+        self._first_run = True  # Use this to determine whether to run setUp
+        self._init_state_func: Optional[Callable] = None
 
-        # Set up initial state
-        self._state = CustomDict(self.component_name, "state", {})
-        initial_state = self.component.setUp()
-        if not isinstance(initial_state, dict):
-            raise TypeError(f"{self.component_name} setUp() should return a dict.")
-        self.update(initial_state)
+        # Set up routes
+        self._infer_routes: Dict[str, Route] = {}
+        self._fit_routes: Dict[str, List[Route]] = {}
 
-        # Build routes and fit queue
-        self.build()
+        # Set up shutdown event
+        self._shutdown_event = threading.Event()
 
-    def build(self) -> None:
-        rc = RouteCompiler(self.component)
-        (
-            self.infer_routes,
-            self.fit_routes,
-        ) = rc.compile_routes()
+        # Set up fit queues, batch sizes, and threads
+        self._fit_queues: Dict[str, Dict[str, SimpleQueue]] = {}
+        self._batch_sizes: Dict[str, Dict[str, int]] = {}
+        self._fit_threads: Dict[str, Dict[str, threading.Thread]] = {}
 
-        # Set up fit queues
-        fit_methods = rc.get_decorated_methods("fit")
-        self.fit_queues: Dict[str, SimpleQueue] = {
-            getattr(m, "_input_key"): SimpleQueue() for m in fit_methods
-        }
-        self.batch_sizes = {
-            getattr(m, "_input_key"): getattr(m, "_batch_size") for m in fit_methods
-        }
+    @property
+    def init_state_func(self) -> Optional[Callable]:
+        return self._init_state_func
 
-        self.fit_threads = {}
-        for m in fit_methods:
-            key = getattr(m, "_input_key")
-            self.fit_threads[key] = threading.Thread(
+    @init_state_func.setter
+    def init_state_func(self, func: Callable) -> None:
+        self._init_state_func = func
+
+    def add_route(self, key: str, op: str, udf: Callable) -> None:
+        if op == "infer":
+            if key in self._infer_routes.keys():
+                raise ValueError(
+                    f"Cannot have more than one infer route for key `{key}`."
+                )
+
+            self._infer_routes[key] = Route(key=key, op=op, udf=udf)
+        elif op == "fit":
+            if key not in self._fit_routes.keys():
+                self._fit_routes[key] = []
+                self._fit_queues[key] = {}
+                self._batch_sizes[key] = {}
+                self._fit_threads[key] = {}
+
+            uname = udf.__name__
+            self._fit_routes[key].append(Route(key=key, op=op, udf=udf))
+            self._fit_queues[key][uname] = SimpleQueue()
+            self._batch_sizes[key][uname] = udf._batch_size  # type: ignore
+            self._fit_threads[key][uname] = threading.Thread(
                 target=self.processFitQueue,
-                args=(key,),
+                args=(key, uname),
                 daemon=True,
-                name=f"{self.component_name}_{key}_fit",
+                name=f"{self._component_name}_{key}_{uname}_fit",
             )
-        for t in self.fit_threads.values():
-            t.start()
+            self._fit_threads[key][uname].start()
 
-    def shutdown(self) -> None:
-        for t in self.fit_threads.values():
-            t.join()
+        else:
+            raise ValueError(f"Invalid op `{op}`.")
+
+    def setUp(self) -> None:
+        # Set up initial state
+        self._state = CustomDict(self._component_name, "state", {})
+        if self._init_state_func is not None:
+            initial_state = self._init_state_func()
+            if not isinstance(initial_state, dict):
+                raise TypeError(f"{self._component_name} setUp() should return a dict.")
+            self.update(initial_state)
+
+    # def start(self):
+    #     # Set up state
+    #     self.setUp()
+
+    #     # Set up fit queues
+    #     self._fit_queues = {
+    #         key: {v.udf.__name__: SimpleQueue() for v in val}
+    #         for key, val in self._fit_routes.items()
+    #     }
+    #     self._batch_sizes = {
+    #         key: {v.udf.__name__: v.udf._batch_size for v in val}
+    #         for key, val in self._fit_routes.items()
+    #     }
+
+    #     # Set up fit threads
+    #     self._fit_threads = {}
+    #     for key, val in self._fit_routes.items():
+    #         self._fit_threads[key] = {}
+    #         for v in val:
+    #             self._fit_threads[key][v.udf.__name__] = threading.Thread(
+    #                 target=self.processFitQueue,
+    #                 args=(key, v.udf.__name__),
+    #                 daemon=True,
+    #                 name=f"{self._component_name}_{key}_{v.udf.__name__}_fit",
+    #             )
+    #     for key, val in self._fit_threads.items():
+    #         for v in val.values():
+    #             v.start()
+
+    def shutdown(self, is_open: bool) -> None:
+        if self._cleanup and is_open:
+            logger.info("Running fit operations on remaining data...")
+
+        # Set shutdown event
+        self._shutdown_event.set()
+
+        # Join fit threads
+        for _, val in self._fit_threads.items():
+            for v in val.values():
+                v.join()
+
+    # def build(self) -> None:
+    #     rc = RouteCompiler(self.component)
+    #     (
+    #         self.infer_routes,
+    #         self.fit_routes,
+    #     ) = rc.compile_routes()
+
+    #     # Set up fit queues
+    #     fit_methods = rc.get_decorated_methods("fit")
+    #     self.fit_queues: Dict[str, SimpleQueue] = {
+    #         getattr(m, "_input_key"): SimpleQueue() for m in fit_methods
+    #     }
+    #     self.batch_sizes = {
+    #         getattr(m, "_input_key"): getattr(m, "_batch_size")
+    #         for m in fit_methods
+    #     }
+
+    #     self.fit_threads = {}
+    #     for m in fit_methods:
+    #         key = getattr(m, "_input_key")
+    #         self.fit_threads[key] = threading.Thread(
+    #             target=self.processFitQueue,
+    #             args=(key,),
+    #             daemon=True,
+    #             name=f"{self._component_name}_{key}_fit",
+    #         )
+    #     for t in self.fit_threads.values():
+    #         t.start()
+
+    # def shutdown(self) -> None:
+    #     for t in self.fit_threads.values():
+    #         t.join()
 
     @property
     def state(self) -> Dict[str, Any]:
@@ -67,17 +161,31 @@ class Executor:
             "infer_results": [],
         }
 
-    def processFitQueue(self, route_key: str) -> None:
-        while True:
+    def processFitQueue(self, route_key: str, udf_name: str) -> None:
+        while not self._shutdown_event.is_set():
             batch = self.empty_batch()
 
-            for _ in range(self.batch_sizes[route_key]):
-                fit_event, value, infer_result = self.fit_queues[route_key].get()
+            num_elements = 0
+            while num_elements < self._batch_sizes[route_key][udf_name]:
+                try:
+                    result = self._fit_queues[route_key][udf_name].get(timeout=1)
+                except Empty:
+                    # Handle empty queue and check shutdown event again
+                    if self._shutdown_event.is_set():
+                        if self._cleanup:
+                            break  # Break out of while loop and run udf
+                        else:
+                            return  # Exit function so thread can be joined
+                    else:
+                        continue
+
+                fit_event, route, value, infer_result = result
                 batch["fit_events"].append(fit_event)
                 batch["values"].append(value)
                 batch["infer_results"].append(infer_result)
+                num_elements += 1
 
-            new_state = self.fit_routes[route_key].run(
+            new_state = route.run(
                 state=self.state,
                 values=batch["values"],
                 infer_results=batch["infer_results"],
@@ -91,7 +199,7 @@ class Executor:
             for fit_event in batch["fit_events"]:
                 fit_event.set()
 
-    def run(self, **kwargs: Dict[str, Any]) -> Tuple[Any, Optional[threading.Event]]:
+    def run(self, **kwargs: Dict[str, Any]) -> Tuple[Any, Optional[FitEventGroup]]:
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
 
@@ -99,41 +207,33 @@ class Executor:
         route_hit = False
         infer_result = None
 
-        # Run the infer route
-        if key in self.infer_routes.keys():
-            route_hit = True
-            infer_result = self.infer_routes[key].run(state=self.state, value=value)
+        if self._first_run:
+            # Set up state
+            logger.info(f"Setting up {self._component_name} state for the first run...")
+            self.setUp()
+            logger.info(f"Finished setting up {self._component_name} state.")
+            self._first_run = False
 
-        # Run the fit route
-        if key in self.fit_routes.keys():
+        # Run the infer route
+        if key in self._infer_routes.keys():
             route_hit = True
-            fit_event = threading.Event()
-            self.fit_queues[key].put((fit_event, value, infer_result))
-            return infer_result, fit_event
+            infer_result = self._infer_routes[key].run(state=self.state, value=value)
+
+        # Run the fit routes
+        if key in self._fit_routes.keys():
+            route_hit = True
+
+            fit_events = FitEventGroup(key)
+            for fit in self._fit_routes[key]:
+                fit_event = threading.Event()
+                self._fit_queues[key][fit.udf.__name__].put(
+                    (fit_event, fit, value, infer_result)
+                )
+                fit_events.add(fit.udf.__name__, fit_event)
+
+            return infer_result, fit_events
 
         if not route_hit:
             raise KeyError(f"Key {key} not in routes.")
 
         return infer_result, None
-
-
-class CustomDict(dict):
-    def __init__(
-        self,
-        component_name: str,
-        dict_type: str,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        self.component_name = component_name
-        self.dict_type = dict_type
-        super().__init__(*args, **kwargs)
-
-    def __getitem__(self, key: str) -> object:
-        try:
-            return super().__getitem__(key)
-        except KeyError:
-            raise KeyError(
-                f"Key `{key}` not found in {self.dict_type} for "
-                + f"component {self.component_name}."
-            )
