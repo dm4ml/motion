@@ -1,10 +1,11 @@
 import atexit
+import inspect
 import logging
 from abc import ABC
-from typing import Any, Dict
+from typing import Any, Dict, get_type_hints
 
 from motion.execute import Executor
-from motion.utils import CustomDict, configureLogging, logger
+from motion.utils import CustomDict, configureLogging, logger, validate_args
 
 
 def is_logger_open(logger: logging.Logger) -> bool:
@@ -61,15 +62,39 @@ class Component(ABC):
 
     def infer(self, key: str) -> Any:
         def decorator(func: Any) -> Any:
-            func._input_key = key
-            func._op = "infer"
-            self._executor.add_route(func._input_key, func._op, func)
-            return func
+            type_hint = get_type_hints(func).get("value", None)
+            if not validate_args(inspect.signature(func).parameters, "infer"):
+                raise ValueError(
+                    f"Infer function {func.__name__} should have 2 arguments "
+                    + "`state` and `value`"
+                )
+
+            def wrapper(state, value):
+                if type_hint and not isinstance(value, type_hint):
+                    try:
+                        value = type_hint(**value)
+                    except (TypeError, ValueError):
+                        raise ValueError(
+                            f"value argument must be of type {type_hint.__name__}"
+                        )
+
+                return func(state, value)
+
+            wrapper._input_key = key
+            wrapper._op = "infer"
+            self._executor.add_route(wrapper._input_key, wrapper._op, wrapper)
+            return wrapper
 
         return decorator
 
     def fit(self, key: str, batch_size: int = 1) -> Any:
         def decorator(func: Any) -> Any:
+            if not validate_args(inspect.signature(func).parameters, "fit"):
+                raise ValueError(
+                    f"Fit method {func.__name__} should have 3 arguments: "
+                    + "`state`, `values`, and `infer_results`."
+                )
+
             func._input_key = key
             func._batch_size = batch_size
             func._op = "fit"

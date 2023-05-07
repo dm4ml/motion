@@ -29,6 +29,20 @@ class CustomDict(dict):
             )
 
 
+def validate_args(parameters: Dict, op: str) -> bool:
+    expected_args = (
+        ["state", "values", "infer_results"] if op == "fit" else ["state", "value"]
+    )
+    if len(parameters) != len(expected_args):
+        return False
+
+    for param_name, _ in parameters.items():
+        if param_name not in expected_args:
+            return False
+
+    return True
+
+
 def configureLogging(level: str) -> None:
     handler = logging.StreamHandler()
 
