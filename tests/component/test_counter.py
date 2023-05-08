@@ -5,7 +5,7 @@ import pytest
 def test_create():
     c = Component("Counter")
 
-    @c.setUp
+    @c.init
     def setUp():
         return {"value": 0}
 

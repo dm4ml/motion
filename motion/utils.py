@@ -29,7 +29,7 @@ class CustomDict(dict):
             )
 
 
-def validate_args(parameters: Dict, op: str) -> bool:
+def validate_args(parameters: Any, op: str) -> bool:
     expected_args = (
         ["state", "values", "infer_results"] if op == "fit" else ["state", "value"]
     )
@@ -63,6 +63,8 @@ def configureLogging(level: str) -> None:
 
 
 class FitEventGroup:
+    """Stores the events for fit operations on a given key."""
+
     def __init__(self, key: str) -> None:
         self.key = key
         self.events: Dict[str, threading.Event] = {}
@@ -71,6 +73,34 @@ class FitEventGroup:
         self.events[udf_name] = event
 
     def wait(self) -> None:
+        """Waits for all fit operations for this dataflow key
+        to finish. Be careful not to trigger an infinite wait if the batch_size
+        has not been hit yet!
+
+        Example usage:
+        ```python
+        from motion import Component
+
+        c = Component("MyComponent")
+
+        @c.init
+        def setUp():
+            return {"state_val": 0, "state_val2": 0}
+
+        @c.fit("my_key")
+        def fit1(state, values, infer_results):
+            return {"state_val": state["state_val"] + sum(values)}
+
+        @c.fit("my_key")
+        def fit2(state, values, infer_results):
+            return {"state_val2": state["state_val2"] + sum(values)}
+
+        result, fit_tasks = c.run(my_key=1)
+        print(result) # None because no infer op was hit
+        fit_tasks.wait() # Wait for all fit tasks to finish
+        # Now `state["state_val"] = 1` and `state["state_val2"] = 1`
+        ```
+        """
         for event in self.events.values():
             event.wait()
 

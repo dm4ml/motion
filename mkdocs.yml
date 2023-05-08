@@ -7,7 +7,13 @@ nav:
   - Getting Started:
       - Welcome: index.md
       - Installation: getting_started/installation.md
-      - Quick Start: getting_started/quick_start.md
+      - Concepts: getting_started/concepts.md
+  - Examples:
+      - Querying Data with Natural Language: examples/nl_query.md
+      - Fine-tuning a CLIP model: examples/clip_finetuning.md
+  - API Reference:
+      - Component: api/component.md
+      - FitEventGroup: api/fit_event_group.md
 
 theme:
   name: material

@@ -6,7 +6,7 @@ import pytest
 def test_params():
     c = Component("ComponentWithParams", params={"multiplier": 2})
 
-    @c.setUp
+    @c.init
     def setUp():
         return {"value": 0}
 
@@ -25,7 +25,7 @@ def test_params():
 def test_params_not_exist():
     c = Component("ComponentWithParams")
 
-    @c.setUp
+    @c.init
     def setUp():
         return {"value": 0}
 
