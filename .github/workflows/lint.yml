@@ -1,7 +1,6 @@
 name: lint
 
-on: [ push, pull_request ]
-
+on: [push, pull_request]
 
 jobs:
   test:
@@ -9,3 +8,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: chartboost/ruff-action@v1
+        with:
+          src: "motion/*"
