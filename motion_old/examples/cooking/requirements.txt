@@ -1,7 +1,0 @@
-aiohttp
-beautifulsoup4
-cohere
-faiss-cpu
-numpy
-pandas
-streamlit
