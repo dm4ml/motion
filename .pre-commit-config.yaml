@@ -38,6 +38,12 @@ repos:
         types: [python]
         args: [--profile, black]
 
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    # Ruff version.
+    rev: 'v0.0.261'
+    hooks:
+      - id: ruff
+
   - repo: https://github.com/pre-commit/pre-commit
     rev: v2.21.0
     hooks:
