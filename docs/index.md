@@ -1,6 +1,6 @@
 # Welcome to Motion
 
-Motion is a simple **framework** for building machine learning (ML) applications, designed to **reduce the MLOps burdens** of making sure your models, prompts, and other stateful objects are **up-to-date with your data.**
+Motion is a lightweight **framework** for building machine learning (ML) applications, designed to **reduce the MLOps burdens** of making sure your models, prompts, and other stateful objects are **up-to-date with your data.**
 
 !!! tip "Alpha Release"
 
