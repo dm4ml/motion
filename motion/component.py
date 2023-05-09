@@ -322,6 +322,7 @@ class Component:
             def wrapper(state: CustomDict, value: Any) -> Any:
                 if (
                     type_hint
+                    and inspect.isclass(type_hint)
                     and issubclass(type_hint, BaseModel)
                     and not isinstance(value, type_hint)
                 ):
