@@ -1,4 +1,5 @@
 import atexit
+import functools
 import inspect
 import logging
 from typing import Any, Callable, Dict, Tuple, Union, get_type_hints
@@ -315,6 +316,7 @@ class Component:
                     + "`state` and `value`"
                 )
 
+            @functools.wraps(func)
             def wrapper(state: CustomDict, value: Any) -> Any:
                 if type_hint and not isinstance(value, type_hint):
                     try:
@@ -497,3 +499,9 @@ class Component:
             return infer_result, fit_event
 
         return infer_result
+
+    def get_graph(self) -> Dict[str, Any]:
+        """
+        Gets the graph of infer and fit ops for this component.
+        """
+        return self._executor.get_graph()

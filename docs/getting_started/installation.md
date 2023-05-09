@@ -17,3 +17,7 @@ git clone https://github.com/dm4ml/motion
 cd motion
 make install
 ```
+
+## Component Visualization Tool
+
+Check out the component visualization tool [here](https://dm4ml.github.io/motion-vis/).
