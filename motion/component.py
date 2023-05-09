@@ -4,6 +4,8 @@ import inspect
 import logging
 from typing import Any, Callable, Dict, Tuple, Union, get_type_hints
 
+from pydantic import BaseModel
+
 from motion.execute import Executor
 from motion.utils import (
     CustomDict,
@@ -318,7 +320,11 @@ class Component:
 
             @functools.wraps(func)
             def wrapper(state: CustomDict, value: Any) -> Any:
-                if type_hint and not isinstance(value, type_hint):
+                if (
+                    type_hint
+                    and issubclass(type_hint, BaseModel)
+                    and not isinstance(value, type_hint)
+                ):
                     try:
                         value = type_hint(**value)
                     except Exception:
