@@ -152,7 +152,7 @@ class Component:
         name: str,
         params: Dict[str, Any] = {},
         cleanup: bool = False,
-        logging_level: str = "INFO",
+        logging_level: str = "WARNING",
     ):
         """Creates a new Motion component.
 
@@ -167,7 +167,7 @@ class Component:
                 shuts down the program. Defaults to False.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
-                Defaults to "INFO".
+                Defaults to "WARNING".
         """
         self._name = name
         self._executor = Executor(name, cleanup=cleanup)
