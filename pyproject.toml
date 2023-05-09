@@ -44,6 +44,9 @@ maturin = "^0.14.17"
 mike = "^1.1.2"
 scikit-learn = "^1.2.2"
 
+[tool.poetry.scripts]
+motion = "motion.cli:motioncli"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
