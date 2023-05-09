@@ -180,7 +180,7 @@ class Executor:
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:
         """Gets the graph of the component."""
 
-        graph = {}
+        graph: Dict[str, Dict[str, Any]] = {}
 
         for key, route in self._infer_routes.items():
             graph[key] = {
@@ -297,7 +297,7 @@ class Executor:
                             "target": state_node["id"],
                             "source": fit_node["id"],
                             "sourceHandle": "top",
-                            "animated": True,
+                            "animated": True,  # type: ignore
                             "label": f"batch_size: {fit['batch_size']}",
                         }
                     )
@@ -310,7 +310,7 @@ class Executor:
                                 "sourceHandle": "right",
                                 "target": fit_node["id"],
                                 "targetHandle": "left",
-                                "animated": True,
+                                "animated": True,  # type: ignore
                             }
                         )
                     else:
@@ -330,7 +330,7 @@ class Executor:
                 max_x_offset = fit_x_offset
 
         # Update state x offset
-        state_node["position"]["x"] = int(max_x_offset / 2)
+        state_node["position"]["x"] = int(max_x_offset / 2)  # type: ignore
         nodes.append(state_node)
 
         return {"name": self._component_name, "nodes": nodes, "edges": edges}
