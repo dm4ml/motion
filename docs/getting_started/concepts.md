@@ -28,7 +28,7 @@ Here is an example component that computes the z-score of a value with respect t
 ```python title="main.py" linenums="1"
 from motion import Component
 
-c = Component("Average")
+c = Component("ZScore")
 
 
 @c.init
@@ -106,7 +106,7 @@ You can inject static component parameters into your dataflow operations by pass
 ```python
 from motion import Component
 
-c = Component("Average", params={"alert_threshold": 2.0})
+c = Component("ZScore", params={"alert_threshold": 2.0})
 ```
 
 Then, you can access the parameters in your operations:
