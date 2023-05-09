@@ -49,6 +49,6 @@ def visualize(filename: str, output: str) -> None:
     ts = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     out_filename = f"{ts}_{instance}_{output}"
 
-    with open(output, "w") as f:
+    with open(out_filename, "w") as f:
         json.dump(graph, f, indent=4)
         click.echo(f"Graph dumped to {out_filename}.")

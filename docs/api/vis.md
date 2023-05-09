@@ -15,23 +15,23 @@ For example, if I had a file called `main.py` like this:
 ```python
 from motion import Component
 
-c = Component("ZScore")
+c = Component("Z-Score")
 
 
 @c.init
-def setUp():  # (1)!
+def setUp():
     return {"mean": None, "std": None}
 
 
 @c.infer("number")
-def normalize(state, value):  # (2)!
+def normalize(state, value):
     if state["mean"] is None:
         return None
     return abs(value - state["mean"]) / state["std"]
 
 
 @c.fit("number", batch_size=10)
-def update(state, values, infer_results):  # (3)!
+def update(state, values, infer_results):
     # We don't do anything with the results, but we could!
     mean = sum(values) / len(values)
     std = sum((n - mean) ** 2 for n in values) / len(values)
@@ -41,11 +41,11 @@ def update(state, values, infer_results):  # (3)!
 if __name__ == "__main__":
     # Observe 10 values of the dataflow's key
     for i in range(9):
-        print(c.run(number=i))  # (1)!
+        print(c.run(number=i))
 
-    c.run(number=9, wait_for_fit=True)  # (2)!
+    c.run(number=9, wait_for_fit=True)
     for i in range(10, 19):
-        print(c.run(number=i))  # (3)!
+        print(c.run(number=i))
 ```
 
 I would run the CLI tool like this:
