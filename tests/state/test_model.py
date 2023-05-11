@@ -8,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 def test_model_component():
     c = Component("ModelComponent")
 
-    @c.init
+    @c.init_state
     def setUp():
         # Generate a sample dataset for training
         X, y = make_regression(n_samples=100, n_features=1, noise=0.1)

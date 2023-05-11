@@ -18,7 +18,7 @@ from motion import Component
 c = Component("Z-Score")
 
 
-@c.init
+@c.init_state
 def setUp():
     return {"mean": None, "std": None}
 

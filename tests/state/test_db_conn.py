@@ -6,7 +6,7 @@ import sqlite3
 def test_db_component():
     c = Component("DBComponent")
 
-    @c.init
+    @c.init_state
     def setUp():
         # Create in-memory sqlite database
         conn = sqlite3.connect(":memory:")

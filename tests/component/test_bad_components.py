@@ -7,7 +7,7 @@ def test_bad_infer_component():
     with pytest.raises(ValueError):
         c = Component("BadInferComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -23,7 +23,7 @@ def test_bad_infer_component():
 def test_double_fit_component():
     c = Component(name="DoubleFit", params={})
 
-    @c.init
+    @c.init_state
     def setUp():
         return {"value": 0}
 

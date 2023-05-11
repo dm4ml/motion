@@ -83,7 +83,7 @@ class FitEventGroup:
 
         c = Component("MyComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"state_val": 0, "state_val2": 0}
 

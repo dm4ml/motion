@@ -3,12 +3,13 @@
     options:
         members: 
             - __init__
-            - name 
-            - params
-            - setUp 
+            - init_state 
             - infer 
             - fit 
             - run
+            - read_state
+            - name 
+            - params
         show_root_full_path: false
         show_root_toc_entry: false
         show_root_heading: true

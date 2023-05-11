@@ -31,7 +31,7 @@ from motion import Component
 c = Component("Average")
 
 
-@c.init
+@c.init_state
 def setUp():  # (1)!
     return {"mean": None, "std": None}
 

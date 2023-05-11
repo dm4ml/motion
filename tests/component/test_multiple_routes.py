@@ -5,7 +5,7 @@ import pytest
 def test_multiple_routes():
     c = Component("Calculator")
 
-    @c.init
+    @c.init_state
     def setUp():
         return {"value": 0}
 
