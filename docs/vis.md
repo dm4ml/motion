@@ -7,7 +7,7 @@ We have developed a tool to visualize the structure of a Motion component. The t
 To get a Motion component file, you should run the CLI tool in the repository with your Motion component:
 
 ```bash
-$ motion vis <filename>::<component_object>
+$ motion vis <filename>:<component_object>
 ```
 
 For example, if I had a file called `main.py` like this:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 I would run the CLI tool like this:
 
 ```bash
-$ motion vis main.py::ZScoreComponent
+$ motion vis main.py:ZScoreComponent
 ```
 
 This will generate and save a JSON file to the current directory. You can then upload this file to the [vis tool](https://dm4ml.github.io/motion-vis) visualize the component.
@@ -70,4 +70,6 @@ Usage: motion vis [OPTIONS] FILENAME
 Options:
   --output TEXT  JSON filename to output the component graph to.
   --help         Show this message and exit.
+
+  Example usage: motion vis main.py:MyComponent
 ```
