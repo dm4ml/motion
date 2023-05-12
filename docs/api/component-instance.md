@@ -1,14 +1,11 @@
-::: motion.Component
+::: motion.ComponentInstance
     handler: python
     options:
         members: 
-            - __init__
-            - init_state 
-            - infer 
-            - fit 
-            - __call__
-            - name 
-            - params
+            - run
+            - read_state
+            - shutdown
+            - instance_name
         show_root_full_path: false
         show_root_toc_entry: false
         show_root_heading: true

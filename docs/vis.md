@@ -15,22 +15,22 @@ For example, if I had a file called `main.py` like this:
 ```python
 from motion import Component
 
-c = Component("Z-Score")
+ZScoreComponent = Component("Z-Score")
 
 
-@c.init_state
+@ZScoreComponent.init_state
 def setUp():
     return {"mean": None, "std": None}
 
 
-@c.infer("number")
+@ZScoreComponent.infer("number")
 def normalize(state, value):
     if state["mean"] is None:
         return None
     return abs(value - state["mean"]) / state["std"]
 
 
-@c.fit("number", batch_size=10)
+@ZScoreComponent.fit("number", batch_size=10)
 def update(state, values, infer_results):
     # We don't do anything with the results, but we could!
     mean = sum(values) / len(values)
@@ -40,6 +40,7 @@ def update(state, values, infer_results):
 
 if __name__ == "__main__":
     # Observe 10 values of the dataflow's key
+    c = ZScoreComponent()
     for i in range(9):
         print(c.run(number=i))
 
@@ -51,7 +52,7 @@ if __name__ == "__main__":
 I would run the CLI tool like this:
 
 ```bash
-$ motion vis main.py::c
+$ motion vis main.py::ZScoreComponent
 ```
 
 This will generate and save a JSON file to the current directory. You can then upload this file to the [vis tool](https://dm4ml.github.io/motion-vis) visualize the component.

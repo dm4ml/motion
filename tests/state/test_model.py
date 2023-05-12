@@ -36,10 +36,11 @@ def test_model_component():
         # Return updated state if needed
         return {"model": model}
 
-    first_run = c.run(value=1)
-    assert first_run == c.run(value=1, wait_for_fit=True)
+    c_instance = c()
+    first_run = c_instance.run(value=1)
+    assert first_run == c_instance.run(value=1, wait_for_fit=True)
 
-    second_run = c.run(value=1)
+    second_run = c_instance.run(value=1)
 
     # The model should have been updated
     assert second_run != first_run

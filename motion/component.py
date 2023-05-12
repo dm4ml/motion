@@ -1,30 +1,12 @@
-import atexit
 import functools
 import inspect
-import logging
-from typing import Any, Callable, Dict, Tuple, Union, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, get_type_hints
 
 from pydantic import BaseModel
 
-from motion.execute import Executor
-from motion.utils import (
-    CustomDict,
-    FitEventGroup,
-    configureLogging,
-    logger,
-    validate_args,
-)
-
-
-def is_logger_open(logger: logging.Logger) -> bool:
-    for handler in logger.handlers:
-        if (
-            hasattr(handler, "stream")
-            and handler.stream is not None
-            and not handler.stream.closed
-        ):
-            return True
-    return False
+from motion.instance import ComponentInstance
+from motion.route import Route
+from motion.utils import CustomDict, validate_args
 
 
 class Component:
@@ -35,21 +17,22 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyAdder")
+        AdderComponent = Component("MyAdder")
 
-        @c.init_state
+        @AdderComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @c.infer("add")
+        @AdderComponent.infer("add")
         def plus(state, value):
             return state["value"] + value
 
-        @c.fit("add")
+        @AdderComponent.fit("add")
         def add(state, values, infer_results):
             return {"value": state["value"] + sum(values)}
 
         if __name__ == "__main__":
+            c = AdderComponent() # Create instance of AdderComponent
             c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
             c.run(add=2) # Will return 3, not waiting for fit operation.
@@ -60,29 +43,30 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("Calculator")
+        Calculator = Component("MyCalculator")
 
-        @c.init_state
+        @Calculator.init_state
         def setUp():
             return {"value": 0}
 
-        @c.infer("add")
+        @Calculator.infer("add")
         def plus(state, value):
             return state["value"] + value
 
-        @c.fit("add")
+        @Calculator.fit("add")
         def increment(state, values, infer_results):
             return {"value": state["value"] + sum(values)}
 
-        @c.infer("subtract")
+        @Calculator.infer("subtract")
         def minus(state, value):
             return state["value"] - value
 
-        @c.fit("subtract")
+        @Calculator.fit("subtract")
         def decrement(state, values, infer_results):
             return {"value": state["value"] - sum(values)}
 
         if __name__ == "__main__":
+            c = Calculator()
             c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
             c.run(subtract=1, wait_for_fit=True) # Will return 0, blocking
@@ -95,17 +79,17 @@ class Component:
         from motion import Component
         import numpy as np
 
-        c = Component("MLMonitor")
+        MLMonitor = Component("Monitoring_ML_Component")
 
-        @c.init_state
+        @MLMonitor.init_state
         def setUp():
             return {"model": YOUR_MODEL_HERE, "history": []}
 
-        @c.infer("features")
+        @MLMonitor.infer("features")
         def predict(state, value):
             return state["model"].predict(value)
 
-        @c.fit("features", batch_size=10)
+        @MLMonitor.fit("features", batch_size=10)
         def monitor(state, values, infer_results):
             new_X = np.array(values)
             new_y = np.array(infer_results)
@@ -116,6 +100,7 @@ class Component:
             return {"history": history + [concatenated]}
 
         if __name__ == "__main__":
+            c = MLMonitor() # Create instance
             c.run(features=YOUR_FEATURES_HERE) # Don't wait for fit to finish
             # because batch size is 10
 
@@ -132,13 +117,14 @@ class Component:
         class MyModel(BaseModel):
             value: int
 
-        c = Component("MyComponentWithValidation")
+        MyComponent = Component("MyComponentWithValidation")
 
-        @c.infer("noop")
+        @MyComponent.infer("noop")
         def noop(state, value: MyModel):
             return value.value
 
         if __name__ == "__main__":
+            c = MyComponent()
             c.run(noop=MyModel(value=1)) # Will return 1
             c.run(noop={"value": 1}) # Will return 1
             c.run(noop=MyModel(value="1")) # Will raise an Error
@@ -146,48 +132,24 @@ class Component:
         ```
     """
 
-    def __init__(
-        self,
-        name: str,
-        params: Dict[str, Any] = {},
-        cleanup: bool = False,
-        logging_level: str = "WARNING",
-    ):
+    def __init__(self, name: str, params: Dict[str, Any] = {}):
         """Creates a new Motion component.
 
         Args:
             name (str):
                 Name of the component.
-            params (Dict[str, Any], optional):
-                Parameters to be accessed by the component. Defaults to {}.
-                Usage: `c.params["param_name"]` if c is the component instance.
-            cleanup (bool, optional):
-                Whether to process the remainder of fit events after the user
-                shuts down the program. Defaults to False.
-            logging_level (str, optional):
-                Logging level for the Motion logger. Uses the logging library.
-                Defaults to "WARNING".
+                params (Dict[str, Any], optional):
+                    Parameters to be accessed by the component. Defaults to {}.
+                    Usage: `C.params["param_name"]` if C is the Component you
+                    have created.
         """
         self._name = name
-        self._executor = Executor(name, cleanup=cleanup)
         self._params = CustomDict(name, "params", params)
-        configureLogging(logging_level)
 
-        atexit.register(self.shutdown)
-
-    def shutdown(self) -> None:
-        is_open = is_logger_open(logger)
-
-        if is_open:
-            logger.info(f"Shutting down {self._name}...")
-
-        self._executor.shutdown(is_open=is_open)
-
-        if is_open:
-            logger.info(f"Saving state from {self._name}...")
-            # TODO: Save state
-            logger.warning("State saving not implemented yet.")
-            logger.info(f"Finished shutting down {self._name}.")
+        # Set up routes
+        self._infer_routes: Dict[str, Route] = {}
+        self._fit_routes: Dict[str, List[Route]] = {}
+        self._init_state_func: Optional[Callable] = None
 
     @property
     def name(self) -> str:
@@ -197,14 +159,31 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyComponent")
-        print(c.name) # Prints "MyComponent"
+        MyComponent = Component("MyComponent")
+        print(MyComponent.name) # Prints "MyComponent"
         ```
 
         Returns:
             str: Component name.
         """
         return self._name
+
+    def add_route(self, key: str, op: str, udf: Callable) -> None:
+        if op == "infer":
+            if key in self._infer_routes.keys():
+                raise ValueError(
+                    f"Cannot have more than one infer route for key `{key}`."
+                )
+
+            self._infer_routes[key] = Route(key=key, op=op, udf=udf)
+        elif op == "fit":
+            if key not in self._fit_routes.keys():
+                self._fit_routes[key] = []
+
+            self._fit_routes[key].append(Route(key=key, op=op, udf=udf))
+
+        else:
+            raise ValueError(f"Invalid op `{op}`.")
 
     @property
     def params(self) -> Dict[str, Any]:
@@ -214,65 +193,26 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyComponent", params={"param1": 1, "param2": 2})
+        MyComponent = Component(
+            "MyComponent",
+            params={"param1": 1, "param2": 2}
+        )
 
-        @c.init_state
+        @MyComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @c.infer("add")
+        @MyComponent.infer("add")
         def plus(state, value):
-            # Access params with c.params["param_name"]
-            return state["value"] + value + c.params["param1"] + c.params
-            ["param2"]
+            # Access params with MyComponent.params["param_name"]
+            return state["value"] + value + MyComponent.params["param1"] +
+            MyComponent.params["param2"]
         ```
 
         Returns:
             Dict[str, Any]: Parameters dictionary.
         """
         return self._params
-
-    @params.setter
-    def params(self, params: Dict[str, Any]) -> None:
-        """Sets the parameters dictionary.
-
-        Args:
-            params (Dict[str, Any]): Parameters dictionary.
-        """
-        self._params.update(params)
-
-    def read_state(self, key: str) -> Any:
-        """Gets the current value for the key in the component's state.
-        Can only be called if the component has been run at least once.
-
-        Usage:
-        ```python
-        from motion import Component
-
-        c = Component("MyComponent")
-
-        @c.init_state
-        def setUp():
-            return {"value": 0}
-
-        # Define infer and fit operations
-
-        c.read_state("value") # This will raise an error
-        c.run(...)
-        c.read_state("value") # This will return the current value of "value"
-        # in the state
-        ```
-
-        Args:
-            key (str): Key in the state to get the value for.
-
-        Returns:
-            Any: Current value for the key.
-        """
-        if self._executor._first_run:
-            raise ValueError("Cannot read state when component has not been run yet.")
-
-        return self._executor.state[key]
 
     def init_state(self, func: Callable) -> Callable:
         """Decorator for the init_state function. This function
@@ -284,9 +224,9 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyComponent")
+        MyComponent = Component("MyComponent")
 
-        @c.init_state
+        @MyComponent.init_state
         def setUp():
             return {"value": 0}
         ```
@@ -300,7 +240,7 @@ class Component:
         # Assert that init function has no arguments
         if inspect.signature(func).parameters:
             raise ValueError("init_state function should have no arguments")
-        self._executor.init_state_func = func
+        self._init_state_func = func
         return func
 
     def infer(self, key: str) -> Callable:
@@ -326,20 +266,21 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyComponent")
+        MyComponent = Component("MyComponent")
 
-        @c.init_state
+        @MyComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @c.infer("add")
+        @MyComponent.infer("add")
         def add(state, value):
             return state["value"] + value
 
-        @c.infer("multiply")
+        @MyComponent.infer("multiply")
         def multiply(state, value):
             return state["value"] * value
 
+        c = MyComponent()
         c.run(add=1, wait_for_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2
         ```
@@ -378,7 +319,7 @@ class Component:
 
             wrapper._input_key = key  # type: ignore
             wrapper._op = "infer"  # type: ignore
-            self._executor.add_route(
+            self.add_route(
                 wrapper._input_key, wrapper._op, wrapper  # type: ignore
             )  # type: ignore
             return wrapper
@@ -407,27 +348,28 @@ class Component:
         ```python
         from motion import Component
 
-        c = Component("MyComponent")
+        MyComponent = Component("MyComponent")
 
-        @c.init_state
+        @MyComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @c.fit("add")
+        @MyComponent.fit("add")
         def add(state, values):
             return {"value": state["value"] + sum(values)}
 
-        @c.infer("multiply")
+        @MyComponent.infer("multiply")
         def multiply(state, value):
             return state["value"] * value
 
-        @c.fit("multiply", batch_size=2) # Executes after 2 calls to c.run
+        @MyComponent.fit("multiply", batch_size=2) # Runs after 2 c.run calls
         def multiply(state, values, infer_results):
             product = 1
             for value in values:
                 product *= value
             return state["value"] * product
 
+        c = MyComponent()
         c.run(add=1, wait_for_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2, fit not executed yet
         c.run(multiply=3) # Returns 3, fit will execute; state["value"] = 6
@@ -456,100 +398,218 @@ class Component:
             func._input_key = key  # type: ignore
             func._batch_size = batch_size  # type: ignore
             func._op = "fit"  # type: ignore
-            self._executor.add_route(
+            self.add_route(
                 func._input_key, func._op, func  # type: ignore
             )  # type: ignore
             return func
 
         return decorator
 
-    def run(self, **kwargs: Any) -> Union[Any, Tuple[Any, FitEventGroup]]:
-        """Runs the dataflow (infer and fit ops) for the keyword argument
-        passed in. If the key is not found to have any ops, an error
-        is raised. Only one keyword argument should be passed in.
-        Fit ops are only executed when the batch size is reached.
+    def __call__(
+        self,
+        cleanup: bool = False,
+        logging_level: str = "WARNING",
+    ) -> ComponentInstance:
+        """Creates and returns a new instance of a Motion component.
+        See `ComponentInstance` docs for more info.
 
-        Example Usage:
+        Usage:
         ```python
         from motion import Component
 
-        c = Component("MyComponent")
+        MyComponent = Component("MyComponent")
 
-        @c.init_state
+        @MyComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @c.infer("add")
-        def add(state, value):
-            return state["value"] + value
+        # Define infer and fit operations
+        @MyComponent.infer("key1")
+        def ...
 
-        @c.fit("add", batch_size=2)
-        def add(state, values):
-            return {"value": state["value"] + sum(values)}
+        @MyComponent.fit("key1)
+        def ...
 
-        @c.infer("multiply")
-        def multiply(state, value):
-            return state["value"] * value
-
-        c.run(add=1, wait_for_fit=True) # (1)!
-        # Ignore the previous line
-        c.run(add=1) # Returns 1
-        c.run(add=2, wait_for_fit=True) # Returns 2, result state["value"] = 3
-        # Previous line called fit function and flushed fit queue
-        result, fit_event = c.run(add=3, return_fit_event=True)
-        print(result) # Prints 6
-        fit_event.wait() # (2)!
-        # Ignore the previous line
-        c.run(multiply=2) # Returns 6 since state["value"] = 3
-        c.run(multiply=3, wait_for_fit=True) # (3)!
-
-        # 1. This will hang, since `batch_size=2` is not reached
-        # 2. This will also hang, since the fit queue only has 1 task
-        # 3. This throws an error, since there is no fit function for multiply
+        c_instance = MyComponent() # Creates instance of MyComponent
+        c_instance.run(..)
         ```
 
-
         Args:
-            **kwargs:
-                Keyword arguments for the infer and fit ops.
-            return_fit_event (bool, optional):
-                If True, returns an instance of `FitEventGroup` that is set
-                when the fit function has finished executing. Defaults to False.
-            wait_for_fit (bool, optional):
-                If True, waits for the fit function to finish executing before
-                returning. Defaults to False. Warning: if the fit queue is
-                still waiting to get to batch_size elements, this will hang
-                forever!
-
-        Raises:
-            ValueError: _description_
-
+            cleanup (bool, optional):
+                Whether to process the remainder of fit events after the user
+                shuts down the program. Defaults to False.
+            logging_level (str, optional):
+                Logging level for the Motion logger. Uses the logging library.
+                Defaults to "WARNING".
         Returns:
-            Union[Any, Tuple[Any, FitEventGroup]]:
-                Either the result of the infer function, or both
-                the result of the infer function and the `FitEventGroup` if
-                `return_fit_event` is True.
+            ComponentInstance: Component instance to run dataflows with.
         """
 
-        return_fit_event = kwargs.pop("return_fit_event", False)
-        wait_for_fit = kwargs.pop("wait_for_fit", False)
+        return ComponentInstance(
+            component_name=self.name,
+            init_state_func=self._init_state_func,
+            infer_routes=self._infer_routes,
+            fit_routes=self._fit_routes,
+            cleanup=cleanup,
+            logging_level=logging_level,
+        )
 
-        infer_result, fit_event = self._executor.run(**kwargs)
-
-        if wait_for_fit:
-            if not fit_event:
-                raise ValueError(
-                    "wait_for_fit=True, but there's no fit for this dataflow."
-                )
-            fit_event.wait()
-
-        if return_fit_event:
-            return infer_result, fit_event
-
-        return infer_result
-
-    def get_graph(self) -> Dict[str, Any]:
+    def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:
         """
         Gets the graph of infer and fit ops for this component.
         """
-        return self._executor.get_graph()
+
+        graph: Dict[str, Dict[str, Any]] = {}
+
+        for key, route in self._infer_routes.items():
+            graph[key] = {
+                "infer": {
+                    "name": route.udf.__name__,
+                    "udf": inspect.getsource(route.udf),
+                },
+            }
+
+        for key, routes in self._fit_routes.items():
+            if key not in graph:
+                graph[key] = {}
+            graph[key]["fit"] = []
+            for route in routes:
+                graph[key]["fit"].append(
+                    {
+                        "name": route.udf.__name__,
+                        "udf": inspect.getsource(route.udf),
+                        "batch_size": route.udf._batch_size,  # type: ignore
+                    }
+                )
+
+        nodes = []
+        edges = []
+        node_id = 1
+        max_x_offset = 0
+
+        # Positions for layout
+        x_offset = 200
+        y_offset = 200
+        key_y_positions = {}
+
+        # Add state node
+        state_node = {
+            "id": str(node_id),
+            "position": {"x": 0, "y": 0},
+            "data": {"label": "state"},
+            "type": "state",
+        }
+        node_id += 1
+
+        for key, value in graph.items():
+            # Assign y position for key nodes
+            if key not in key_y_positions:
+                key_y_positions[key] = y_offset
+                y_offset += 100
+            key_y_position = key_y_positions[key]
+
+            # Add key node
+            key_node = {
+                "id": str(node_id),
+                "position": {"x": 0, "y": key_y_position},
+                "data": {"label": key},
+                "type": "key",
+            }
+            nodes.append(key_node)
+            node_id += 1
+
+            # Assign x position for infer nodes
+            infer_x_offset = x_offset
+
+            if "infer" in value.keys():
+                # Add infer node
+                infer_node = {
+                    "id": str(node_id),
+                    "position": {"x": infer_x_offset, "y": key_y_position},
+                    "data": {
+                        "label": value["infer"]["name"],
+                        "udf": value["infer"]["udf"],
+                    },
+                    "type": "infer",
+                }
+                nodes.append(infer_node)
+                edges.append(
+                    {
+                        "id": "e{}-{}".format(key_node["id"], infer_node["id"]),
+                        "source": key_node["id"],
+                        "target": infer_node["id"],
+                        "targetHandle": "left",
+                    }
+                )
+                edges.append(
+                    {
+                        "id": "e{}-{}".format(state_node["id"], infer_node["id"]),
+                        "source": state_node["id"],
+                        "target": infer_node["id"],
+                        "targetHandle": "top",
+                    }
+                )
+                node_id += 1
+
+            # Assign x position for fit nodes
+            infer_x_offset += x_offset_step
+            fit_x_offset = infer_x_offset
+
+            if "fit" in value.keys():
+                for fit in value["fit"]:
+                    # Add fit node
+                    fit_node = {
+                        "id": str(node_id),
+                        "position": {"x": fit_x_offset, "y": key_y_position},
+                        "data": {
+                            "label": fit["name"],
+                            "udf": fit["udf"],
+                            "batch_size": fit["batch_size"],
+                        },
+                        "type": "fit",
+                    }
+                    nodes.append(fit_node)
+
+                    edges.append(
+                        {
+                            "id": "e{}-{}".format(fit_node["id"], state_node["id"]),
+                            "target": state_node["id"],
+                            "source": fit_node["id"],
+                            "sourceHandle": "top",
+                            "animated": True,  # type: ignore
+                            "label": f"batch_size: {fit['batch_size']}",
+                        }
+                    )
+
+                    if "infer" in value.keys():
+                        edges.append(
+                            {
+                                "id": "e{}-{}".format(infer_node["id"], fit_node["id"]),
+                                "source": infer_node["id"],
+                                "sourceHandle": "right",
+                                "target": fit_node["id"],
+                                "targetHandle": "left",
+                                "animated": True,  # type: ignore
+                            }
+                        )
+                    else:
+                        edges.append(
+                            {
+                                "id": "e{}-{}".format(key_node["id"], fit_node["id"]),
+                                "source": key_node["id"],
+                                "target": fit_node["id"],
+                                "targetHandle": "left",
+                            }
+                        )
+
+                    fit_x_offset += x_offset_step
+                    node_id += 1
+
+            if fit_x_offset > max_x_offset:
+                max_x_offset = fit_x_offset
+
+        # Update state x offset
+        state_node["position"]["x"] = int(max_x_offset / 2)  # type: ignore
+        nodes.append(state_node)
+
+        return {"name": self.name, "nodes": nodes, "edges": edges}

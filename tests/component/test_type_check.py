@@ -8,12 +8,13 @@ class PydanticModel(pydantic.BaseModel):
 
 
 def test_pydantic_infer():
-    c = Component("Counter")
+    Counter = Component("Counter")
 
-    @c.infer("number")
+    @Counter.infer("number")
     def noop(state, value: PydanticModel):
         return value.number
 
+    c = Counter()
     assert c.run(number={"number": 1}) == 1
     with pytest.raises(ValueError):
         c.run(number=2)
