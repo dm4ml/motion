@@ -1,5 +1,8 @@
 import logging
+import os
+import random
 import threading
+from pathlib import Path
 from typing import Any, Dict
 
 import colorlog
@@ -109,3 +112,23 @@ class FitEventGroup:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+def random_passphrase(num_words: int = 3) -> str:
+    """Generate random passphrase from eff wordlist."""
+
+    # Open wordlist
+    f = Path(__file__).resolve().parent / "res" / "eff_short_wordlist_1.txt"
+    wordlist = {
+        roll: word
+        for roll, word in (
+            line.split("\t") for line in f.read_text().split(os.linesep) if "\t" in line
+        )
+    }
+
+    dice_rolls = [
+        "".join(f"{random.SystemRandom().randint(1, 6)}" for _ in range(4))
+        for _ in range(num_words)
+    ]
+    words = [wordlist[roll] for roll in dice_rolls]
+    return "-".join(words)

@@ -32,13 +32,15 @@ def test_simple_pipeline():
     def update_message(state, values, infer_results):
         return {"message": state["message"] + " " + " ".join(values)}
 
-    add_result = a.run(add=1, wait_for_fit=True)
+    a_instance = a()
+    b_instance = b()
+    add_result = a_instance.run(add=1, wait_for_fit=True)
     assert add_result == 1
 
-    concat_result = b.run(concat=str(add_result), wait_for_fit=True)
+    concat_result = b_instance.run(concat=str(add_result), wait_for_fit=True)
     assert concat_result == " 1"
 
-    add_result_2 = a.run(add=2)
+    add_result_2 = a_instance.run(add=2)
     assert add_result_2 == 3
-    concat_result_2 = b.run(concat=str(add_result_2))
+    concat_result_2 = b_instance.run(concat=str(add_result_2))
     assert concat_result_2 == " 1 3"

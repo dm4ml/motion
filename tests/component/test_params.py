@@ -18,8 +18,9 @@ def test_params():
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
-    assert c.run(add=1, wait_for_fit=True) == 2
-    assert c.run(add=2, wait_for_fit=True) == 6
+    c_instance = c()
+    assert c_instance.run(add=1, wait_for_fit=True) == 2
+    assert c_instance.run(add=2, wait_for_fit=True) == 6
 
 
 def test_params_not_exist():
@@ -37,5 +38,6 @@ def test_params_not_exist():
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
+    c_instance = c()
     with pytest.raises(KeyError):
-        assert c.run(add=1, wait_for_fit=True) == 2
+        assert c_instance.run(add=1, wait_for_fit=True) == 2

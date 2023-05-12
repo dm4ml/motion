@@ -6,14 +6,17 @@ remote_branch: gh-pages
 nav:
   - Getting Started:
       - Welcome: index.md
-      - Installation: getting_started/installation.md
-      - Concepts: getting_started/concepts.md
+      - Installation: getting-started/installation.md
+      - Concepts: getting-started/concepts.md
   - Examples:
-      - Querying Data with Natural Language: examples/nl_query.md
-      - Fine-tuning a CLIP model: examples/clip_finetuning.md
+      - Querying Data with Natural Language: examples/nl-query.md
+      - Fine-tuning a CLIP model: examples/clip-finetuning.md
   - API Reference:
       - Component: api/component.md
-      - FitEventGroup: api/fit_event_group.md
+      - ComponentInstance: api/component-instance.md
+      - FitEventGroup: api/fit-event-group.md
+  - Helpful Tools:
+      - Component Visualization: vis.md
 
 theme:
   name: material

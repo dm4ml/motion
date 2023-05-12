@@ -3,36 +3,37 @@ import pytest
 
 
 def test_multiple_routes():
-    c = Component("Calculator")
+    Calculator = Component("Calculator")
 
-    @c.init_state
+    @Calculator.init_state
     def setUp():
         return {"value": 0}
 
-    @c.infer("add")
+    @Calculator.infer("add")
     def plus(state, value):
         return state["value"] + value
 
-    @c.fit("add", batch_size=1)
+    @Calculator.fit("add", batch_size=1)
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
-    @c.infer("subtract")
+    @Calculator.infer("subtract")
     def minus(state, value):
         return state["value"] - value
 
-    @c.fit("subtract", batch_size=1)
+    @Calculator.fit("subtract", batch_size=1)
     def decrement(state, values, infer_results):
         return {"value": state["value"] - sum(values)}
 
-    @c.infer("identity")
+    @Calculator.infer("identity")
     def noop(state, value):
         return value
 
-    @c.fit("reset", batch_size=1)
+    @Calculator.fit("reset", batch_size=1)
     def reset(state, values, infer_results):
         return {"value": 0}
 
+    c = Calculator()
     assert c.run(add=1, wait_for_fit=True) == 1
     assert c.run(add=2, wait_for_fit=True) == 3
     assert c.run(subtract=1, wait_for_fit=True) == 2

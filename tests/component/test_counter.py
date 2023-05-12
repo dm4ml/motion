@@ -3,19 +3,21 @@ import pytest
 
 
 def test_create():
-    c = Component("Counter")
+    Counter = Component("Counter")
 
-    @c.init_state
+    @Counter.init_state
     def setUp():
         return {"value": 0}
 
-    @c.infer("number")
+    @Counter.infer("number")
     def noop(state, value):
         return state["value"], value
 
-    @c.fit("number", batch_size=1)
+    @Counter.fit("number", batch_size=1)
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
+
+    c = Counter()
 
     with pytest.raises(ValueError):
         # Read state before run

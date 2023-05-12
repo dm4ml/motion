@@ -40,6 +40,7 @@ def test_db_component():
     def increment(state, values, infer_results):
         return {"fit_count": state["fit_count"] + 1}
 
-    assert c.run(count=1) == [(2,)]
-    c.run(something=1, wait_for_fit=True)
-    assert c.run(something=1) == 1
+    c_instance = c()
+    assert c_instance.run(count=1) == [(2,)]
+    c_instance.run(something=1, wait_for_fit=True)
+    assert c_instance.run(something=1) == 1

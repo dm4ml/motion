@@ -39,5 +39,7 @@ def test_double_fit_component():
     def read(state, value):
         return state["value"]
 
-    c.run(add=1, wait_for_fit=True)
-    assert c.run(read=1) == 2
+    c_instance = c()
+    c_instance.run(add=1, wait_for_fit=True)
+    assert c_instance.run(read=1) == 2
+    c_instance.shutdown()
