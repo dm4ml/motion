@@ -5,7 +5,7 @@ import pytest
 def test_create():
     c = Component("Counter")
 
-    @c.init
+    @c.init_state
     def setUp():
         return {"value": 0}
 
@@ -17,11 +17,15 @@ def test_create():
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
+    with pytest.raises(ValueError):
+        # Read state before run
+        c.read_state("value")
+
     assert c.run(number=1)[1] == 1
     _, fit_event = c.run(number=2, return_fit_event=True)
     fit_event.wait()
     assert c.run(number=3, wait_for_fit=True)[1] == 3
-    assert c.run(number=4)[0] == 6
+    assert c.run(number=4, wait_for_fit=True)[0] == 6
 
     # Should raise errors
     with pytest.raises(KeyError):
@@ -35,3 +39,8 @@ def test_create():
 
     with pytest.raises(TypeError):
         c.run(6)
+
+    # Get value
+    assert c.read_state("value") == 10
+    with pytest.raises(KeyError):
+        c.read_state("DNE")

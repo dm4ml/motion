@@ -4,7 +4,7 @@ from motion import Component
 def test_varying_batch():
     c = Component("VaryingBatch")
 
-    @c.init
+    @c.init_state
     def setUp():
         return {"value": 0}
 

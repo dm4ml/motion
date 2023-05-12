@@ -4,6 +4,8 @@ import inspect
 import logging
 from typing import Any, Callable, Dict, Tuple, Union, get_type_hints
 
+from pydantic import BaseModel
+
 from motion.execute import Executor
 from motion.utils import (
     CustomDict,
@@ -27,8 +29,7 @@ def is_logger_open(logger: logging.Logger) -> bool:
 
 class Component:
     """Component class for creating Motion components.
-
-    ## Examples
+    Here are some examples:
 
     === "Basic"
         ```python
@@ -36,7 +37,7 @@ class Component:
 
         c = Component("MyAdder")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -61,7 +62,7 @@ class Component:
 
         c = Component("Calculator")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -96,7 +97,7 @@ class Component:
 
         c = Component("MLMonitor")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"model": YOUR_MODEL_HERE, "history": []}
 
@@ -150,7 +151,7 @@ class Component:
         name: str,
         params: Dict[str, Any] = {},
         cleanup: bool = False,
-        logging_level: str = "INFO",
+        logging_level: str = "WARNING",
     ):
         """Creates a new Motion component.
 
@@ -165,7 +166,7 @@ class Component:
                 shuts down the program. Defaults to False.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
-                Defaults to "INFO".
+                Defaults to "WARNING".
         """
         self._name = name
         self._executor = Executor(name, cleanup=cleanup)
@@ -215,7 +216,7 @@ class Component:
 
         c = Component("MyComponent", params={"param1": 1, "param2": 2})
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -231,8 +232,50 @@ class Component:
         """
         return self._params
 
-    def init(self, func: Callable) -> Callable:
-        """Decorator for the init function. This function
+    @params.setter
+    def params(self, params: Dict[str, Any]) -> None:
+        """Sets the parameters dictionary.
+
+        Args:
+            params (Dict[str, Any]): Parameters dictionary.
+        """
+        self._params.update(params)
+
+    def read_state(self, key: str) -> Any:
+        """Gets the current value for the key in the component's state.
+        Can only be called if the component has been run at least once.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        c = Component("MyComponent")
+
+        @c.init_state
+        def setUp():
+            return {"value": 0}
+
+        # Define infer and fit operations
+
+        c.read_state("value") # This will raise an error
+        c.run(...)
+        c.read_state("value") # This will return the current value of "value"
+        # in the state
+        ```
+
+        Args:
+            key (str): Key in the state to get the value for.
+
+        Returns:
+            Any: Current value for the key.
+        """
+        if self._executor._first_run:
+            raise ValueError("Cannot read state when component has not been run yet.")
+
+        return self._executor.state[key]
+
+    def init_state(self, func: Callable) -> Callable:
+        """Decorator for the init_state function. This function
         is called once at the beginning of the component's lifecycle.
         The decorated function should return a dictionary that represents
         the initial state of the component.
@@ -243,7 +286,7 @@ class Component:
 
         c = Component("MyComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
         ```
@@ -252,11 +295,11 @@ class Component:
             func (Callable): Function without any arguments.
 
         Returns:
-            Callable: Decorated init function.
+            Callable: Decorated init_state function.
         """
         # Assert that init function has no arguments
         if inspect.signature(func).parameters:
-            raise ValueError("init function should have no arguments")
+            raise ValueError("init_state function should have no arguments")
         self._executor.init_state_func = func
         return func
 
@@ -264,7 +307,7 @@ class Component:
         """Decorator for any infer dataflow through the component. Takes
         in a string that represents the input keyword for the infer dataflow.
 
-        2 arguments required for an infer function:
+        2 arguments required for an infer operation:
             * `state`: The current state of the component, which is a
                 dictionary with string keys and any type values.
             * `value`: The value passed in through a `c.run` call with the
@@ -285,7 +328,7 @@ class Component:
 
         c = Component("MyComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -318,7 +361,12 @@ class Component:
 
             @functools.wraps(func)
             def wrapper(state: CustomDict, value: Any) -> Any:
-                if type_hint and not isinstance(value, type_hint):
+                if (
+                    type_hint
+                    and inspect.isclass(type_hint)
+                    and issubclass(type_hint, BaseModel)
+                    and not isinstance(value, type_hint)
+                ):
                     try:
                         value = type_hint(**value)
                     except Exception:
@@ -342,7 +390,7 @@ class Component:
         in a string that represents the input keyword for the fit op.
         Only executes the fit op (function) when the batch size is reached.
 
-        3 arguments required for a fit function:
+        3 arguments required for a fit operation:
             - `state`: The current state of the component, represented as a
             dictionary.
             - `values`: A list of values passed in through a `c.run` call with
@@ -361,7 +409,7 @@ class Component:
 
         c = Component("MyComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 
@@ -427,7 +475,7 @@ class Component:
 
         c = Component("MyComponent")
 
-        @c.init
+        @c.init_state
         def setUp():
             return {"value": 0}
 

@@ -6,7 +6,7 @@ from motion import Component
 def test_simple_pipeline():
     a = Component("ComponentA")
 
-    @a.init
+    @a.init_state
     def setUp():
         return {"value": 0}
 
@@ -20,7 +20,7 @@ def test_simple_pipeline():
 
     b = Component("ComponentB")
 
-    @b.init
+    @b.init_state
     def setUp():
         return {"message": ""}
 
