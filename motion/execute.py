@@ -270,10 +270,10 @@ class Executor:
                         "targetHandle": "top",
                     }
                 )
-                infer_x_offset += x_offset_step
                 node_id += 1
 
             # Assign x position for fit nodes
+            infer_x_offset += x_offset_step
             fit_x_offset = infer_x_offset
 
             if "fit" in value.keys():
