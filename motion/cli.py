@@ -13,7 +13,10 @@ def motioncli() -> None:
     pass
 
 
-@motioncli.command("vis")
+@motioncli.command(
+    "vis",
+    epilog="Example usage:\n motion vis main.py:MyComponent",
+)
 @click.argument(
     "filename",
     type=str,
@@ -28,21 +31,19 @@ def motioncli() -> None:
 def visualize(filename: str, output: str) -> None:
     """Visualize a component."""
     red_x = "\u274C"  # Unicode code point for red "X" emoji
-    if "::" not in filename:
+    if ":" not in filename:
         click.echo(
-            f"{red_x} Component must be in the format "
-            + "`filename::componentinstance`."
+            f"{red_x} Component must be in the format " + "`filename:component`."
         )
         return
 
     # Remove the file extension if present
     module = filename.replace(".py", "")
 
-    first, instance = module.split("::")
+    first, instance = module.split(":")
     if not first or not instance:
         click.echo(
-            f"{red_x} Component must be in the format "
-            + "`filename::componentinstance`."
+            f"{red_x} Component must be in the format " + "`filename:component`."
         )
         return
 
