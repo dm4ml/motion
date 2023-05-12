@@ -1,5 +1,7 @@
 import importlib
 import json
+import os
+import sys
 from datetime import datetime
 
 import click
@@ -44,6 +46,8 @@ def visualize(filename: str, output: str) -> None:
         )
         return
 
+    module_dir = os.getcwd()
+    sys.path.insert(0, module_dir)
     module = importlib.import_module(first)  # type: ignore
 
     # Get the class instance
@@ -64,3 +68,7 @@ def visualize(filename: str, output: str) -> None:
     with open(out_filename, "w") as f:
         json.dump(graph, f, indent=4)
         click.echo(f"{checkmark} Graph dumped to {out_filename}.")
+
+
+if __name__ == "__main__":
+    motioncli()
