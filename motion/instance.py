@@ -100,7 +100,6 @@ class ComponentInstance:
 
     def read_state(self, key: str) -> Any:
         """Gets the current value for the key in the component's state.
-        Can only be called if the component has been run at least once.
 
         Usage:
         ```python
@@ -115,7 +114,7 @@ class ComponentInstance:
         # Define infer and fit operations
 
         c_instance = C()
-        c_instance.read_state("value") # This will raise an error
+        c_instance.read_state("value") # Returns 0
         c_instance.run(...)
         c_instance.read_state("value") # This will return the current value of
         # "value" in the state
@@ -127,9 +126,6 @@ class ComponentInstance:
         Returns:
             Any: Current value for the key.
         """
-        if self._executor._first_run:
-            raise ValueError("Cannot read state when component has not been run yet.")
-
         return self._executor.state[key]
 
     def run(self, **kwargs: Any) -> Union[Any, Tuple[Any, FitEventGroup]]:

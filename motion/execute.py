@@ -17,8 +17,10 @@ class Executor:
     ):
         self._instance_name = instance_name
         self._cleanup = cleanup
-        self._first_run = True  # Use this to determine whether to run setUp
         self._init_state_func = init_state_func
+
+        # Set up state
+        self.setUp()
 
         # Set up routes
         self._infer_routes: Dict[str, Route] = infer_routes
@@ -135,13 +137,6 @@ class Executor:
         key, value = next(iter(kwargs.items()))
         route_hit = False
         infer_result = None
-
-        if self._first_run:
-            # Set up state
-            logger.info(f"Setting up {self._instance_name} state for the first run...")
-            self.setUp()
-            logger.info(f"Finished setting up {self._instance_name} state.")
-            self._first_run = False
 
         # Run the infer route
         if key in self._infer_routes.keys():
