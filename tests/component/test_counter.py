@@ -19,9 +19,7 @@ def test_create():
 
     c = Counter()
 
-    with pytest.raises(ValueError):
-        # Read state before run
-        c.read_state("value")
+    assert c.read_state("value") == 0
 
     assert c.run(number=1)[1] == 1
     _, fit_event = c.run(number=2, return_fit_event=True)
