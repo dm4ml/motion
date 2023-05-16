@@ -68,7 +68,7 @@ def visualize(filename: str, output: str) -> None:
 
     with open(out_filename, "w") as f:
         json.dump(graph, f, indent=4)
-        click.echo(f"{checkmark} Graph dumped to {out_filename}.")
+        click.echo(f"{checkmark} Graph dumped to {out_filename}")
 
 
 if __name__ == "__main__":
