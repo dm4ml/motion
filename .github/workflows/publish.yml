@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths:
-      - 'motion/**'
+      - "motion/**"
+      - "poetry.lock"
+      - "pyproject.toml"
 
 jobs:
   publish-to-pypi:
