@@ -1,14 +1,12 @@
 import atexit
 import logging
-import os
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import cloudpickle
 import redis
 
 from motion.execute import Executor
 from motion.route import Route
-from motion.utils import CustomDict, FitEventGroup, configureLogging, logger
+from motion.utils import FitEventGroup, configureLogging, logger
 
 
 def is_logger_open(logger: logging.Logger) -> bool:
@@ -63,76 +61,22 @@ class ComponentInstance:
         # Set up redis connection
         if not redis_con:
             atexit.register(self.shutdown)
-        self._redis_con = self._connectToRedis() if redis_con is None else redis_con
         self._running = True
 
         # Create instance name
         self._instance_name = instance_name
-        self._init_state_func = init_state_func
-        self._load_state_func = load_state_func
-        self._save_state_func = save_state_func
-
-        # Set up state
-        empty_state = CustomDict(self._instance_name, "state", {})
-        initial_state = self.loadState(empty_state, **init_state_params)
 
         self._executor = Executor(
             self._instance_name,
-            initial_state,
-            infer_routes,
-            fit_routes,
+            init_state_func=init_state_func,
+            init_state_params=init_state_params,
+            save_state_func=save_state_func,
+            load_state_func=load_state_func,
+            infer_routes=infer_routes,
+            fit_routes=fit_routes,
             cleanup=cleanup,
-            redis_con=self._redis_con,
+            redis_con=redis_con,
         )
-
-    def _connectToRedis(self) -> redis.Redis:
-        host = os.getenv("MOTION_REDIS_HOST", "localhost")
-        port = os.getenv("MOTION_REDIS_PORT", 6379)
-        password = os.getenv("MOTION_REDIS_PASSWORD", None)
-
-        r = redis.Redis(
-            host=host,
-            port=port,
-            password=password,
-        )
-        return r
-
-    def loadState(self, state: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
-        # Get state from redis
-        loaded_state = self._redis_con.get(f"MOTION:{self._instance_name}")
-
-        if not loaded_state:
-            # Set up initial state
-            return self.setUp(**kwargs)
-
-        # Unpickle state
-        loaded_state = cloudpickle.loads(loaded_state)
-
-        if self._load_state_func is not None:
-            state.update(self._load_state_func(loaded_state))
-        else:
-            state.update(loaded_state)
-
-        return state
-
-    def saveState(self, state_to_save: Dict[str, Any]) -> None:
-        # Save state to redis
-        if self._save_state_func is not None:
-            state_to_save = self._save_state_func(state_to_save)
-
-        state_to_save = cloudpickle.dumps(state_to_save)
-
-        self._redis_con.set(f"MOTION:{self._instance_name}", state_to_save)
-
-    def setUp(self, **kwargs: Any) -> Dict[str, Any]:
-        # Set up initial state
-        if self._init_state_func is not None:
-            initial_state = self._init_state_func(**kwargs)
-            if not isinstance(initial_state, dict):
-                raise TypeError(f"{self._instance_name} init should return a dict.")
-            return initial_state
-
-        return {}
 
     @property
     def instance_name(self) -> str:
@@ -171,16 +115,7 @@ class ComponentInstance:
         if is_open:
             logger.info(f"Shutting down {self._instance_name}...")
 
-        final_state = self._executor.shutdown(is_open=is_open)
-
-        # Save state
-        if is_open:
-            logger.info(f"Saving state from {self._instance_name}...")
-
-        self.saveState(final_state)
-
-        if is_open:
-            logger.info(f"Finished shutting down {self._instance_name}.")
+        self._executor.shutdown(is_open=is_open)
 
         self._running = False
 
