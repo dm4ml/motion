@@ -2,11 +2,12 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, get_type_hints
 
+import redis
 from pydantic import BaseModel
 
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import CustomDict, validate_args
+from motion.utils import CustomDict, random_passphrase, validate_args
 
 
 class Component:
@@ -150,6 +151,8 @@ class Component:
         self._infer_routes: Dict[str, Route] = {}
         self._fit_routes: Dict[str, List[Route]] = {}
         self._init_state_func: Optional[Callable] = None
+        self._save_state_func: Optional[Callable] = None
+        self._load_state_func: Optional[Callable] = None
 
     @property
     def name(self) -> str:
@@ -232,15 +235,42 @@ class Component:
         ```
 
         Args:
-            func (Callable): Function without any arguments.
+            func (Callable): Function that initializes a state. Must return
+                a dictionary.
 
         Returns:
             Callable: Decorated init_state function.
         """
-        # Assert that init function has no arguments
-        if inspect.signature(func).parameters:
-            raise ValueError("init_state function should have no arguments")
         self._init_state_func = func
+        return func
+
+    def save_state(self, func: Callable) -> Callable:
+        """Decorator for the save_state function. This function
+        saves the state of the component to be accessible in
+        future component instances of the same name.
+
+        Args:
+            func (Callable): Function that returns a cloudpickleable object.
+
+        Returns:
+            Callable: Decorated save_state function.
+        """
+        self._save_state_func = func
+        return func
+
+    def load_state(self, func: Callable) -> Callable:
+        """Decorator for the load_state function. This function
+        loads the state of the component from a cloudpickleable object.
+
+        Args:
+            func (Callable): Function that consumes a cloudpickleable object.
+                Should return a dictionary representing the state of the
+                component instance.
+
+        Returns:
+            Callable: Decorated load_state function.
+        """
+        self._load_state_func = func
         return func
 
     def infer(self, key: str) -> Callable:
@@ -407,8 +437,12 @@ class Component:
 
     def __call__(
         self,
+        name: str = "",
+        init_state_params: Dict[str, Any] = {},
         cleanup: bool = False,
         logging_level: str = "WARNING",
+        serverless: bool = False,
+        redis_con: Optional[redis.Redis] = None,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -420,8 +454,8 @@ class Component:
         MyComponent = Component("MyComponent")
 
         @MyComponent.init_state
-        def setUp():
-            return {"value": 0}
+        def setUp(starting_val):
+            return {"value": starting_val}
 
         # Define infer and fit operations
         @MyComponent.infer("key1")
@@ -430,28 +464,56 @@ class Component:
         @MyComponent.fit("key1)
         def ...
 
-        c_instance = MyComponent() # Creates instance of MyComponent
+        c_instance = MyComponent(init_state_params={"starting_val": 3})
+        # Creates instance of MyComponent
         c_instance.run(..)
         ```
 
         Args:
+            name (str, optional):
+                Name of the component instance. Defaults to "".
+            init_state_params (Dict[str, Any], optional):
+                Parameters to pass into the init_state function. Defaults to {}.
             cleanup (bool, optional):
                 Whether to process the remainder of fit events after the user
                 shuts down the program. Defaults to False.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
+            serverless (bool, optional):
+                Whether to run the component in serverless mode. Requires
+                Modal to be configured. Defaults to False.
+            Redis (Optional[Redis], optional):
+                Redis connection to use, if any. Defaults to None.
+                This argument is only used for testing purposes.
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
 
+        if not name:
+            name = random_passphrase()
+
+        if "__" in name:
+            raise ValueError(
+                f"Instance name {name} cannot contain '__'. Strip the component"
+                + "name from your instance name."
+            )
+
+        instance_name = f"{self.name}__{name}"
+
         return ComponentInstance(
             component_name=self.name,
+            instance_name=instance_name,
             init_state_func=self._init_state_func,
+            init_state_params=init_state_params,
+            save_state_func=self._save_state_func,
+            load_state_func=self._load_state_func,
             infer_routes=self._infer_routes,
             fit_routes=self._fit_routes,
             cleanup=cleanup,
             logging_level=logging_level,
+            serverless=serverless,
+            redis_con=redis_con,
         )
 
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:

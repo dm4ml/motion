@@ -5,7 +5,7 @@ from sklearn.datasets import make_regression
 from sklearn.linear_model import LinearRegression
 
 
-def test_model_component():
+def test_model_component(redisdb):
     c = Component("ModelComponent")
 
     @c.init_state
@@ -36,7 +36,7 @@ def test_model_component():
         # Return updated state if needed
         return {"model": model}
 
-    c_instance = c()
+    c_instance = c(redis_con=redisdb)
     first_run = c_instance.run(value=1)
     assert first_run == c_instance.run(value=1, wait_for_fit=True)
 

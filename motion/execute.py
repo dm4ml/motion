@@ -1,26 +1,29 @@
 import threading
 from queue import Empty, SimpleQueue
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import redis
 
 from motion.route import Route
-from motion.utils import CustomDict, FitEventGroup, logger
+from motion.utils import FitEventGroup, logger
 
 
 class Executor:
     def __init__(
         self,
         instance_name: str,
-        init_state_func: Optional[Callable],
+        init_state: Dict[str, Any],
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
         cleanup: bool,
+        redis_con: redis.Redis,
     ):
         self._instance_name = instance_name
         self._cleanup = cleanup
-        self._init_state_func = init_state_func
+        self._redis_con = redis_con
 
         # Set up state
-        self.setUp()
+        self._state = init_state
 
         # Set up routes
         self._infer_routes: Dict[str, Route] = infer_routes
@@ -56,16 +59,7 @@ class Executor:
                 )
                 self._fit_threads[key][uname].start()
 
-    def setUp(self) -> None:
-        # Set up initial state
-        self._state = CustomDict(self._instance_name, "state", {})
-        if self._init_state_func is not None:
-            initial_state = self._init_state_func()
-            if not isinstance(initial_state, dict):
-                raise TypeError(f"{self._instance_name} init should return a dict.")
-            self.update(initial_state)
-
-    def shutdown(self, is_open: bool) -> None:
+    def shutdown(self, is_open: bool) -> Dict[str, Any]:
         if self._cleanup and is_open:
             logger.info("Running fit operations on remaining data...")
 
@@ -76,6 +70,8 @@ class Executor:
         for _, val in self._fit_threads.items():
             for v in val.values():
                 v.join()
+
+        return self.state
 
     @property
     def state(self) -> Dict[str, Any]:

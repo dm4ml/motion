@@ -3,7 +3,7 @@ from motion import Component
 import pytest
 
 
-def test_bad_infer_component():
+def test_bad_infer_component(redisdb):
     with pytest.raises(ValueError):
         c = Component("BadInferComponent")
 
@@ -20,7 +20,7 @@ def test_bad_infer_component():
             return state["value"] + value
 
 
-def test_double_fit_component():
+def test_double_fit_component(redisdb):
     c = Component(name="DoubleFit", params={})
 
     @c.init_state
@@ -39,7 +39,7 @@ def test_double_fit_component():
     def read(state, value):
         return state["value"]
 
-    c_instance = c()
+    c_instance = c(redis_con=redisdb)
     c_instance.run(add=1, wait_for_fit=True)
     assert c_instance.run(read=1) == 2
     c_instance.shutdown()

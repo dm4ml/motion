@@ -3,7 +3,7 @@ from motion import Component
 # Test a pipeline with multiple components
 
 
-def test_simple_pipeline():
+def test_simple_pipeline(redisdb):
     a = Component("ComponentA")
 
     @a.init_state
@@ -32,8 +32,8 @@ def test_simple_pipeline():
     def update_message(state, values, infer_results):
         return {"message": state["message"] + " " + " ".join(values)}
 
-    a_instance = a()
-    b_instance = b()
+    a_instance = a(redis_con=redisdb)
+    b_instance = b(redis_con=redisdb)
     add_result = a_instance.run(add=1, wait_for_fit=True)
     assert add_result == 1
 

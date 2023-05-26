@@ -43,12 +43,14 @@ ruff = "^0.0.261"
 maturin = "^0.14.17"
 mike = "^1.1.2"
 scikit-learn = "^1.2.2"
+pytest-redis = "^3.0.2"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--basetemp=/tmp/pytest"
 
 [tool.mypy]
 files = "motion"

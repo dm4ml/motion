@@ -2,7 +2,7 @@ from motion import Component
 import pytest
 
 
-def test_create():
+def test_create(redisdb):
     Counter = Component("Counter")
 
     @Counter.init_state
@@ -17,7 +17,7 @@ def test_create():
     def increment(state, values, infer_results):
         return {"value": state["value"] + sum(values)}
 
-    c = Counter()
+    c = Counter(redis_con=redisdb)
 
     assert c.read_state("value") == 0
 

@@ -1,7 +1,7 @@
 from motion import Component
 
 
-def test_varying_batch():
+def test_varying_batch(redisdb):
     c = Component("VaryingBatch")
 
     @c.init_state
@@ -25,7 +25,7 @@ def test_varying_batch():
         return {"value": state["value"] + len(values)}
 
     # Test batch_size=1
-    c_instance = c()
+    c_instance = c(redis_con=redisdb)
     c_instance.run(route1=1, wait_for_fit=True)
     assert c_instance.run(get=True) == 1
 

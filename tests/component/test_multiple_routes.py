@@ -2,7 +2,7 @@ from motion import Component
 import pytest
 
 
-def test_multiple_routes():
+def test_multiple_routes(redisdb):
     Calculator = Component("Calculator")
 
     @Calculator.init_state
@@ -33,7 +33,7 @@ def test_multiple_routes():
     def reset(state, values, infer_results):
         return {"value": 0}
 
-    c = Calculator()
+    c = Calculator(redis_con=redisdb)
     assert c.run(add=1, wait_for_fit=True) == 1
     assert c.run(add=2, wait_for_fit=True) == 3
     assert c.run(subtract=1, wait_for_fit=True) == 2

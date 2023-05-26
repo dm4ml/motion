@@ -7,14 +7,14 @@ class PydanticModel(pydantic.BaseModel):
     number: int
 
 
-def test_pydantic_infer():
+def test_pydantic_infer(redisdb):
     Counter = Component("Counter")
 
     @Counter.infer("number")
     def noop(state, value: PydanticModel):
         return value.number
 
-    c = Counter()
+    c = Counter(redis_con=redisdb)
     assert c.run(number={"number": 1}) == 1
     with pytest.raises(ValueError):
         c.run(number=2)
