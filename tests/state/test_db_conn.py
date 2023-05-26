@@ -28,6 +28,16 @@ def test_db_component(redisdb):
 
         return {"cursor": cursor, "fit_count": 0}
 
+    @c.save_state
+    def save(state):
+        return {"fit_count": state["fit_count"]}
+
+    @c.load_state
+    def load(state):
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        return {"cursor": cursor, "fit_count": state["fit_count"]}
+
     @c.infer("count")
     def execute_fn(state, value):
         return state["cursor"].execute("SELECT COUNT(*) FROM users").fetchall()

@@ -186,15 +186,6 @@ class Executor:
             for v in val.values():
                 v.join()
 
-        # Save state
-        if is_open:
-            logger.info(f"Saving state from {self._instance_name}...")
-
-        self.saveState(self.state)
-
-        if is_open:
-            logger.info(f"Finished shutting down {self._instance_name}.")
-
     @property
     def state(self) -> Dict[str, Any]:
         return self._state
@@ -202,6 +193,8 @@ class Executor:
     def update(self, new_state: Dict[str, Any]) -> None:
         if new_state:
             self._state.update(new_state)
+            # Save state to redis
+            self.saveState(self.state)
 
     def empty_batch(self) -> Dict[str, List[Any]]:
         return {
