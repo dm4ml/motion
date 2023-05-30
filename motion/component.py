@@ -2,7 +2,6 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, get_type_hints
 
-import redis
 from pydantic import BaseModel
 
 from motion.instance import ComponentInstance
@@ -34,7 +33,7 @@ class Component:
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
             c.run(add=2) # Will return 3, not waiting for fit operation.
             # Resulting state will eventually be {"value": 3}
@@ -68,9 +67,9 @@ class Component:
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
-            c.run(subtract=1, wait_for_fit=True) # Will return 0, blocking
+            c.run(subtract=1, force_fit=True) # Will return 0, blocking
             # until fit is done. Resulting state is {"value": 0}
         ```
 
@@ -311,7 +310,7 @@ class Component:
             return state["value"] * value
 
         c = MyComponent()
-        c.run(add=1, wait_for_fit=True) # Returns 1
+        c.run(add=1, force_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2
         ```
 
@@ -400,7 +399,7 @@ class Component:
             return state["value"] * product
 
         c = MyComponent()
-        c.run(add=1, wait_for_fit=True) # Returns 1
+        c.run(add=1, force_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2, fit not executed yet
         c.run(multiply=3) # Returns 3, fit will execute; state["value"] = 6
         # Some time later...
@@ -417,6 +416,13 @@ class Component:
         Returns:
             Callable: Decorated fit function.
         """
+        frame = inspect.currentframe().f_back
+        fname = frame.f_code.co_name
+        if fname != "<module>":
+            raise ValueError(
+                f"Component {self.name} fit method must be defined in a module "
+                + f"context. It's currently initialized from function {fname}."
+            )
 
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "fit"):
@@ -442,7 +448,6 @@ class Component:
         cleanup: bool = False,
         logging_level: str = "WARNING",
         serverless: bool = False,
-        redis_con: Optional[redis.Redis] = None,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -483,9 +488,6 @@ class Component:
             serverless (bool, optional):
                 Whether to run the component in serverless mode. Requires
                 Modal to be configured. Defaults to False.
-            Redis (Optional[Redis], optional):
-                Redis connection to use, if any. Defaults to None.
-                This argument is only used for testing purposes.
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
@@ -513,7 +515,6 @@ class Component:
             cleanup=cleanup,
             logging_level=logging_level,
             serverless=serverless,
-            redis_con=redis_con,
         )
 
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:

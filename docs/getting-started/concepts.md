@@ -66,13 +66,13 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run(number=i))  # (1)!
 
-    c.run(number=9, wait_for_fit=True)  # (2)!
+    c.run(number=9, force_fit=True)  # (2)!
     for i in range(10, 19):
         print(c.run(number=i))  # (3)!
 ```
 
 1. This will return None, as the state's mean and std are not yet initialized.
-2. This will block until the resulting fit operation has finished running. Don't call `wait_for_fit` if the `batch_size` has not been reached, otherwise the program will hang.
+2. This will block until the resulting fit operation has finished running. Don't call `force_fit` if the `batch_size` has not been reached, otherwise the program will hang.
 3. This uses the updated state dictionary from the previous run operation.
 
 The output of the above code is:
