@@ -86,16 +86,9 @@ class FitTask(multiprocessing.Process):
                 self.cleanup()
                 break
 
-            # batch = self.redis_con.lrange(
-            #     self.queue_identifier, 0, self.batch_size - 1
-            # )
-            # if len(batch) == 0:
-            #     break
-            # self.redis_con.ltrim(self.queue_identifier, len(batch), -1)
             if not self.batch:
                 continue
 
-            # job_data = [cloudpickle.loads(job) for job in batch]
             values = [job["value"] for job in self.batch]
             infer_results = [job["infer_result"] for job in self.batch]
             identifiers = [job["identifier"] for job in self.batch]
