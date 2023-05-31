@@ -1,5 +1,6 @@
 import os
 import signal
+import threading
 from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
@@ -116,7 +117,7 @@ class Executor:
 
         for rkey, routes in self._fit_routes.items():
             for udf_name, route in routes.items():
-                pname = f"{self._instance_name}_{rkey}_{udf_name}_fit"
+                pname = f"{self._instance_name}::{rkey}::{udf_name}"
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
@@ -131,6 +132,48 @@ class Executor:
                     redis_password=rp.password,  # type: ignore
                 )
                 self.worker_tasks[pname].start()
+
+        # Set up a monitor thread
+        self.stop_event = threading.Event()
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_processes, daemon=True
+        )
+        self.monitor_thread.start()
+
+    def _monitor_processes(self) -> None:
+        rp = RedisParams()
+        while not self.stop_event.is_set():
+            # Loop through processes to see if they are alive
+            for pname, process in self.worker_tasks.items():
+                if not process.is_alive():
+                    logger.debug(
+                        f"Failed to detect heartbeat for fit task {pname}."
+                        + " Restarting the task in the background."
+                    )
+                    # Restart
+                    rkey = pname.split("::")[1]
+                    udf_name = pname.split("::")[2]
+                    route = self._fit_routes[rkey][udf_name]
+                    self.worker_tasks[pname] = FitTask(
+                        self._instance_name,
+                        route,
+                        batch_size=route.udf._batch_size,  # type: ignore
+                        save_state_func=self._save_state_func,
+                        load_state_func=self._load_state_func,
+                        queue_identifier=self._get_queue_identifier(rkey, udf_name),
+                        channel_identifier=self._get_channel_identifier(rkey, udf_name),
+                        redis_host=rp.host,
+                        redis_port=rp.port,
+                        redis_db=rp.db,
+                        redis_password=rp.password,  # type: ignore
+                    )
+                    self.worker_tasks[pname].start()
+
+            if self.stop_event.is_set():
+                break
+
+            # Sleep for a minute
+            self.stop_event.wait(60)
 
     def _get_queue_identifier(self, route_key: str, udf_name: str) -> str:
         """Gets the queue identifier for a given route key and UDF name."""
@@ -148,6 +191,8 @@ class Executor:
             logger.info("Running fit operations on remaining data...")
 
         # Set shutdown event
+        self.stop_event.set()
+
         processes_to_wait_for = []
         for process in self.worker_tasks.values():
             if psutil.pid_exists(process.pid):
@@ -156,10 +201,11 @@ class Executor:
 
         self._redis_con.close()
 
-        # Join fit threads
+        # Join fit processes
         for process in processes_to_wait_for:
-            # if self.worker_states.get(thread.name, False):
             process.join()
+
+        self.monitor_thread.join()
 
     def update(self, new_state: Dict[str, Any]) -> None:
         if new_state:
