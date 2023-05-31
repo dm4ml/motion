@@ -32,7 +32,7 @@ class RedisParams(BaseModel):
     host: str
     port: int
     db: int
-    password: str
+    password: Optional[str] = None
 
     def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
