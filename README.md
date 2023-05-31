@@ -39,7 +39,7 @@ Motion is currently in alpha. We are actively working on improving the documenta
 
 You can run `make install` to install an editable source of Motion. We use `poetry` to manage dependencies.
 
-To run tests, we use `pytest` and a local Redis cache. You should run Redis on port 6381 before you run `make tests`. To run Redis with Docker, run the following command in your terminal:
+To run tests, we use `pytest` and a local Redis cache. You should run Redis on port 6381 before you run `make tests`. To run Redis with Docker, either run the `docker-compose.yml` file in this repo (i.e., `docker-compose up`) or run the following command in your terminal:
 
 ```bash
 docker run -p 6381:6379 --name motion-backend-testing redis/redis-stack-server:latest

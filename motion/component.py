@@ -320,6 +320,8 @@ class Component:
         Returns:
             Callable: Decorated infer function.
         """
+        if "::" in key:
+            raise ValueError(f"Dataflow key {key} should not have a double colon (::)")
 
         def decorator(func: Callable) -> Any:
             type_hint = get_type_hints(func).get("value", None)
@@ -445,7 +447,6 @@ class Component:
         self,
         name: str = "",
         init_state_params: Dict[str, Any] = {},
-        cleanup: bool = False,
         logging_level: str = "WARNING",
         serverless: bool = False,
     ) -> ComponentInstance:
@@ -479,9 +480,6 @@ class Component:
                 Name of the component instance. Defaults to "".
             init_state_params (Dict[str, Any], optional):
                 Parameters to pass into the init_state function. Defaults to {}.
-            cleanup (bool, optional):
-                Whether to process the remainder of fit events after the user
-                shuts down the program. Defaults to False.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
