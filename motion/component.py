@@ -248,6 +248,18 @@ class Component:
         saves the state of the component to be accessible in
         future component instances of the same name.
 
+        Usage:
+        ```python
+        from motion import Component
+
+        MyComponent = Component("MyComponent")
+
+        @c.save_state
+        def save(state):
+            # state might have other unpicklable keys, like a DB connection
+            return {"fit_count": state["fit_count"]}
+        ```
+
         Args:
             func (Callable): Function that returns a cloudpickleable object.
 
@@ -259,7 +271,20 @@ class Component:
 
     def load_state(self, func: Callable) -> Callable:
         """Decorator for the load_state function. This function
-        loads the state of the component from a cloudpickleable object.
+        loads the state of the component from the unpickled state.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        MyComponent = Component("MyComponent")
+
+        @c.load_state
+        def load(state):
+            conn = sqlite3.connect(":memory:")
+            cursor = conn.cursor()
+            return {"cursor": cursor, "fit_count": state["fit_count"]}
+        ```
 
         Args:
             func (Callable): Function that consumes a cloudpickleable object.
