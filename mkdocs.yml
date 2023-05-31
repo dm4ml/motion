@@ -9,6 +9,7 @@ nav:
       - Installation: getting-started/installation.md
       - Concepts: getting-started/concepts.md
   - Examples:
+      - Design Patterns: examples/design-patterns.md
       - Querying Data with Natural Language: examples/nl-query.md
       - Fine-tuning a CLIP model: examples/clip-finetuning.md
   - API Reference:

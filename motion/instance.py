@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from motion.execute import Executor
 from motion.route import Route
-from motion.utils import FitEventGroup, configureLogging, logger, random_passphrase
+from motion.utils import DEFAULT_KEY_TTL, FitEventGroup, configureLogging, logger
 
 
 def is_logger_open(logger: logging.Logger) -> bool:
@@ -22,10 +22,13 @@ class ComponentInstance:
     def __init__(
         self,
         component_name: str,
+        instance_name: str,
         init_state_func: Optional[Callable],
+        init_state_params: Optional[Dict[str, Any]],
+        save_state_func: Optional[Callable],
+        load_state_func: Optional[Callable],
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
-        cleanup: bool = False,
         logging_level: str = "WARNING",
     ):
         """Creates a new instance of a Motion component.
@@ -33,28 +36,33 @@ class ComponentInstance:
         Args:
             name (str):
                 Name of the component we are creating an instance of.
-            cleanup (bool, optional):
-                Whether to process the remainder of fit events after the user
-                shuts down the program. Defaults to False.
+            instance_name (str):
+                Name of the instance we are creating.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
         """
         self._component_name = component_name
         configureLogging(logging_level)
+        # self._serverless = serverless
+        # indicator = "serverless" if serverless else "local"
+        logger.info(f"Creating local instance of {self._component_name}...")
+        atexit.register(self.shutdown)
 
         # Create instance name
-        self._instance_name = f"{self._component_name}__{random_passphrase()}"
+        self._instance_name = instance_name
 
+        self.running = False
         self._executor = Executor(
             self._instance_name,
-            init_state_func,
-            infer_routes,
-            fit_routes,
-            cleanup=cleanup,
+            init_state_func=init_state_func,
+            init_state_params=init_state_params if init_state_params else {},
+            save_state_func=save_state_func,
+            load_state_func=load_state_func,
+            infer_routes=infer_routes,
+            fit_routes=fit_routes,
         )
-
-        atexit.register(self.shutdown)
+        self.running = True
 
     @property
     def instance_name(self) -> str:
@@ -85,6 +93,9 @@ class ComponentInstance:
         c_instance.shutdown()
         ```
         """
+        if not self.running:
+            return
+
         is_open = is_logger_open(logger)
 
         if is_open:
@@ -92,11 +103,7 @@ class ComponentInstance:
 
         self._executor.shutdown(is_open=is_open)
 
-        if is_open:
-            logger.info(f"Saving state from {self._instance_name}...")
-            # TODO: Save state
-            logger.warning("State saving not implemented yet.")
-            logger.info(f"Finished shutting down {self._instance_name}.")
+        self.running = False
 
     def read_state(self, key: str) -> Any:
         """Gets the current value for the key in the component's state.
@@ -126,9 +133,16 @@ class ComponentInstance:
         Returns:
             Any: Current value for the key.
         """
-        return self._executor.state[key]
+        return self._executor._loadState()[key]
 
-    def run(self, **kwargs: Any) -> Union[Any, Tuple[Any, FitEventGroup]]:
+    def run(
+        self,
+        *,
+        cache_ttl: int = DEFAULT_KEY_TTL,
+        force_refresh: bool = False,
+        force_fit: bool = False,
+        **kwargs: Any,
+    ) -> Union[Any, Tuple[Any, FitEventGroup]]:
         """Runs the dataflow (infer and fit ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
         is raised. Only one keyword argument should be passed in.
@@ -149,7 +163,7 @@ class ComponentInstance:
             return state["value"] + value
 
         @C.fit("add", batch_size=2)
-        def add(state, values):
+        def add(state, values, infer_results):
             return {"value": state["value"] + sum(values)}
 
         @C.infer("multiply")
@@ -157,59 +171,60 @@ class ComponentInstance:
             return state["value"] * value
 
         c = C() # Create instance of C
-        c.run(add=1, wait_for_fit=True) # (1)!
-        # Ignore the previous line
+        c.run(add=1, force_fit=True) # (1)!
         c.run(add=1) # Returns 1
-        c.run(add=2, wait_for_fit=True) # Returns 2, result state["value"] = 3
+        c.run(add=2, force_fit=True) # Returns 2, result state["value"] = 4
         # Previous line called fit function and flushed fit queue
-        result, fit_event = c.run(add=3, return_fit_event=True)
-        print(result) # Prints 6
-        fit_event.wait() # (2)!
-        # Ignore the previous line
-        c.run(multiply=2) # Returns 6 since state["value"] = 3
-        c.run(multiply=3, wait_for_fit=True) # (3)!
+        c.run(add=3) # No fit op runs since batch size = 1
+        c.run(multiply=2) # Returns 8 since state["value"] = 4
+        c.run(multiply=3, force_fit=True) # (2)!
 
-        # 1. This will hang, since `batch_size=2` is not reached
-        # 2. This will also hang, since the fit queue only has 1 task
-        # 3. This throws an error, since there is no fit function for multiply
+        # 1. This forces the fit op to run even though the batch size
+        #   isn't reached, and waits for the fit op to finish running
+        # 2. This doesn't force or wait for any fit ops, since there are
+        #   no fit ops defined for `multiply`
         ```
 
 
         Args:
+            cache_ttl (int, optional):
+                How long the inference result should live in a cache (in
+                seconds). Defaults to 1 day (60 * 60 * 24). The expiration
+                time is extended if there are subsequent infer calls
+                for the same value.
+            force_refresh (bool, optional): Read the latest value of the
+                state before running an inference call, otherwise a stale
+                version of the state or a cached result may be used.
+                If you do not want to read from the cache, set force_refresh
+                = True. Defaults to False.
+            force_fit (bool, optional):
+                If True, waits for the fit op to finish executing before
+                returning. If the fit queue hasn't reached batch_size
+                yet, the fit op runs anyways. Force refreshes the
+                state after the fit op completes. Defaults to False.
             **kwargs:
-                Keyword arguments for the infer and fit ops.
-            return_fit_event (bool, optional):
-                If True, returns an instance of `FitEventGroup` that is set
-                when the fit function has finished executing. Defaults to False.
-            wait_for_fit (bool, optional):
-                If True, waits for the fit function to finish executing before
-                returning. Defaults to False. Warning: if the fit queue is
-                still waiting to get to batch_size elements, this will hang
-                forever!
+                Keyword arguments for the infer and fit ops. You can only
+                pass in one pair.
 
         Raises:
-            ValueError: _description_
+            ValueError: If more than one dataflow key-value pair is passed.
 
         Returns:
-            Union[Any, Tuple[Any, FitEventGroup]]:
-                Either the result of the infer function, or both
-                the result of the infer function and the `FitEventGroup` if
-                `return_fit_event` is True.
+            Any: Result of the inference call. Might take a long time
+            to run if `force_fit = True` and the fit operation is
+            computationally expensive.
         """
+        if len(kwargs) != 1:
+            raise ValueError("Only one key-value pair is allowed in kwargs.")
 
-        return_fit_event = kwargs.pop("return_fit_event", False)
-        wait_for_fit = kwargs.pop("wait_for_fit", False)
+        key, value = next(iter(kwargs.items()))
 
-        infer_result, fit_event = self._executor.run(**kwargs)
-
-        if wait_for_fit:
-            if not fit_event:
-                raise ValueError(
-                    "wait_for_fit=True, but there's no fit for this dataflow."
-                )
-            fit_event.wait()
-
-        if return_fit_event:
-            return infer_result, fit_event
+        infer_result = self._executor.run(
+            key=key,
+            value=value,
+            cache_ttl=cache_ttl,
+            force_refresh=force_refresh,
+            force_fit=force_fit,
+        )
 
         return infer_result

@@ -1,31 +1,33 @@
 from motion import Component
 import pytest
 
+Counter = Component("Counter")
+
+
+@Counter.init_state
+def setUp():
+    return {"value": 0}
+
+
+@Counter.infer("number")
+def noop(state, value):
+    return state["value"], value
+
+
+@Counter.fit("number", batch_size=1)
+def increment(state, values, infer_results):
+    return {"value": state["value"] + sum(values)}
+
 
 def test_create():
-    Counter = Component("Counter")
-
-    @Counter.init_state
-    def setUp():
-        return {"value": 0}
-
-    @Counter.infer("number")
-    def noop(state, value):
-        return state["value"], value
-
-    @Counter.fit("number", batch_size=1)
-    def increment(state, values, infer_results):
-        return {"value": state["value"] + sum(values)}
-
     c = Counter()
 
     assert c.read_state("value") == 0
 
     assert c.run(number=1)[1] == 1
-    _, fit_event = c.run(number=2, return_fit_event=True)
-    fit_event.wait()
-    assert c.run(number=3, wait_for_fit=True)[1] == 3
-    assert c.run(number=4, wait_for_fit=True)[0] == 6
+    c.run(number=2, force_fit=True)
+    assert c.run(number=3, force_fit=True)[1] == 3
+    assert c.run(number=4, force_fit=True)[0] == 6
 
     # Should raise errors
     with pytest.raises(KeyError):

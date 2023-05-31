@@ -22,7 +22,6 @@ def test_pydantic_infer():
 
 def test_wrong_args():
     c = Component("Counter")
-
     with pytest.raises(ValueError):
 
         @c.infer("number")

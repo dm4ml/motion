@@ -20,26 +20,33 @@ def test_bad_infer_component():
             return state["value"] + value
 
 
+c = Component(name="DoubleFit", params={})
+
+
+@c.init_state
+def setUp():
+    return {"value": 0}
+
+
+@c.fit("add")
+def plus(state, values, infer_results):
+    return {"value": state["value"] + sum(values)}
+
+
+@c.fit("add")
+def plus2(state, values, infer_results):
+    return {"value": state["value"] + sum(values)}
+
+
+@c.infer("read")
+def read(state, value):
+    return state["value"]
+
+
 def test_double_fit_component():
-    c = Component(name="DoubleFit", params={})
-
-    @c.init_state
-    def setUp():
-        return {"value": 0}
-
-    @c.fit("add")
-    def plus(state, values, infer_results):
-        return {"value": state["value"] + sum(values)}
-
-    @c.fit("add")
-    def plus2(state, values, infer_results):
-        return {"value": state["value"] + sum(values)}
-
-    @c.infer("read")
-    def read(state, value):
-        return state["value"]
-
     c_instance = c()
-    c_instance.run(add=1, wait_for_fit=True)
+
+    c_instance.run(add=1, force_fit=True)
+
     assert c_instance.run(read=1) == 2
     c_instance.shutdown()

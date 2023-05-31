@@ -20,6 +20,7 @@ Infer operations do not modify the state dictionary, while fit operations do.
 - Fit operations are initialized with a batch size, which determines how many values and results are passed to the fit operation at a time.
 - Components can only have one infer operation per key.
 - Components can have many dataflows, each with their own key, infer operation, and fit operation(s).
+- Component runs are cached, with an expiration time of 24 hours. If you run a component twice on the same dataflow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
 
 ## Example Component
 
@@ -27,6 +28,7 @@ Here is an example component that computes the z-score of a value with respect t
 
 ```python title="main.py" linenums="1"
 from motion import Component
+import time
 
 ZScoreComponent = Component("ZScore")
 
@@ -66,14 +68,19 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run(number=i))  # (1)!
 
-    c.run(number=9, wait_for_fit=True)  # (2)!
+    c.run(number=9, force_fit=True)  # (2)!
     for i in range(10, 19):
         print(c.run(number=i))  # (3)!
+
+    print(c.run(number=10)) # (4)!
+    time.sleep(5)  # Give time for the second fit to finish
+    print(c.run(number=10, force_refresh=True))
 ```
 
 1. This will return None, as the state's mean and std are not yet initialized.
-2. This will block until the resulting fit operation has finished running. Don't call `wait_for_fit` if the `batch_size` has not been reached, otherwise the program will hang.
-3. This uses the updated state dictionary from the previous run operation.
+2. This will force the fit operation to run, even if the batch size isn't achieved, and block until the resulting fit operation has finished running.
+3. This uses the updated state dictionary from the previous run operation, since `force_fit` also updates the state.
+4. This uses the cached result for 10. Since we know the state has updated, if we want to execute `c.run(number=10)` with the latest state, we should call `c.run(number=10, force_refresh=True)`.
 
 The output of the above code is:
 
@@ -97,9 +104,11 @@ None
 1.393939393939394
 1.5151515151515151
 1.6363636363636365
+0.6666666666666666
+0.48387096774193544
 ```
 
-Note that the `fit` operation is not called until the `batch_size` is reached. This is why the first 9 calls to `c.run` return `None`. In the above example, the `fit` operation is only called once, as only 19 values were observed.
+Note that the `fit` operation is not called until the `batch_size` is reached. This is why the first 9 calls to `c.run` return `None`.
 
 ## Component Parameters
 

@@ -7,9 +7,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6381:6379
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Start Redis
+        run: |
+          retries=3
+          until redis-cli -p 6381 ping || [[ $retries == 0 ]]; do
+            ((retries--))
+            sleep 1
+          done
 
       - name: Set up Python
         uses: actions/setup-python@v2

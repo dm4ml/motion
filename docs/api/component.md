@@ -3,10 +3,12 @@
     options:
         members: 
             - __init__
-            - init_state 
             - infer 
             - fit 
+            - init_state
             - __call__
+            - save_state
+            - load_state
             - name 
             - params
         show_root_full_path: false

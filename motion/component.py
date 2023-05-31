@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import CustomDict, validate_args
+from motion.utils import CustomDict, random_passphrase, validate_args
 
 
 class Component:
@@ -33,7 +33,7 @@ class Component:
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
             c.run(add=2) # Will return 3, not waiting for fit operation.
             # Resulting state will eventually be {"value": 3}
@@ -67,9 +67,9 @@ class Component:
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run(add=1, wait_for_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
-            c.run(subtract=1, wait_for_fit=True) # Will return 0, blocking
+            c.run(subtract=1, force_fit=True) # Will return 0, blocking
             # until fit is done. Resulting state is {"value": 0}
         ```
 
@@ -150,6 +150,8 @@ class Component:
         self._infer_routes: Dict[str, Route] = {}
         self._fit_routes: Dict[str, List[Route]] = {}
         self._init_state_func: Optional[Callable] = None
+        self._save_state_func: Optional[Callable] = None
+        self._load_state_func: Optional[Callable] = None
 
     @property
     def name(self) -> str:
@@ -232,15 +234,67 @@ class Component:
         ```
 
         Args:
-            func (Callable): Function without any arguments.
+            func (Callable): Function that initializes a state. Must return
+                a dictionary.
 
         Returns:
             Callable: Decorated init_state function.
         """
-        # Assert that init function has no arguments
-        if inspect.signature(func).parameters:
-            raise ValueError("init_state function should have no arguments")
         self._init_state_func = func
+        return func
+
+    def save_state(self, func: Callable) -> Callable:
+        """Decorator for the save_state function. This function
+        saves the state of the component to be accessible in
+        future component instances of the same name.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        MyComponent = Component("MyComponent")
+
+        @c.save_state
+        def save(state):
+            # state might have other unpicklable keys, like a DB connection
+            return {"fit_count": state["fit_count"]}
+        ```
+
+        Args:
+            func (Callable): Function that returns a cloudpickleable object.
+
+        Returns:
+            Callable: Decorated save_state function.
+        """
+        self._save_state_func = func
+        return func
+
+    def load_state(self, func: Callable) -> Callable:
+        """Decorator for the load_state function. This function
+        loads the state of the component from the unpickled state.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        MyComponent = Component("MyComponent")
+
+        @c.load_state
+        def load(state):
+            conn = sqlite3.connect(":memory:")
+            cursor = conn.cursor()
+            return {"cursor": cursor, "fit_count": state["fit_count"]}
+        ```
+
+        Args:
+            func (Callable): Function that consumes a cloudpickleable object.
+                Should return a dictionary representing the state of the
+                component instance.
+
+        Returns:
+            Callable: Decorated load_state function.
+        """
+        self._load_state_func = func
         return func
 
     def infer(self, key: str) -> Callable:
@@ -281,7 +335,7 @@ class Component:
             return state["value"] * value
 
         c = MyComponent()
-        c.run(add=1, wait_for_fit=True) # Returns 1
+        c.run(add=1, force_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2
         ```
 
@@ -291,6 +345,8 @@ class Component:
         Returns:
             Callable: Decorated infer function.
         """
+        if "::" in key:
+            raise ValueError(f"Dataflow key {key} should not have a double colon (::)")
 
         def decorator(func: Callable) -> Any:
             type_hint = get_type_hints(func).get("value", None)
@@ -370,7 +426,7 @@ class Component:
             return state["value"] * product
 
         c = MyComponent()
-        c.run(add=1, wait_for_fit=True) # Returns 1
+        c.run(add=1, force_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2, fit not executed yet
         c.run(multiply=3) # Returns 3, fit will execute; state["value"] = 6
         # Some time later...
@@ -387,6 +443,13 @@ class Component:
         Returns:
             Callable: Decorated fit function.
         """
+        frame = inspect.currentframe().f_back  # type: ignore
+        fname = frame.f_code.co_name  # type: ignore
+        if fname != "<module>":
+            raise ValueError(
+                f"Component {self.name} fit method must be defined in a module "
+                + f"context. It's currently initialized from function {fname}."
+            )
 
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "fit"):
@@ -407,7 +470,8 @@ class Component:
 
     def __call__(
         self,
-        cleanup: bool = False,
+        name: str = "",
+        init_state_params: Dict[str, Any] = {},
         logging_level: str = "WARNING",
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
@@ -420,8 +484,8 @@ class Component:
         MyComponent = Component("MyComponent")
 
         @MyComponent.init_state
-        def setUp():
-            return {"value": 0}
+        def setUp(starting_val):
+            return {"value": starting_val}
 
         # Define infer and fit operations
         @MyComponent.infer("key1")
@@ -430,29 +494,52 @@ class Component:
         @MyComponent.fit("key1)
         def ...
 
-        c_instance = MyComponent() # Creates instance of MyComponent
+        c_instance = MyComponent(init_state_params={"starting_val": 3})
+        # Creates instance of MyComponent
         c_instance.run(..)
         ```
 
         Args:
-            cleanup (bool, optional):
-                Whether to process the remainder of fit events after the user
-                shuts down the program. Defaults to False.
+            name (str, optional):
+                Name of the component instance. Defaults to "".
+            init_state_params (Dict[str, Any], optional):
+                Parameters to pass into the init_state function. Defaults to {}.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
+        if not name:
+            name = random_passphrase()
 
-        return ComponentInstance(
-            component_name=self.name,
-            init_state_func=self._init_state_func,
-            infer_routes=self._infer_routes,
-            fit_routes=self._fit_routes,
-            cleanup=cleanup,
-            logging_level=logging_level,
-        )
+        if "__" in name:
+            raise ValueError(
+                f"Instance name {name} cannot contain '__'. Strip the component"
+                + "name from your instance name."
+            )
+
+        instance_name = f"{self.name}__{name}"
+
+        try:
+            ci = ComponentInstance(
+                component_name=self.name,
+                instance_name=instance_name,
+                init_state_func=self._init_state_func,
+                init_state_params=init_state_params,
+                save_state_func=self._save_state_func,
+                load_state_func=self._load_state_func,
+                infer_routes=self._infer_routes,
+                fit_routes=self._fit_routes,
+                logging_level=logging_level,
+            )
+        except RuntimeError:
+            raise RuntimeError(
+                "Error creating component instance. Make sure the entry point "
+                + "of your program is protected, using `if __name__ == '__main__':`"
+            )
+
+        return ci
 
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:
         """
