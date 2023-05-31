@@ -3,7 +3,7 @@ from motion import Component
 import pytest
 
 
-def test_bad_infer_component(redisdb):
+def test_bad_infer_component():
     with pytest.raises(ValueError):
         c = Component("BadInferComponent")
 

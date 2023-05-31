@@ -25,6 +25,7 @@ urllib3 = "^1.26.15"
 flask = "^2.2.3"
 rich = "^13.3.4"
 cloudpickle = "^2.2.1"
+redis = "^4.5.5"
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"
@@ -44,7 +45,6 @@ ruff = "^0.0.261"
 maturin = "^0.14.17"
 mike = "^1.1.2"
 scikit-learn = "^1.2.2"
-pytest-redis = "^3.0.2"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
