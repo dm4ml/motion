@@ -30,7 +30,6 @@ class ComponentInstance:
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
-        serverless: bool = False,
     ):
         """Creates a new instance of a Motion component.
 
@@ -42,14 +41,12 @@ class ComponentInstance:
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
-            serverless (bool, optional): Whether to run the component in
-                serverless mode, using Modal. Defaults to False.
         """
         self._component_name = component_name
         configureLogging(logging_level)
-        self._serverless = serverless
-        indicator = "serverless" if serverless else "local"
-        logger.info(f"Creating {indicator} instance of {self._component_name}...")
+        # self._serverless = serverless
+        # indicator = "serverless" if serverless else "local"
+        logger.info(f"Creating local instance of {self._component_name}...")
         atexit.register(self.shutdown)
 
         # Create instance name
