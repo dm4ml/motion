@@ -416,8 +416,8 @@ class Component:
         Returns:
             Callable: Decorated fit function.
         """
-        frame = inspect.currentframe().f_back
-        fname = frame.f_code.co_name
+        frame = inspect.currentframe().f_back  # type: ignore
+        fname = frame.f_code.co_name  # type: ignore
         if fname != "<module>":
             raise ValueError(
                 f"Component {self.name} fit method must be defined in a module "
@@ -512,7 +512,6 @@ class Component:
             load_state_func=self._load_state_func,
             infer_routes=self._infer_routes,
             fit_routes=self._fit_routes,
-            cleanup=cleanup,
             logging_level=logging_level,
             serverless=serverless,
         )

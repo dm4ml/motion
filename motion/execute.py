@@ -1,6 +1,6 @@
 import os
 import signal
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
 import cloudpickle
@@ -25,15 +25,13 @@ class Executor:
         self,
         instance_name: str,
         init_state_func: Optional[Callable],
-        init_state_params: Optional[Dict[str, Any]],
+        init_state_params: Dict[str, Any],
         save_state_func: Optional[Callable],
         load_state_func: Optional[Callable],
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
-        cleanup: bool,
     ):
         self._instance_name = instance_name
-        self._cleanup = cleanup
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -95,7 +93,7 @@ class Executor:
         )
         return r
 
-    def _loadState(self):
+    def _loadState(self) -> CustomDict:
         return loadState(self._redis_con, self._instance_name, self._load_state_func)
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
@@ -121,7 +119,7 @@ class Executor:
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
-                    batch_size=route.udf._batch_size,
+                    batch_size=route.udf._batch_size,  # type: ignore
                     save_state_func=self._save_state_func,
                     load_state_func=self._load_state_func,
                     queue_identifier=self._get_queue_identifier(rkey, udf_name),
@@ -145,13 +143,12 @@ class Executor:
         if not self.running:
             return
 
-        if self._cleanup:
-            if is_open:
-                logger.info("Running fit operations on remaining data...")
+        if is_open:
+            logger.info("Running fit operations on remaining data...")
 
         # Set shutdown event
         for process in self.worker_tasks.values():
-            os.kill(process.pid, signal.SIGUSR1)
+            os.kill(process.pid, signal.SIGUSR1)  # type:ignore
 
         self._redis_con.close()
 
@@ -185,7 +182,7 @@ class Executor:
         cache_ttl: int,
         force_refresh: bool,
         force_fit: bool,
-    ) -> Tuple[Any, Optional[FitEventGroup]]:
+    ) -> Any:
         route_hit = False
         infer_result = None
 
@@ -196,9 +193,13 @@ class Executor:
 
             if force_refresh:
                 self._state = self._loadState()
-                self.version = int(
-                    self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                )
+                v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+                if not v:
+                    raise ValueError(
+                        f"Error loading state for {self._instance_name}."
+                        + " No version found."
+                    )
+                self.version = int(v)
 
             # Try hashing the value
             try:
@@ -278,9 +279,13 @@ class Executor:
                 fit_events.wait()
                 # Update state
                 self._state = self._loadState()
-                self.version = int(
-                    self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                )
+                v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+                if not v:
+                    raise ValueError(
+                        f"Error loading state for {self._instance_name}."
+                        + " No version found."
+                    )
+                self.version = int(v)
 
         if not route_hit:
             raise KeyError(f"Key {key} not in routes.")

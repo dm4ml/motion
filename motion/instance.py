@@ -29,7 +29,6 @@ class ComponentInstance:
         load_state_func: Optional[Callable],
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
-        cleanup: bool = False,
         logging_level: str = "WARNING",
         serverless: bool = False,
     ):
@@ -40,9 +39,6 @@ class ComponentInstance:
                 Name of the component we are creating an instance of.
             instance_name (str):
                 Name of the instance we are creating.
-            cleanup (bool, optional):
-                Whether to process the remainder of fit events after the user
-                shuts down the program. Defaults to False.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
@@ -63,12 +59,11 @@ class ComponentInstance:
         self._executor = Executor(
             self._instance_name,
             init_state_func=init_state_func,
-            init_state_params=init_state_params,
+            init_state_params=init_state_params if init_state_params else {},
             save_state_func=save_state_func,
             load_state_func=load_state_func,
             infer_routes=infer_routes,
             fit_routes=fit_routes,
-            cleanup=cleanup,
         )
         self.running = True
 

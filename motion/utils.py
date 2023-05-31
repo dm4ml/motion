@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 import cloudpickle
 import colorlog
@@ -32,13 +32,13 @@ class RedisParams(BaseModel):
     host: str
     port: int
     db: int
-    password: str = None
+    password: str
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
         kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
         kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
-        kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD"))
+        kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
 
         super().__init__(**kwargs)
 
@@ -101,8 +101,8 @@ def configureLogging(level: str) -> None:
 def loadState(
     redis_con: redis.Redis,
     instance_name: str,
-    load_state_func: Callable,
-) -> Dict[str, Any]:
+    load_state_func: Optional[Callable],
+) -> CustomDict:
     # Get state from redis
     state = CustomDict(instance_name, "state", {})
     loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
@@ -123,18 +123,18 @@ def loadState(
 
 
 def saveState(
-    state_to_save: Dict[str, Any],
+    state_to_save: CustomDict,
     redis_con: redis.Redis,
     instance_name: str,
-    save_state_func: Callable,
+    save_state_func: Optional[Callable],
 ) -> None:
     # Save state to redis
     if save_state_func is not None:
         state_to_save = save_state_func(state_to_save)
 
-    state_to_save = cloudpickle.dumps(state_to_save)
+    state_pickled = cloudpickle.dumps(state_to_save)
 
-    redis_con.set(f"MOTION_STATE:{instance_name}", state_to_save)
+    redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
     redis_con.incr(f"MOTION_VERSION:{instance_name}")
 
 

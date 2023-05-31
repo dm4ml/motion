@@ -1,6 +1,6 @@
 import multiprocessing
 import signal
-from typing import Callable
+from typing import Any, Callable, List, Optional
 
 import cloudpickle
 import redis
@@ -16,8 +16,8 @@ class FitTask(multiprocessing.Process):
         instance_name: str,
         route: Route,
         batch_size: int,
-        save_state_func: Callable,
-        load_state_func: Callable,
+        save_state_func: Optional[Callable],
+        load_state_func: Optional[Callable],
         queue_identifier: str,
         channel_identifier: str,
         redis_host: str,
@@ -40,17 +40,17 @@ class FitTask(multiprocessing.Process):
         self.channel_identifier = channel_identifier
 
         # Keep track of batch
-        self.batch = []
+        self.batch: List[Any] = []
 
         # Register the signal handler
         self.running = True
         signal.signal(signal.SIGUSR1, self.handle_signal)
 
-    def handle_signal(self, signum, frame):
+    def handle_signal(self, signum: int, frame: Any) -> None:
         logger.info("Received shutdown signal.")
         self.running = False
 
-    def run(self):
+    def run(self) -> None:
         redis_con = redis.Redis(
             host=self.redis_host,
             port=self.redis_port,
@@ -99,15 +99,16 @@ class FitTask(multiprocessing.Process):
                 old_state = loadState(
                     redis_con, self.instance_name, self.load_state_func
                 )
-                new_state = self.route.run(
+                state_update = self.route.run(
                     state=old_state, values=values, infer_results=infer_results
                 )
 
-                if not isinstance(new_state, dict):
+                if not isinstance(state_update, dict):
                     logger.error("fit methods should return a dict of state updates.")
                 else:
+                    old_state.update(state_update)
                     saveState(
-                        new_state,
+                        old_state,
                         redis_con,
                         self.instance_name,
                         self.save_state_func,
@@ -123,7 +124,7 @@ class FitTask(multiprocessing.Process):
             # Clear batch
             self.batch = []
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         redis_con = redis.Redis(
             host=self.redis_host,
             port=self.redis_port,
