@@ -26,6 +26,7 @@ flask = "^2.2.3"
 rich = "^13.3.4"
 cloudpickle = "^2.2.1"
 redis = "^4.5.5"
+psutil = "^5.9.5"
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"

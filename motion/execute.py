@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
 import cloudpickle
+import psutil
 import redis
 
 from motion.fit_task import FitTask
@@ -147,13 +148,16 @@ class Executor:
             logger.info("Running fit operations on remaining data...")
 
         # Set shutdown event
+        processes_to_wait_for = []
         for process in self.worker_tasks.values():
-            os.kill(process.pid, signal.SIGUSR1)  # type:ignore
+            if psutil.pid_exists(process.pid):
+                os.kill(process.pid, signal.SIGUSR1)  # type:ignore
+                processes_to_wait_for.append(process)
 
         self._redis_con.close()
 
         # Join fit threads
-        for process in self.worker_tasks.values():
+        for process in processes_to_wait_for:
             # if self.worker_states.get(thread.name, False):
             process.join()
 

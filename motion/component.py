@@ -491,7 +491,6 @@ class Component:
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
-
         if not name:
             name = random_passphrase()
 
@@ -503,18 +502,26 @@ class Component:
 
         instance_name = f"{self.name}__{name}"
 
-        return ComponentInstance(
-            component_name=self.name,
-            instance_name=instance_name,
-            init_state_func=self._init_state_func,
-            init_state_params=init_state_params,
-            save_state_func=self._save_state_func,
-            load_state_func=self._load_state_func,
-            infer_routes=self._infer_routes,
-            fit_routes=self._fit_routes,
-            logging_level=logging_level,
-            serverless=serverless,
-        )
+        try:
+            ci = ComponentInstance(
+                component_name=self.name,
+                instance_name=instance_name,
+                init_state_func=self._init_state_func,
+                init_state_params=init_state_params,
+                save_state_func=self._save_state_func,
+                load_state_func=self._load_state_func,
+                infer_routes=self._infer_routes,
+                fit_routes=self._fit_routes,
+                logging_level=logging_level,
+                serverless=serverless,
+            )
+        except RuntimeError:
+            raise RuntimeError(
+                "Error creating component instance. Make sure the entry point "
+                + "of your program is protected, using `if __name__ == '__main__':`"
+            )
+
+        return ci
 
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:
         """
