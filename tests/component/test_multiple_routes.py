@@ -41,13 +41,13 @@ def reset(state, values, infer_results):
 
 def test_multiple_routes():
     c = Calculator()
-    assert c.run(add=1, force_fit=True) == 1
-    assert c.run(add=2, force_fit=True) == 3
-    assert c.run(subtract=1, force_fit=True) == 2
+    assert c.run(add=1, flush_fit=True) == 1
+    assert c.run(add=2, flush_fit=True) == 3
+    assert c.run(subtract=1, flush_fit=True) == 2
     assert c.run(identity=1) == 1
 
     # Force fit doesn't do anything
-    c.run(identity=1, force_fit=True)
+    c.run(identity=1, flush_fit=True)
 
-    c.run(reset=1, force_fit=True)
-    assert c.run(add=1, force_fit=True) == 1
+    c.run(reset=1, flush_fit=True)
+    assert c.run(add=1, flush_fit=True) == 1

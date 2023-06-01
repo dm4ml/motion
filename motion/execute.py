@@ -231,7 +231,7 @@ class Executor:
         value: Any,
         cache_ttl: int,
         force_refresh: bool,
-        force_fit: bool,
+        flush_fit: bool,
     ) -> Any:
         route_hit = False
         infer_result = None
@@ -302,7 +302,7 @@ class Executor:
 
                 identifier = str(uuid4())
 
-                if force_fit:
+                if flush_fit:
                     # Add pubsub channel to listen to
                     fit_event = FitEvent(
                         self._redis_con, channel_identifier, identifier
@@ -319,12 +319,12 @@ class Executor:
                                 "infer_result": infer_result,
                                 "identifier": identifier,
                             },
-                            force_fit,
+                            flush_fit,
                         )
                     ),
                 )
 
-            if force_fit:
+            if flush_fit:
                 # Wait for fit result to finish
                 fit_events.wait()
                 # Update state
@@ -341,3 +341,51 @@ class Executor:
             raise KeyError(f"Key {key} not in routes.")
 
         return infer_result
+
+    def flush_fit(self, dataflow_key: str) -> None:
+        # Check if key has fit ops
+        if dataflow_key not in self._fit_routes.keys():
+            return
+
+        # Push a noop into the relevant queues
+        fit_events = FitEventGroup(dataflow_key)
+        for fit_udf_name in self._fit_routes[dataflow_key].keys():
+            queue_identifier: str = self._get_queue_identifier(
+                dataflow_key, fit_udf_name
+            )
+            channel_identifier: str = self._get_channel_identifier(
+                dataflow_key, fit_udf_name
+            )
+
+            identifier = "NOOP_" + str(uuid4())
+
+            # Add pubsub channel to listen to
+            fit_event = FitEvent(self._redis_con, channel_identifier, identifier)
+            fit_events.add(fit_udf_name, fit_event)
+
+            # Add to fit queue
+            self._redis_con.rpush(
+                queue_identifier,
+                cloudpickle.dumps(
+                    (
+                        {
+                            "value": None,
+                            "infer_result": None,
+                            "identifier": identifier,
+                        },
+                        True,
+                    )
+                ),
+            )
+
+        # Wait for fit result to finish
+        fit_events.wait()
+        # Update state
+        self._state = self._loadState()
+        v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+        if not v:
+            raise ValueError(
+                f"Error loading state for {self._instance_name}." + " No version found."
+            )
+
+        self.version = int(v)

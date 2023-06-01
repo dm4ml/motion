@@ -71,9 +71,9 @@ class FitTask(multiprocessing.Process):
                         else:
                             continue
 
-                    item, force_fit = cloudpickle.loads(item[1])
+                    item, flush_fit = cloudpickle.loads(item[1])
                     self.batch.append(item)
-                    if force_fit:
+                    if flush_fit:
                         break
             except redis.exceptions.ConnectionError:
                 if not self.running:
@@ -89,31 +89,45 @@ class FitTask(multiprocessing.Process):
             if not self.batch:
                 continue
 
-            values = [job["value"] for job in self.batch]
-            infer_results = [job["infer_result"] for job in self.batch]
-            identifiers = [job["identifier"] for job in self.batch]
+            # Remove from batch if it was a noop
+            values = []
+            infer_results = []
+            identifiers = []
+            for job in self.batch:
+                if not job["identifier"].startswith("NOOP_"):
+                    values.append(job["value"])
+                    infer_results.append(job["infer_result"])
+                identifiers.append(job["identifier"])
 
+            # Check that there are elements in values and infer_results
             # Acquire lock and run op
-            acquired_lock = lock.acquire(blocking=True)
-            if acquired_lock:
-                old_state = loadState(
-                    redis_con, self.instance_name, self.load_state_func
-                )
-                state_update = self.route.run(
-                    state=old_state, values=values, infer_results=infer_results
-                )
-
-                if not isinstance(state_update, dict):
-                    logger.error("fit methods should return a dict of state updates.")
-                else:
-                    old_state.update(state_update)
-                    saveState(
-                        old_state,
-                        redis_con,
-                        self.instance_name,
-                        self.save_state_func,
+            if len(values) >= 1:
+                acquired_lock = lock.acquire(blocking=True)
+                if acquired_lock:
+                    old_state = loadState(
+                        redis_con, self.instance_name, self.load_state_func
                     )
-                lock.release()
+                    state_update = self.route.run(
+                        state=old_state,
+                        values=values,
+                        infer_results=infer_results,
+                    )
+
+                    if not isinstance(state_update, dict):
+                        logger.error(
+                            "fit methods should return a dict of state updates."
+                        )
+                    else:
+                        old_state.update(state_update)
+                        saveState(
+                            old_state,
+                            redis_con,
+                            self.instance_name,
+                            self.save_state_func,
+                        )
+                    lock.release()
+                else:
+                    logger.error("Lock not acquired; batch lost.")
 
             for identifier in identifiers:
                 redis_con.publish(

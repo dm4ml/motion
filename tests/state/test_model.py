@@ -41,7 +41,7 @@ def finetune(state, values, infer_results):
 def test_model_component():
     c_instance = c()
     first_run = c_instance.run(value=1)
-    assert first_run == c_instance.run(value=1, force_fit=True)
+    assert first_run == c_instance.run(value=1, flush_fit=True)
 
     second_run = c_instance.run(value=1, force_refresh=True)
 

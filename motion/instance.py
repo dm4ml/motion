@@ -72,8 +72,9 @@ class ComponentInstance:
 
     def shutdown(self) -> None:
         """Shuts down a Motion component instance, saving state.
-        The state saving functionality is not implemented yet, but the
-        graceful shutdown is.
+
+        Warning: if you don't shutdown a component instance when you are
+        finished using it, your program may infinitely hang!
 
         Usage:
         ```python
@@ -105,6 +106,29 @@ class ComponentInstance:
 
         self.running = False
 
+    def get_version(self) -> int:
+        """
+        Gets the state version (might be outdated) currently being
+        used for infer ops.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        C = Component("MyComponent")
+
+        @C.init_state
+        def setUp():
+            return {"value": 0}
+
+        # Define infer and fit operations
+
+        c_instance = C()
+        c_instance.get_version() # Returns 1 (first version)
+        ```
+        """
+        return self._executor.version  # type: ignore
+
     def read_state(self, key: str) -> Any:
         """Gets the current value for the key in the component's state.
 
@@ -135,12 +159,56 @@ class ComponentInstance:
         """
         return self._executor._loadState()[key]
 
+    def flush_fit(self, dataflow_key: str) -> None:
+        """Flushes the fit queue corresponding to the dataflow
+        key, if it exists, and updates the instance state.
+        Warning: this is a blocking operation and could take
+        a while if your fit op takes a long time!
+
+        The fit queue will be flushed even if there aren't
+        the predefined batch_size number of elements.
+
+        Example Usage:
+        ```python
+        from motion import Component
+
+        C = Component("MyComponent")
+
+        @C.init_state
+        def setUp():
+            return {"value": 0}
+
+        @C.infer("add")
+        def add(state, value):
+            return state["value"] + value
+
+        @C.fit("add", batch_size=2)
+        def add(state, values, infer_results):
+            return {"value": state["value"] + sum(values)}
+
+        @C.infer("multiply")
+        def multiply(state, value):
+            return state["value"] * value
+
+        c = C() # Create instance of C
+        c.run(add=1)
+        c.flush_fit("add") # (1)!
+        c.run(add=2) # This will use the updated state
+
+        # 1. Runs the fit op even though only one element is in the batch
+        ```
+
+        Args:
+            dataflow_key (str): Key of the dataflow.
+        """
+        self._executor.flush_fit(dataflow_key)
+
     def run(
         self,
         *,
         cache_ttl: int = DEFAULT_KEY_TTL,
         force_refresh: bool = False,
-        force_fit: bool = False,
+        flush_fit: bool = False,
         **kwargs: Any,
     ) -> Union[Any, Tuple[Any, FitEventGroup]]:
         """Runs the dataflow (infer and fit ops) for the keyword argument
@@ -171,13 +239,13 @@ class ComponentInstance:
             return state["value"] * value
 
         c = C() # Create instance of C
-        c.run(add=1, force_fit=True) # (1)!
+        c.run(add=1, flush_fit=True) # (1)!
         c.run(add=1) # Returns 1
-        c.run(add=2, force_fit=True) # Returns 2, result state["value"] = 4
+        c.run(add=2, flush_fit=True) # Returns 2, result state["value"] = 4
         # Previous line called fit function and flushed fit queue
         c.run(add=3) # No fit op runs since batch size = 1
         c.run(multiply=2) # Returns 8 since state["value"] = 4
-        c.run(multiply=3, force_fit=True) # (2)!
+        c.run(multiply=3, flush_fit=True) # (2)!
 
         # 1. This forces the fit op to run even though the batch size
         #   isn't reached, and waits for the fit op to finish running
@@ -197,7 +265,7 @@ class ComponentInstance:
                 version of the state or a cached result may be used.
                 If you do not want to read from the cache, set force_refresh
                 = True. Defaults to False.
-            force_fit (bool, optional):
+            flush_fit (bool, optional):
                 If True, waits for the fit op to finish executing before
                 returning. If the fit queue hasn't reached batch_size
                 yet, the fit op runs anyways. Force refreshes the
@@ -211,7 +279,7 @@ class ComponentInstance:
 
         Returns:
             Any: Result of the inference call. Might take a long time
-            to run if `force_fit = True` and the fit operation is
+            to run if `flush_fit = True` and the fit operation is
             computationally expensive.
         """
         if len(kwargs) != 1:
@@ -224,7 +292,7 @@ class ComponentInstance:
             value=value,
             cache_ttl=cache_ttl,
             force_refresh=force_refresh,
-            force_fit=force_fit,
+            flush_fit=flush_fit,
         )
 
         return infer_result

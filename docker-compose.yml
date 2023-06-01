@@ -1,7 +1,12 @@
 version: '3'
 services:
-  redis:
+  redis_test:
     image: redis/redis-stack-server:latest
     container_name: motion-backend-testing
     ports:
       - 6381:6379
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: motion-backend
+    ports:
+      - 6379:6379

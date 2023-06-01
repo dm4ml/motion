@@ -44,7 +44,7 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run(number=i))
 
-    c.run(number=9, force_fit=True)
+    c.run(number=9, flush_fit=True)
     for i in range(10, 19):
         print(c.run(number=i))
 ```
