@@ -149,14 +149,13 @@ class FitTask(multiprocessing.Process):
         # Add outstanding batch back to queue
         for item in self.batch:
             # Pickle item object
-            pickled_item = (
-                cloudpickle.dumps(
-                    (
-                        item,
-                        False,  # flush_fit should be False
-                    )
-                ),
+            pickled_item = cloudpickle.dumps(
+                (
+                    item,
+                    False,  # flush_fit should be False
+                )
             )
 
             redis_con.lpush(self.queue_identifier, pickled_item)
+
         self.batch = []
