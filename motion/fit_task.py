@@ -23,7 +23,7 @@ class FitTask(multiprocessing.Process):
         redis_port: int,
         redis_db: int,
         redis_password: str,
-        stop_event: multiprocessing.Event,
+        stop_event: Any,
     ):
         super().__init__()
         self.instance_name = instance_name
