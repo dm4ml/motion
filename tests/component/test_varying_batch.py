@@ -26,17 +26,17 @@ def increment3(state, values, infer_results):
 def test_varying_batch():
     # Test batch_size=1
     c_instance = c()
-    c_instance.run(route1=1, force_fit=True)
+    c_instance.run(route1=1, flush_fit=True)
     assert c_instance.read_state("value") == 1
 
     for _ in range(9):
         c_instance.run(route2=1)
 
-    c_instance.run(route2=1, force_fit=True)
+    c_instance.run(route2=1, flush_fit=True)
     assert c_instance.read_state("value") == 11
 
     for _ in range(99):
         c_instance.run(route3=1)
 
-    c_instance.run(route3=1, force_fit=True)
+    c_instance.run(route3=1, flush_fit=True)
     assert c_instance.read_state("value") == 111

@@ -1,4 +1,4 @@
-.PHONY: tests lint install mypy update
+.PHONY: tests lint install mypy update docs
 
 tests:
 	poetry run pytest
@@ -15,3 +15,6 @@ mypy:
 
 update:
 	poetry update
+
+docs:
+	poetry run mkdocs serve

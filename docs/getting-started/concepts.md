@@ -68,7 +68,7 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run(number=i))  # (1)!
 
-    c.run(number=9, force_fit=True)  # (2)!
+    c.run(number=9, flush_fit=True)  # (2)!
     for i in range(10, 19):
         print(c.run(number=i))  # (3)!
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
 1. This will return None, as the state's mean and std are not yet initialized.
 2. This will force the fit operation to run, even if the batch size isn't achieved, and block until the resulting fit operation has finished running.
-3. This uses the updated state dictionary from the previous run operation, since `force_fit` also updates the state.
+3. This uses the updated state dictionary from the previous run operation, since `flush_fit` also updates the state.
 4. This uses the cached result for 10. Since we know the state has updated, if we want to execute `c.run(number=10)` with the latest state, we should call `c.run(number=10, force_refresh=True)`.
 
 The output of the above code is:

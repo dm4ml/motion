@@ -40,10 +40,10 @@ def update_message(state, values, infer_results):
 def test_simple_pipeline():
     a_instance = a()
     b_instance = b()
-    add_result = a_instance.run(add=1, force_fit=True)
+    add_result = a_instance.run(add=1, flush_fit=True)
     assert add_result == 1
 
-    concat_result = b_instance.run(concat=str(add_result), force_fit=True)
+    concat_result = b_instance.run(concat=str(add_result), flush_fit=True)
     assert concat_result == " 1"
 
     add_result_2 = a_instance.run(add=2)

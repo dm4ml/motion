@@ -25,9 +25,9 @@ def test_create():
     assert c.read_state("value") == 0
 
     assert c.run(number=1)[1] == 1
-    c.run(number=2, force_fit=True)
-    assert c.run(number=3, force_fit=True)[1] == 3
-    assert c.run(number=4, force_fit=True)[0] == 6
+    c.run(number=2, flush_fit=True)
+    assert c.run(number=3, flush_fit=True)[1] == 3
+    assert c.run(number=4, flush_fit=True)[0] == 6
 
     # Should raise errors
     with pytest.raises(KeyError):

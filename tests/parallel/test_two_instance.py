@@ -20,7 +20,7 @@ def increment(state, values, infer_results):
 
 def test_redis_saving():
     inst1 = Counter(name="test")
-    assert inst1.run(multiply=2, force_fit=True) == 2
+    assert inst1.run(multiply=2, flush_fit=True) == 2
     assert inst1.read_state("value") == 2
     inst1.shutdown()
 
@@ -28,6 +28,6 @@ def test_redis_saving():
 
     inst2 = Counter(name="test")
     assert inst2.read_state("value") == 2
-    assert inst2.run(multiply=3, force_fit=True) == 6
+    assert inst2.run(multiply=3, flush_fit=True) == 6
     assert inst2.read_state("value") == 3
     inst2.shutdown()

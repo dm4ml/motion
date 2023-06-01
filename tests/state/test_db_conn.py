@@ -58,5 +58,5 @@ def increment(state, values, infer_results):
 def test_db_component():
     c_instance = c()
     assert c_instance.run(count=1) == [(2,)]
-    c_instance.run(something=1, force_fit=True)
+    c_instance.run(something=1, flush_fit=True)
     assert c_instance.run(something=5) == 1

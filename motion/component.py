@@ -33,7 +33,7 @@ class Component:
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, flush_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
             c.run(add=2) # Will return 3, not waiting for fit operation.
             # Resulting state will eventually be {"value": 3}
@@ -67,9 +67,9 @@ class Component:
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run(add=1, force_fit=True) # Will return 1, blocking until fit
+            c.run(add=1, flush_fit=True) # Will return 1, blocking until fit
             # is done. Resulting state is {"value": 1}
-            c.run(subtract=1, force_fit=True) # Will return 0, blocking
+            c.run(subtract=1, flush_fit=True) # Will return 0, blocking
             # until fit is done. Resulting state is {"value": 0}
         ```
 
@@ -335,7 +335,7 @@ class Component:
             return state["value"] * value
 
         c = MyComponent()
-        c.run(add=1, force_fit=True) # Returns 1
+        c.run(add=1, flush_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2
         ```
 
@@ -426,7 +426,7 @@ class Component:
             return state["value"] * product
 
         c = MyComponent()
-        c.run(add=1, force_fit=True) # Returns 1
+        c.run(add=1, flush_fit=True) # Returns 1
         c.run(multiply=2) # Returns 2, fit not executed yet
         c.run(multiply=3) # Returns 3, fit will execute; state["value"] = 6
         # Some time later...

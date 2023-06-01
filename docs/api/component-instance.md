@@ -4,6 +4,8 @@
         members: 
             - run
             - read_state
+            - flush_fit
+            - version
             - shutdown
             - instance_name
         show_root_full_path: false
