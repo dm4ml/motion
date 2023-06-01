@@ -1,5 +1,4 @@
-import os
-import signal
+import multiprocessing
 import threading
 from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
@@ -112,12 +111,14 @@ class Executor:
         """Builds fit jobs."""
         # Set up worker loops
         self.worker_tasks = {}
+        self.worker_stop_events = {}
         rp = RedisParams()
         # self.worker_states = {}
 
         for rkey, routes in self._fit_routes.items():
             for udf_name, route in routes.items():
                 pname = f"{self._instance_name}::{rkey}::{udf_name}"
+                worker_stop_event = multiprocessing.Event()
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
@@ -130,7 +131,9 @@ class Executor:
                     redis_port=rp.port,
                     redis_db=rp.db,
                     redis_password=rp.password,  # type: ignore
+                    stop_event=worker_stop_event,
                 )
+                self.worker_stop_events[pname] = worker_stop_event
                 self.worker_tasks[pname].start()
 
         # Set up a monitor thread
@@ -194,9 +197,11 @@ class Executor:
         self.stop_event.set()
 
         processes_to_wait_for = []
-        for process in self.worker_tasks.values():
+        for pname, process in self.worker_tasks.items():
             if psutil.pid_exists(process.pid):
-                os.kill(process.pid, signal.SIGUSR1)  # type:ignore
+                # os.kill(process.pid, signal.SIGUSR1)  # type:ignore
+                # Set stop event
+                self.worker_stop_events[pname].set()
                 processes_to_wait_for.append(process)
 
         self._redis_con.close()

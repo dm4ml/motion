@@ -1,5 +1,4 @@
 import multiprocessing
-import signal
 from typing import Any, Callable, List, Optional
 
 import cloudpickle
@@ -24,6 +23,7 @@ class FitTask(multiprocessing.Process):
         redis_port: int,
         redis_db: int,
         redis_password: str,
+        stop_event: Any,
     ):
         super().__init__()
         self.instance_name = instance_name
@@ -42,13 +42,13 @@ class FitTask(multiprocessing.Process):
         # Keep track of batch
         self.batch: List[Any] = []
 
-        # Register the signal handler
-        self.running = True
-        signal.signal(signal.SIGUSR1, self.handle_signal)
+        # Register the stop event
+        # self.running = True
+        self.stop_event = stop_event
 
-    def handle_signal(self, signum: int, frame: Any) -> None:
-        logger.info("Received shutdown signal.")
-        self.running = False
+    # def handle_signal(self, signum: int, frame: Any) -> None:
+    #     logger.info("Received shutdown signal.")
+    #     self.running = False
 
     def run(self) -> None:
         redis_con = redis.Redis(
@@ -61,12 +61,12 @@ class FitTask(multiprocessing.Process):
         lock_timeout = 300  # Lock timeout in seconds
         lock = Lock(redis_con, self.instance_name, lock_timeout)
 
-        while self.running:
+        while not self.stop_event.is_set():
             try:
                 for _ in range(self.batch_size):
                     item = redis_con.blpop(self.queue_identifier, timeout=1)
                     if item is None:
-                        if not self.running:
+                        if self.stop_event.is_set():
                             break  # no more items in the list
                         else:
                             continue
@@ -76,13 +76,11 @@ class FitTask(multiprocessing.Process):
                     if flush_fit:
                         break
             except redis.exceptions.ConnectionError:
-                if not self.running:
-                    logger.error("Connection to redis lost.")
-
+                logger.error("Connection to redis lost.")
                 break
 
             # Check if we should stop
-            if not self.running:
+            if self.stop_event.is_set():
                 self.cleanup()
                 break
 
