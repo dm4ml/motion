@@ -33,9 +33,10 @@ def read_endpoint():
     t = Test("testid")
     t.run(increment=True)
     t.flush_fit("increment")
-    t.shutdown()
 
-    return {"value": t.read_state("count")}
+    yield {"value": t.read_state("count")}
+
+    t.shutdown()
 
 
 @pytest.fixture
@@ -46,9 +47,9 @@ def client():
 def test_endpoint(client):
     response = client.get("/endpoint")
     assert response.status_code == 200
-    assert response.json() == {"value": 1}
+    assert response.json() == [{"value": 1}]
 
     # Do it again!
     response = client.get("/endpoint")
     assert response.status_code == 200
-    assert response.json() == {"value": 2}
+    assert response.json() == [{"value": 2}]
