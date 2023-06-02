@@ -71,6 +71,8 @@ class Executor:
             self._state = self._loadState()
             self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
 
+        self.version = int(self.version)
+
         # Set up routes
         self._infer_routes: Dict[str, Route] = infer_routes
         self._fit_routes: Dict[str, Dict[str, Route]] = {
