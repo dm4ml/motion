@@ -39,7 +39,7 @@ class Executor:
         self._load_state_func = load_state_func
         self._save_state_func = save_state_func
 
-        self.running = multiprocessing.Value("b", False)
+        self.running: Any = multiprocessing.Value("b", False)
         self._redis_con = self._connectToRedis()
         try:
             self._redis_con.ping()
