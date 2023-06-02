@@ -4,6 +4,7 @@
         members: 
             - run
             - read_state
+            - update_state
             - flush_fit
             - version
             - shutdown
