@@ -129,8 +129,11 @@ class ComponentInstance:
         """
         return self._executor.version  # type: ignore
 
-    def read_state(self, key: str) -> Any:
-        """Gets the current value for the key in the component's state.
+    def update_state(self, state_update: Dict[str, Any]) -> None:
+        """Writes the state update to the component instance's state.
+        If a fit op is currently running, the state update will be
+        applied after the fit op is finished. Warning: this could
+        take a while if your fit op takes a long time!
 
         Usage:
         ```python
@@ -143,12 +146,44 @@ class ComponentInstance:
             return {"value": 0}
 
         # Define infer and fit operations
+        ...
 
-        c_instance = C()
-        c_instance.read_state("value") # Returns 0
-        c_instance.run(...)
-        c_instance.read_state("value") # This will return the current value of
-        # "value" in the state
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.read_state("value") # Returns 0
+            c_instance.update_state({"value": 1, "value2": 2})
+            c_instance.read_state("value") # Returns 1
+            c_instance.read_state("value2") # Returns 2
+        ```
+
+        Args:
+            state_update (Dict[str, Any]): Dictionary of key-value pairs
+                to update the state with.
+        """
+        self._executor._updateState(state_update)
+
+    def read_state(self, key: str) -> Any:
+        """Gets the current value for the key in the component instance's state.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        C = Component("MyComponent")
+
+        @C.init_state
+        def setUp():
+            return {"value": 0}
+
+        # Define infer and fit operations
+        ...
+
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.read_state("value") # Returns 0
+            c_instance.run(...)
+            c_instance.read_state("value") # This will return the current value
+            # of "value" in the state
         ```
 
         Args:

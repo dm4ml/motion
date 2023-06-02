@@ -6,6 +6,7 @@ from uuid import uuid4
 import cloudpickle
 import psutil
 import redis
+from redis.lock import Lock
 
 from motion.fit_task import FitTask
 from motion.route import Route
@@ -216,9 +217,25 @@ class Executor:
 
         self.monitor_thread.join()
 
-    def update(self, new_state: Dict[str, Any]) -> None:
-        if new_state:
+    def _updateState(self, new_state: Dict[str, Any]) -> None:
+        if not new_state:
+            return
+
+        if not isinstance(new_state, dict):
+            raise TypeError("State should be a dict.")
+
+        # Acquire a lock
+        lock_timeout = 5  # Lock timeout in seconds
+        lock = Lock(self._redis_con, self._instance_name, lock_timeout)
+
+        acquired_lock = lock.acquire(blocking=True)
+        if acquired_lock:
             self._state.update(new_state)
+
+            # Get latest state
+            self._state = self._loadState()
+            self._state.update(new_state)
+
             # Save state to redis
             saveState(
                 self._state,
@@ -226,6 +243,11 @@ class Executor:
                 self._instance_name,
                 self._save_state_func,
             )
+
+            self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+
+            # Release lock
+            lock.release()
 
     def empty_batch(self) -> Dict[str, List[Any]]:
         return {
