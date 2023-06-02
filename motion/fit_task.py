@@ -23,7 +23,7 @@ class FitTask(multiprocessing.Process):
         redis_port: int,
         redis_db: int,
         redis_password: str,
-        stop_event: Any,
+        running: Any,
     ):
         super().__init__()
         self.instance_name = instance_name
@@ -44,7 +44,8 @@ class FitTask(multiprocessing.Process):
 
         # Register the stop event
         # self.running = True
-        self.stop_event = stop_event
+        # self.stop_event = stop_event
+        self.running = running
 
     # def handle_signal(self, signum: int, frame: Any) -> None:
     #     logger.info("Received shutdown signal.")
@@ -61,12 +62,12 @@ class FitTask(multiprocessing.Process):
         lock_timeout = 300  # Lock timeout in seconds
         lock = Lock(redis_con, self.instance_name, lock_timeout)
 
-        while not self.stop_event.is_set():
+        while self.running.value:
             try:
                 for _ in range(self.batch_size):
                     item = redis_con.blpop(self.queue_identifier, timeout=1)
                     if item is None:
-                        if self.stop_event.is_set():
+                        if not self.running.value:
                             break  # no more items in the list
                         else:
                             continue
@@ -80,7 +81,7 @@ class FitTask(multiprocessing.Process):
                 break
 
             # Check if we should stop
-            if self.stop_event.is_set():
+            if not self.running.value:
                 self.cleanup()
                 break
 

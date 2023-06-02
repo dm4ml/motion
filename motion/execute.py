@@ -39,7 +39,7 @@ class Executor:
         self._load_state_func = load_state_func
         self._save_state_func = save_state_func
 
-        self.running = False
+        self.running: Any = multiprocessing.Value("b", False)
         self._redis_con = self._connectToRedis()
         try:
             self._redis_con.ping()
@@ -51,7 +51,7 @@ class Executor:
                 + "MOTION_REDIS_PORT, MOTION_REDIS_DB, and/or "
                 + "MOTION_REDIS_PASSWORD to your Redis params."
             )
-        self.running = True
+        self.running.value = True
 
         # Set up state
         self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
@@ -111,14 +111,15 @@ class Executor:
         """Builds fit jobs."""
         # Set up worker loops
         self.worker_tasks = {}
-        self.worker_stop_events = {}
+        # self.worker_stop_events = {}
+
         rp = RedisParams()
         # self.worker_states = {}
 
         for rkey, routes in self._fit_routes.items():
             for udf_name, route in routes.items():
                 pname = f"{self._instance_name}::{rkey}::{udf_name}"
-                worker_stop_event = multiprocessing.Event()
+                multiprocessing.Event()
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
@@ -131,9 +132,9 @@ class Executor:
                     redis_port=rp.port,
                     redis_db=rp.db,
                     redis_password=rp.password,  # type: ignore
-                    stop_event=worker_stop_event,
+                    running=self.running,
                 )
-                self.worker_stop_events[pname] = worker_stop_event
+                # self.worker_stop_events[pname] = worker_stop_event
                 self.worker_tasks[pname].start()
 
         # Set up a monitor thread
@@ -187,7 +188,7 @@ class Executor:
         return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
-        if not self.running:
+        if not self.running.value:
             return
 
         if is_open:
@@ -195,13 +196,14 @@ class Executor:
 
         # Set shutdown event
         self.stop_event.set()
+        self.running.value = False
 
         processes_to_wait_for = []
-        for pname, process in self.worker_tasks.items():
+        for process in self.worker_tasks.values():
             if psutil.pid_exists(process.pid):
                 # os.kill(process.pid, signal.SIGUSR1)  # type:ignore
                 # Set stop event
-                self.worker_stop_events[pname].set()
+                # self.worker_stop_events[pname].set()
                 processes_to_wait_for.append(process)
 
         self._redis_con.close()
