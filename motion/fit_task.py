@@ -46,6 +46,7 @@ class FitTask(multiprocessing.Process):
         # self.running = True
         # self.stop_event = stop_event
         self.running = running
+        self.daemon = True
 
     # def handle_signal(self, signum: int, frame: Any) -> None:
     #     logger.info("Received shutdown signal.")

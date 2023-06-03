@@ -72,9 +72,7 @@ class ComponentInstance:
 
     def shutdown(self) -> None:
         """Shuts down a Motion component instance, saving state.
-
-        Warning: if you don't shutdown a component instance when you are
-        finished using it, your program may infinitely hang!
+        Automatically called when the instance is garbage collected.
 
         Usage:
         ```python

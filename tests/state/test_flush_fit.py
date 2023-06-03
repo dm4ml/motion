@@ -41,3 +41,18 @@ def test_flush_instance():
     assert counter.get_version() == 2
 
     counter.shutdown()
+
+
+def test_fit_daemon():
+    counter = Counter()
+
+    for i in range(10):
+        counter.run(number=i)
+
+    # Flush instance
+    counter.flush_fit("number")
+
+    # Assert new state is different from old state
+    assert counter.get_version() == 2
+
+    # Don't shutdown
