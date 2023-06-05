@@ -5,6 +5,10 @@ import sys
 from datetime import datetime
 
 import click
+import redis
+from rich.console import Console
+
+from motion import clear_instance
 
 
 @click.group()
@@ -69,6 +73,37 @@ def visualize(filename: str, output: str) -> None:
     with open(out_filename, "w") as f:
         json.dump(graph, f, indent=4)
         click.echo(f"{checkmark} Graph dumped to {out_filename}")
+
+
+@motioncli.command(
+    "clear", epilog="Example usage:\n motion clear MyComponent__myinstance"
+)
+@click.argument("instance", type=str, required=True)
+def clear(instance: str) -> None:
+    """Clears the state and cached results associated with a component instance.
+
+    Args:
+        instance (str): Instance name of the component to clear.
+            In the form `componentname__instancename`.
+    """
+    console = Console()
+    red_x = "\u274C"
+    checkmark = "\u2705"  # Unicode code point for checkmark emoji
+    with console.status("Clearing instance", spinner="dots"):
+        try:
+            found = clear_instance(instance)
+        except ValueError as e:
+            click.echo(f"{red_x} {e}")
+            return
+        except redis.exceptions.ConnectionError as e:
+            click.echo(f"{red_x} {e}")
+            return
+
+    if not found:
+        click.echo(f"{red_x} Instance {instance} not found.")
+
+    else:
+        click.echo(f"{checkmark} Instance {instance} cleared.")
 
 
 if __name__ == "__main__":

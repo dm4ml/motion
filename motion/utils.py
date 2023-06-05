@@ -43,6 +43,44 @@ class RedisParams(BaseModel):
         super().__init__(**kwargs)
 
 
+def clear_instance(instance_name: str) -> bool:
+    """Clears the state and cached results associated with a component instance.
+
+    Args:
+        instance (str): Instance name of the component to clear.
+            In the form `componentname__instancename`.
+
+    Raises:
+        ValueError:
+            If the instance name is not in the form
+            `componentname__instancename`.
+
+    Returns:
+        bool: True if the instance existed, False otherwise.
+    """
+    if "__" not in instance_name:
+        raise ValueError("Instance must be in the form `componentname__instancename`.")
+
+    rp = RedisParams()
+    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+
+    # Check if the instance exists
+    if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
+        return False
+
+    # Delete the instance state, version, and cached results
+    redis_con.delete(f"MOTION_STATE:{instance_name}")
+    redis_con.delete(f"MOTION_VERSION:{instance_name}")
+
+    results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
+    pipeline = redis_con.pipeline()
+    for result in results_to_delete:
+        pipeline.delete(result)
+    pipeline.execute()
+
+    return True
+
+
 class CustomDict(dict):
     def __init__(
         self,
