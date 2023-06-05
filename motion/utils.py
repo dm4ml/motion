@@ -46,6 +46,13 @@ class RedisParams(BaseModel):
 def clear_instance(instance_name: str) -> bool:
     """Clears the state and cached results associated with a component instance.
 
+    Usage:
+    ```python
+    from motion import clear_instance
+
+    clear_instance("Counter__default")
+    ```
+
     Args:
         instance (str): Instance name of the component to clear.
             In the form `componentname__instancename`.

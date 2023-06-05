@@ -80,7 +80,7 @@ def visualize(filename: str, output: str) -> None:
 )
 @click.argument("instance", type=str, required=True)
 def clear(instance: str) -> None:
-    """Clears the state and cached results associated with a component instance.
+    """Clears the state and cached results for a component instance.
 
     Args:
         instance (str): Instance name of the component to clear.
