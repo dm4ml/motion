@@ -290,9 +290,7 @@ class ComponentInstance:
         Args:
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
-                seconds). Defaults to 1 day (60 * 60 * 24). The expiration
-                time is extended if there are subsequent infer calls
-                for the same value.
+                seconds). Defaults to 1 day (60 * 60 * 24).
             force_refresh (bool, optional): Read the latest value of the
                 state before running an inference call, otherwise a stale
                 version of the state or a cached result may be used.
