@@ -14,6 +14,7 @@ pydantic = "^1.10.7"
 cloudpickle = "^2.0"
 redis = "^4.5.5"
 psutil = "^5.9.5"
+rich = "^13.4.1"
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"
