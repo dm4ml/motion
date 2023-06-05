@@ -298,8 +298,6 @@ class Executor:
                     infer_result = cloudpickle.loads(
                         self._redis_con.get(cache_result_key)
                     )
-                    # Update TTL
-                    self._redis_con.expire(cache_result_key, cache_ttl)
                     route_run = True
 
             # If not in cache or value can't be hashed or
