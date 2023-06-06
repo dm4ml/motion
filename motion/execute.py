@@ -379,7 +379,8 @@ class Executor:
                 # Check that infer_result is not an awaitable
                 if asyncio.iscoroutine(infer_result):
                     raise TypeError(
-                        f"Route {key} returned an awaitable. Call arun instead."
+                        f"Route {key} returned an awaitable. "
+                        + "Call `await instance.arun(...)` instead."
                     )
 
                 # Cache result
@@ -425,9 +426,16 @@ class Executor:
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                infer_result = await self._infer_routes[key].run(
+                infer_result_awaitable = self._infer_routes[key].run(
                     state=self._state, value=value
                 )
+                if not asyncio.iscoroutine(infer_result_awaitable):
+                    raise TypeError(
+                        f"Route {key} returned a non-awaitable. "
+                        + "Call `instance.run(...)` instead."
+                    )
+
+                infer_result = await infer_result_awaitable
 
                 # Cache result
                 if value_hash:

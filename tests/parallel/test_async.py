@@ -17,6 +17,11 @@ async def noop(state, value):
     return state["value"] * value
 
 
+@Counter.infer("sync_multiply")
+def sync_noop(state, value):
+    return state["value"] * value
+
+
 @Counter.fit("multiply", batch_size=1)
 async def increment(state, values, infer_results):
     return {"value": state["value"] + 1}
@@ -30,6 +35,10 @@ async def test_async_infer():
     # Test that the user can't call run
     with pytest.raises(TypeError):
         c.run(multiply=2, force_refresh=True)
+
+    # Test that the user can't call arun
+    with pytest.raises(TypeError):
+        assert await c.arun(sync_multiply=2) == 2
 
 
 @pytest.mark.asyncio
