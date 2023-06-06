@@ -3,6 +3,7 @@
     options:
         members: 
             - run
+            - arun
             - read_state
             - update_state
             - flush_fit
