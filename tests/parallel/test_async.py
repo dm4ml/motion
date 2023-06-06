@@ -1,5 +1,6 @@
 from motion import Component
 
+import asyncio
 import pytest
 
 Counter = Component("Counter")
@@ -12,6 +13,7 @@ def setup():
 
 @Counter.infer("multiply")
 async def noop(state, value):
+    await asyncio.sleep(0.5)
     return state["value"] * value
 
 
@@ -35,5 +37,20 @@ async def test_async_fit():
     c = Counter()
 
     await c.arun(multiply=2, flush_fit=True)
-
     assert c.read_state("value") == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(3)  # This test should take less than 3 seconds
+async def test_gather():
+    c = Counter()
+
+    tasks = [c.arun(multiply=i, force_refresh=True) for i in range(100)]
+    # Run all tasks at the same time
+    await asyncio.gather(*tasks)
+
+    # Flush instance
+    c.flush_fit("multiply")
+
+    # Assert new state
+    assert c.read_state("value") == 101

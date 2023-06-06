@@ -29,5 +29,6 @@ def redis_fixture():
         )
 
     r.flushdb()
+    assert len(r.keys()) == 0
 
     yield
