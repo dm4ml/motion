@@ -14,4 +14,5 @@ class Route(BaseModel):
     )
 
     def run(self, **kwargs: Any) -> Any:
-        return self.udf(**kwargs)
+        result = self.udf(**kwargs)
+        return result

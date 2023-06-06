@@ -19,6 +19,11 @@ def setup():
     return {"count": 0}
 
 
+@Test.infer("noop")
+async def noop(state, value):
+    return value
+
+
 @Test.fit("increment")
 def noop(state, values, infer_results):
     return {"count": state["count"] + 1}
@@ -27,16 +32,20 @@ def noop(state, values, infer_results):
 app = FastAPI()
 
 
-@app.get("/endpoint")
+@app.get("/sync_endpoint")
 def read_endpoint():
     # Create some instance of a component
     t = Test("testid")
     t.run(increment=True)
     t.flush_fit("increment")
 
-    yield {"value": t.read_state("count")}
+    return {"value": t.read_state("count")}
 
-    t.shutdown()
+
+@app.get("/async_endpoint")
+async def read_noop():
+    t = Test("testid")
+    return {"value": await t.arun(noop=1)}
 
 
 @pytest.fixture
@@ -45,11 +54,16 @@ def client():
 
 
 def test_endpoint(client):
-    response = client.get("/endpoint")
+    response = client.get("/sync_endpoint")
     assert response.status_code == 200
-    assert response.json() == [{"value": 1}]
+    assert response.json() == {"value": 1}
 
     # Do it again!
-    response = client.get("/endpoint")
+    response = client.get("/sync_endpoint")
     assert response.status_code == 200
-    assert response.json() == [{"value": 2}]
+    assert response.json() == {"value": 2}
+
+    # Try the async endpoint
+    response = client.get("/async_endpoint")
+    assert response.status_code == 200
+    assert response.json() == {"value": 1}

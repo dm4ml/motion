@@ -37,6 +37,8 @@ scikit-learn = "^1.2.2"
 types-redis = "^4.5.5.2"
 fastapi = "^0.95.2"
 httpx = "^0.24.1"
+pytest-asyncio = "^0.21.0"
+pytest-timeout = "^2.1.0"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
@@ -44,6 +46,11 @@ motion = "motion.cli:motioncli"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--basetemp=/tmp/pytest"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+    "ignore::RuntimeWarning"
+]
 
 [tool.mypy]
 files = "motion"
