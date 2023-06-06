@@ -1,6 +1,7 @@
+import asyncio
 import multiprocessing
 import threading
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 import cloudpickle
@@ -256,67 +257,14 @@ class Executor:
             "infer_results": [],
         }
 
-    def run(
+    def _enqueue_and_trigger_fit(
         self,
         key: str,
         value: Any,
-        cache_ttl: int,
-        force_refresh: bool,
+        infer_result: Any,
         flush_fit: bool,
-    ) -> Any:
-        route_hit = False
-        infer_result = None
-
-        # Run the infer route
-        if key in self._infer_routes.keys():
-            route_hit = True
-            route_run = False
-
-            if force_refresh:
-                self._state = self._loadState()
-                v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                if not v:
-                    raise ValueError(
-                        f"Error loading state for {self._instance_name}."
-                        + " No version found."
-                    )
-                self.version = int(v)
-
-            # Try hashing the value
-            try:
-                value_hash = hash_object(value)
-            except TypeError:
-                value_hash = None
-
-            # Check if key is in cache if value can be hashed and
-            # user doesn't want to force refresh state
-            if value_hash and not force_refresh:
-                cache_result_key = (
-                    f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
-                )
-                if self._redis_con.exists(cache_result_key):
-                    infer_result = cloudpickle.loads(
-                        self._redis_con.get(cache_result_key)
-                    )
-                    route_run = True
-
-            # If not in cache or value can't be hashed or
-            # user wants to force refresh state, run route
-            if not route_run:
-                infer_result = self._infer_routes[key].run(
-                    state=self._state, value=value
-                )
-                # Cache result
-                if value_hash:
-                    cache_result_key = (
-                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
-                    )
-                    self._redis_con.set(
-                        cache_result_key,
-                        cloudpickle.dumps(infer_result),
-                        ex=cache_ttl,
-                    )
-
+        route_hit: bool,
+    ) -> bool:
         # Run the fit routes
         # Enqueue results into fit queues
         if key in self._fit_routes.keys():
@@ -365,6 +313,138 @@ class Executor:
                         + " No version found."
                     )
                 self.version = int(v)
+
+        return route_hit
+
+    def _try_cached_infer(
+        self,
+        key: str,
+        value: Any,
+        force_refresh: bool,
+    ) -> Tuple[bool, Optional[Any], Optional[str]]:
+        route_run = False
+        infer_result = None
+
+        if force_refresh:
+            self._state = self._loadState()
+            v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+            if not v:
+                raise ValueError(
+                    f"Error loading state for {self._instance_name}."
+                    + " No version found."
+                )
+            self.version = int(v)
+
+        # Try hashing the value
+        try:
+            value_hash = hash_object(value)
+        except TypeError:
+            value_hash = None
+
+        # Check if key is in cache if value can be hashed and
+        # user doesn't want to force refresh state
+        if value_hash and not force_refresh:
+            cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+            if self._redis_con.exists(cache_result_key):
+                infer_result = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                route_run = True
+
+        return route_run, infer_result, value_hash
+
+    def run(
+        self,
+        key: str,
+        value: Any,
+        cache_ttl: int,
+        force_refresh: bool,
+        flush_fit: bool,
+    ) -> Any:
+        route_hit = False
+        infer_result = None
+
+        # Run the infer route
+        if key in self._infer_routes.keys():
+            route_hit = True
+            route_run, infer_result, value_hash = self._try_cached_infer(
+                key, value, force_refresh
+            )
+
+            # If not in cache or value can't be hashed or
+            # user wants to force refresh state, run route
+            if not route_run:
+                infer_result = self._infer_routes[key].run(
+                    state=self._state, value=value
+                )
+
+                # Check that infer_result is not an awaitable
+                if asyncio.iscoroutine(infer_result):
+                    raise TypeError(
+                        f"Route {key} returned an awaitable. Call arun instead."
+                    )
+
+                # Cache result
+                if value_hash:
+                    cache_result_key = (
+                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+                    )
+                    self._redis_con.set(
+                        cache_result_key,
+                        cloudpickle.dumps(infer_result),
+                        ex=cache_ttl,
+                    )
+
+        # Run the fit routes
+        # Enqueue results into fit queues
+        route_hit = self._enqueue_and_trigger_fit(
+            key, value, infer_result, flush_fit, route_hit
+        )
+
+        if not route_hit:
+            raise KeyError(f"Key {key} not in routes.")
+
+        return infer_result
+
+    async def arun(
+        self,
+        key: str,
+        value: Any,
+        cache_ttl: int,
+        force_refresh: bool,
+        flush_fit: bool,
+    ) -> Any:
+        route_hit = False
+        infer_result = None
+
+        # Run the infer route
+        if key in self._infer_routes.keys():
+            route_hit = True
+            route_run, infer_result, value_hash = self._try_cached_infer(
+                key, value, force_refresh
+            )
+
+            # If not in cache or value can't be hashed or
+            # user wants to force refresh state, run route
+            if not route_run:
+                infer_result = await self._infer_routes[key].run(
+                    state=self._state, value=value
+                )
+
+                # Cache result
+                if value_hash:
+                    cache_result_key = (
+                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+                    )
+                    self._redis_con.set(
+                        cache_result_key,
+                        cloudpickle.dumps(infer_result),
+                        ex=cache_ttl,
+                    )
+
+        # Run the fit routes
+        # Enqueue results into fit queues
+        route_hit = self._enqueue_and_trigger_fit(
+            key, value, infer_result, flush_fit, route_hit
+        )
 
         if not route_hit:
             raise KeyError(f"Key {key} not in routes.")

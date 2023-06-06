@@ -1,10 +1,10 @@
 import atexit
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from motion.execute import Executor
 from motion.route import Route
-from motion.utils import DEFAULT_KEY_TTL, FitEventGroup, configureLogging, logger
+from motion.utils import DEFAULT_KEY_TTL, configureLogging, logger
 
 
 def is_logger_open(logger: logging.Logger) -> bool:
@@ -243,7 +243,7 @@ class ComponentInstance:
         force_refresh: bool = False,
         flush_fit: bool = False,
         **kwargs: Any,
-    ) -> Union[Any, Tuple[Any, FitEventGroup]]:
+    ) -> Any:
         """Runs the dataflow (infer and fit ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
         is raised. Only one keyword argument should be passed in.
@@ -327,3 +327,71 @@ class ComponentInstance:
         )
 
         return infer_result
+
+    async def arun(
+        self,
+        *,
+        cache_ttl: int = DEFAULT_KEY_TTL,
+        force_refresh: bool = False,
+        flush_fit: bool = False,
+        **kwargs: Any,
+    ) -> Awaitable[Any]:
+        """Async version of run. Runs the dataflow (infer and fit ops) for the .
+        keyword argument.
+
+        Example Usage:
+        ```python
+        from motion import Component
+        import asyncio
+
+        C = Component("MyComponent")
+
+        @C.infer("sleep")
+        async def sleep(state, value):
+            await asyncio.sleep(value)
+            return "Slept!"
+
+        async def main():
+            c = C()
+            await c.arun(sleep=1)
+
+        if __name__ == "__main__":
+            asyncio.run(main())
+        ```
+
+        Args:
+            cache_ttl (int, optional):
+                How long the inference result should live in a cache (in
+                seconds). Defaults to 1 day (60 * 60 * 24).
+            force_refresh (bool, optional): Read the latest value of the
+                state before running an inference call, otherwise a stale
+                version of the state or a cached result may be used.
+                If you do not want to read from the cache, set force_refresh
+                = True. Defaults to False.
+            flush_fit (bool, optional):
+                If True, waits for the fit op to finish executing before
+                returning. If the fit queue hasn't reached batch_size
+                yet, the fit op runs anyways. Force refreshes the
+                state after the fit op completes. Defaults to False.
+            **kwargs:
+                Keyword arguments for the infer and fit ops. You can only
+                pass in one pair.
+
+        Returns:
+            Awaitable[Any]: Awaitable Result of the inference call.
+        """
+
+        if len(kwargs) != 1:
+            raise ValueError("Only one key-value pair is allowed in kwargs.")
+
+        key, value = next(iter(kwargs.items()))
+
+        infer_result = await self._executor.arun(
+            key=key,
+            value=value,
+            cache_ttl=cache_ttl,
+            force_refresh=force_refresh,
+            flush_fit=flush_fit,
+        )  # type: ignore
+
+        return infer_result  # type: ignore

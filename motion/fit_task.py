@@ -1,3 +1,4 @@
+import asyncio
 import multiprocessing
 from typing import Any, Callable, List, Optional
 
@@ -112,6 +113,9 @@ class FitTask(multiprocessing.Process):
                         values=values,
                         infer_results=infer_results,
                     )
+                    # Await if state_update is a coroutine
+                    if asyncio.iscoroutine(state_update):
+                        state_update = asyncio.run(state_update)
 
                     if not isinstance(state_update, dict):
                         logger.error(
