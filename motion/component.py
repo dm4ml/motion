@@ -1,6 +1,6 @@
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, get_type_hints
+from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
 
 from pydantic import BaseModel
 
@@ -297,7 +297,7 @@ class Component:
         self._load_state_func = func
         return func
 
-    def infer(self, key: str) -> Callable:
+    def infer(self, keys: Union[str, List[str]]) -> Callable:
         """Decorator for any infer dataflow through the component. Takes
         in a string that represents the input keyword for the infer dataflow.
 
@@ -345,8 +345,14 @@ class Component:
         Returns:
             Callable: Decorated infer function.
         """
-        if "::" in key:
-            raise ValueError(f"Dataflow key {key} should not have a double colon (::)")
+        if isinstance(keys, str):
+            keys = [keys]
+
+        for key in keys:
+            if "::" in key:
+                raise ValueError(
+                    f"Dataflow key {key} should not have a double colon (::)"
+                )
 
         def decorator(func: Callable) -> Any:
             type_hint = get_type_hints(func).get("value", None)
@@ -373,16 +379,20 @@ class Component:
 
                 return func(state, value)
 
-            wrapper._input_key = key  # type: ignore
+            # wrapper._input_key = key  # type: ignore
             wrapper._op = "infer"  # type: ignore
-            self.add_route(
-                wrapper._input_key, wrapper._op, wrapper  # type: ignore
-            )  # type: ignore
+
+            for key in keys:
+                self.add_route(key, wrapper._op, wrapper)
+
+            # self.add_route(
+            #     wrapper._input_key, wrapper._op, wrapper  # type: ignore
+            # )  # type: ignore
             return wrapper
 
         return decorator
 
-    def fit(self, key: str, batch_size: int = 1) -> Any:
+    def fit(self, keys: Union[str, List[str]], batch_size: int = 1) -> Any:
         """Decorator for any fit dataflows through the component. Takes
         in a string that represents the input keyword for the fit op.
         Only executes the fit op (function) when the batch size is reached.
@@ -450,6 +460,8 @@ class Component:
                 f"Component {self.name} fit method must be defined in a module "
                 + f"context. It's currently initialized from function {fname}."
             )
+        if isinstance(keys, str):
+            keys = [keys]
 
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "fit"):
@@ -458,12 +470,15 @@ class Component:
                     + "`state`, `values`, and `infer_results`."
                 )
 
-            func._input_key = key  # type: ignore
+            # func._input_key = key  # type: ignore
             func._batch_size = batch_size  # type: ignore
             func._op = "fit"  # type: ignore
-            self.add_route(
-                func._input_key, func._op, func  # type: ignore
-            )  # type: ignore
+
+            for key in keys:
+                self.add_route(key, func._op, func)
+            # self.add_route(
+            #     func._input_key, func._op, func  # type: ignore
+            # )  # type: ignore
             return func
 
         return decorator
