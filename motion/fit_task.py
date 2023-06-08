@@ -131,7 +131,7 @@ class FitTask(multiprocessing.Process):
                                 self.save_state_func,
                             )
                     except Exception as e:
-                        logger.error(f"Error in fit: {e}")
+                        logger.error(f"Error in {self.queue_identifier} fit: {e}")
                     finally:
                         logger.info("Releasing lock.")
                         lock.release()
