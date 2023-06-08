@@ -45,6 +45,7 @@ def test_many_keys():
     c.run(accumulate=1)
     c.run(something_else=2)
 
-    time.sleep(0.1)
+    c.flush_fit("accumulate")
+    c.flush_fit("something_else")
 
     assert c.read_state("multifit") == [1, 2]
