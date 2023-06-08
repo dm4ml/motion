@@ -380,15 +380,11 @@ class Component:
 
                 return func(state, value)
 
-            # wrapper._input_key = key  # type: ignore
             wrapper._op = "infer"  # type: ignore
 
             for key in keys:
-                self.add_route(key, wrapper._op, wrapper)
+                self.add_route(key, wrapper._op, wrapper)  # type: ignore
 
-            # self.add_route(
-            #     wrapper._input_key, wrapper._op, wrapper  # type: ignore
-            # )  # type: ignore
             return wrapper
 
         return decorator
@@ -476,10 +472,8 @@ class Component:
             func._op = "fit"  # type: ignore
 
             for key in keys:
-                self.add_route(key, func._op, func)
-            # self.add_route(
-            #     func._input_key, func._op, func  # type: ignore
-            # )  # type: ignore
+                self.add_route(key, func._op, func)  # type: ignore
+
             return func
 
         return decorator
