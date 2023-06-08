@@ -105,31 +105,36 @@ class FitTask(multiprocessing.Process):
             if len(values) >= 1:
                 acquired_lock = lock.acquire(blocking=True)
                 if acquired_lock:
-                    old_state = loadState(
-                        redis_con, self.instance_name, self.load_state_func
-                    )
-                    state_update = self.route.run(
-                        state=old_state,
-                        values=values,
-                        infer_results=infer_results,
-                    )
-                    # Await if state_update is a coroutine
-                    if asyncio.iscoroutine(state_update):
-                        state_update = asyncio.run(state_update)
+                    try:
+                        old_state = loadState(
+                            redis_con, self.instance_name, self.load_state_func
+                        )
+                        state_update = self.route.run(
+                            state=old_state,
+                            values=values,
+                            infer_results=infer_results,
+                        )
+                        # Await if state_update is a coroutine
+                        if asyncio.iscoroutine(state_update):
+                            state_update = asyncio.run(state_update)
 
-                    if not isinstance(state_update, dict):
-                        logger.error(
-                            "fit methods should return a dict of state updates."
-                        )
-                    else:
-                        old_state.update(state_update)
-                        saveState(
-                            old_state,
-                            redis_con,
-                            self.instance_name,
-                            self.save_state_func,
-                        )
-                    lock.release()
+                        if not isinstance(state_update, dict):
+                            logger.error(
+                                "fit methods should return a dict of state updates."
+                            )
+                        else:
+                            old_state.update(state_update)
+                            saveState(
+                                old_state,
+                                redis_con,
+                                self.instance_name,
+                                self.save_state_func,
+                            )
+                    except Exception as e:
+                        logger.error(f"Error in fit: {e}")
+                    finally:
+                        logger.info("Releasing lock.")
+                        lock.release()
                 else:
                     logger.error("Lock not acquired; batch lost.")
 
