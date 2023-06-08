@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import traceback
 from typing import Any, Callable, List, Optional
 
 import cloudpickle
@@ -132,6 +133,7 @@ class FitTask(multiprocessing.Process):
                             )
                     except Exception as e:
                         logger.error(f"Error in {self.queue_identifier} fit: {e}")
+                        logger.error(traceback.format_exc())
                     finally:
                         logger.info("Releasing lock.")
                         lock.release()
