@@ -47,3 +47,14 @@ def test_model_component():
 
     # The model should have been updated
     assert second_run != first_run
+
+
+def test_ignore_cache():
+    c_instance = c()
+    first_run = c_instance.run(value=1)
+    assert first_run == c_instance.run(value=1, flush_fit=True)
+
+    second_run = c_instance.run(value=1, ignore_cache=True)
+
+    # The model should have been updated
+    assert second_run != first_run
