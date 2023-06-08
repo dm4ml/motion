@@ -240,6 +240,7 @@ class ComponentInstance:
         self,
         *,
         cache_ttl: int = DEFAULT_KEY_TTL,
+        ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
         **kwargs: Any,
@@ -291,11 +292,13 @@ class ComponentInstance:
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
+            ignore_cache (bool, optional):
+                If True, ignores the cache and runs the infer op. Does not
+                force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
                 state before running an inference call, otherwise a stale
                 version of the state or a cached result may be used.
-                If you do not want to read from the cache, set force_refresh
-                = True. Defaults to False.
+                Defaults to False.
             flush_fit (bool, optional):
                 If True, waits for the fit op to finish executing before
                 returning. If the fit queue hasn't reached batch_size
@@ -322,6 +325,7 @@ class ComponentInstance:
             key=key,
             value=value,
             cache_ttl=cache_ttl,
+            ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_fit=flush_fit,
         )
@@ -332,6 +336,7 @@ class ComponentInstance:
         self,
         *,
         cache_ttl: int = DEFAULT_KEY_TTL,
+        ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
         **kwargs: Any,
@@ -363,11 +368,13 @@ class ComponentInstance:
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
+            ignore_cache (bool, optional):
+                If True, ignores the cache and runs the infer op. Does not
+                force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
                 state before running an inference call, otherwise a stale
                 version of the state or a cached result may be used.
-                If you do not want to read from the cache, set force_refresh
-                = True. Defaults to False.
+                Defaults to False.
             flush_fit (bool, optional):
                 If True, waits for the fit op to finish executing before
                 returning. If the fit queue hasn't reached batch_size
@@ -390,6 +397,7 @@ class ComponentInstance:
             key=key,
             value=value,
             cache_ttl=cache_ttl,
+            ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_fit=flush_fit,
         )  # type: ignore

@@ -320,6 +320,7 @@ class Executor:
         self,
         key: str,
         value: Any,
+        ignore_cache: bool,
         force_refresh: bool,
     ) -> Tuple[bool, Optional[Any], Optional[str]]:
         route_run = False
@@ -343,7 +344,7 @@ class Executor:
 
         # Check if key is in cache if value can be hashed and
         # user doesn't want to force refresh state
-        if value_hash and not force_refresh:
+        if value_hash and not force_refresh and not ignore_cache:
             cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
                 infer_result = cloudpickle.loads(self._redis_con.get(cache_result_key))
@@ -356,6 +357,7 @@ class Executor:
         key: str,
         value: Any,
         cache_ttl: int,
+        ignore_cache: bool,
         force_refresh: bool,
         flush_fit: bool,
     ) -> Any:
@@ -366,7 +368,7 @@ class Executor:
         if key in self._infer_routes.keys():
             route_hit = True
             route_run, infer_result, value_hash = self._try_cached_infer(
-                key, value, force_refresh
+                key, value, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
@@ -410,6 +412,7 @@ class Executor:
         key: str,
         value: Any,
         cache_ttl: int,
+        ignore_cache: bool,
         force_refresh: bool,
         flush_fit: bool,
     ) -> Any:
@@ -420,7 +423,7 @@ class Executor:
         if key in self._infer_routes.keys():
             route_hit = True
             route_run, infer_result, value_hash = self._try_cached_infer(
-                key, value, force_refresh
+                key, value, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
