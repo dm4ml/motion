@@ -340,7 +340,8 @@ class Component:
         ```
 
         Args:
-            key (str): Keyword for the infer dataflow.
+            keys (Union[str, List[str]]): String or list of strings that
+                represent the input keyword(s) for the infer dataflow.
 
         Returns:
             Callable: Decorated infer function.
@@ -444,8 +445,8 @@ class Component:
         ```
 
         Args:
-            key (str):
-                Keyword for the fit op.
+            keys (Union[str, List[str]]): String or list of strings that
+                represent the input keyword(s) for the fit dataflow.
             batch_size (int, optional):
                 Number of values to wait for before
                 calling the fit function. Defaults to 1.
