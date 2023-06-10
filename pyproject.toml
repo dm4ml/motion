@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "motion-python"
-version = "0.1.62"
+version = "0.1.63"
 description = "A trigger-based framework for creating and executing ML pipelines."
 authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
 readme = "README.md"
