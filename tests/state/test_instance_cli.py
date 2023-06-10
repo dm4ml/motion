@@ -1,4 +1,4 @@
-from motion import Component, clear_instance
+from motion import Component, clear_instance, inspect_state
 
 import pytest
 
@@ -45,3 +45,13 @@ def test_instance_clear():
     # Clear something of the wrong type
     with pytest.raises(ValueError):
         clear_instance("DoesNotExist")
+
+
+def test_instance_inspect():
+    c_instance = C()
+    instance_name = c_instance.instance_name
+
+    # Inspect instance
+    state = inspect_state(instance_name)
+
+    assert state == {"value": 0}

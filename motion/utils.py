@@ -91,6 +91,44 @@ def clear_instance(instance_name: str) -> bool:
     return True
 
 
+def inspect_state(instance_name: str) -> Dict[str, Any]:
+    """
+    Returns the state of a component instance.
+
+    Usage:
+    ```python
+    from motion import inspect_state
+
+    inspect_state("Counter__default")
+    ```
+
+    Args:
+        instance (str): Instance name of the component to inspect.
+            In the form `componentname__instancename`.
+
+    Raises:
+        ValueError:
+            If the instance name is not in the form
+            `componentname__instancename` or if the instance does not exist.
+
+    Returns:
+        Dict[str, Any]: The state of the component instance.
+    """
+    if "__" not in instance_name:
+        raise ValueError("Instance must be in the form `componentname__instancename`.")
+
+    rp = RedisParams()
+    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+
+    # Check if the instance exists
+    if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
+        raise ValueError(f"Instance {instance_name} does not exist.")
+
+    # Get the state
+    state = loadState(redis_con, instance_name, None)
+    return state
+
+
 class CustomDict(dict):
     def __init__(
         self,

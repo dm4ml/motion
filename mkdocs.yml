@@ -18,7 +18,7 @@ nav:
       - FitEventGroup: api/fit-event-group.md
   - Helpful Tools:
       - Component Visualization: tools/vis.md
-      - Clearing Component Instances: tools/clear.md
+      - CLI: tools/cli.md
 
 theme:
   name: material
