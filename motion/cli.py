@@ -8,7 +8,7 @@ import click
 import redis
 from rich.console import Console
 
-from motion import clear_instance
+from motion import clear_instance, inspect_state
 
 
 @click.group()
@@ -104,6 +104,35 @@ def clear(instance: str) -> None:
 
     else:
         click.echo(f"{checkmark} Instance {instance} cleared.")
+
+
+@motioncli.command(
+    "inspect", epilog="Example usage:\n motion inspect MyComponent__myinstance"
+)
+@click.argument("instance", type=str, required=True)
+def inspect(instance: str) -> None:
+    """Prints the saved state for a component instance. Does not apply
+    any loadState() transformations.
+
+    Args:
+        instance (str): Instance name of the component to clear.
+            In the form `componentname__instancename`.
+    """
+    console = Console()
+    red_x = "\u274C"
+    checkmark = "\u2705"  # Unicode code point for checkmark emoji
+    with console.status("Clearing instance", spinner="dots"):
+        try:
+            state = inspect_state(instance)
+        except ValueError as e:
+            click.echo(f"{red_x} {e}")
+            return
+        except redis.exceptions.ConnectionError as e:
+            click.echo(f"{red_x} {e}")
+            return
+
+    console.print(state)
+    click.echo(f"{checkmark} Printed state for instance {instance}.")
 
 
 if __name__ == "__main__":
