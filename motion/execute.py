@@ -9,8 +9,8 @@ import psutil
 import redis
 from redis.lock import Lock
 
-from motion.fit_task import FitTask
 from motion.route import Route
+from motion.server.fit_task import FitTask
 from motion.utils import (
     CustomDict,
     FitEvent,
