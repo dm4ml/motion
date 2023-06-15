@@ -174,6 +174,7 @@ class Executor:
                         redis_port=rp.port,
                         redis_db=rp.db,
                         redis_password=rp.password,  # type: ignore
+                        running=self.running,
                     )
                     self.worker_tasks[pname].start()
 
