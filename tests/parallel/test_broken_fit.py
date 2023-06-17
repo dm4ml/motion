@@ -1,5 +1,7 @@
 from motion import Component
 
+import pytest
+
 Counter = Component("Counter")
 
 
@@ -21,7 +23,8 @@ def increment(state, values, infer_results):
 
 def test_release_lock_on_broken_fit():
     c = Counter("same_id")
-    c.run(multiply=2, flush_fit=True)
+    with pytest.raises(RuntimeError):
+        c.run(multiply=2, flush_fit=True)
     c.shutdown()
 
     # Should be able to run again

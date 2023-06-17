@@ -46,3 +46,11 @@ def test_create():
     assert c.read_state("value") == 10
     with pytest.raises(KeyError):
         c.read_state("DNE")
+
+
+def test_fit_error():
+    c = Counter()
+
+    # Should raise error bc fit op won't work
+    with pytest.raises(RuntimeError):
+        c.run(number=[1], flush_fit=True)

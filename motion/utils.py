@@ -235,11 +235,20 @@ class FitEvent:
 
     def wait(self) -> None:
         for message in self.pubsub.listen():
-            if (
-                message["type"] == "message"
-                and message["data"].decode() == self.identifier
-            ):
-                break
+            if message["type"] != "message":
+                continue
+
+            error_data = eval(message["data"])
+            identifier = error_data["identifier"]
+            exception_str = error_data["exception"]
+
+            if identifier != self.identifier:
+                continue
+
+            if exception_str:
+                raise RuntimeError(exception_str)
+
+            break
 
 
 class FitEventGroup:
