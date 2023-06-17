@@ -103,6 +103,7 @@ class FitTask(multiprocessing.Process):
 
             # Check that there are elements in values and infer_results
             # Acquire lock and run op
+            exception_str = ""
             if len(values) >= 1:
                 acquired_lock = lock.acquire(blocking=True)
                 if acquired_lock:
@@ -132,8 +133,9 @@ class FitTask(multiprocessing.Process):
                                 self.save_state_func,
                             )
                     except Exception as e:
-                        logger.error(f"Error in {self.queue_identifier} fit: {e}")
+                        # logger.error(f"Error in {self.queue_identifier} fit: {e}")
                         logger.error(traceback.format_exc())
+                        exception_str = str(e)
                     finally:
                         logger.info("Releasing lock.")
                         lock.release()
@@ -143,7 +145,7 @@ class FitTask(multiprocessing.Process):
             for identifier in identifiers:
                 redis_con.publish(
                     self.channel_identifier,
-                    identifier,
+                    str({"identifier": identifier, "exception": exception_str}),
                 )
 
             # Clear batch
