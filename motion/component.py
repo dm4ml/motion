@@ -366,30 +366,6 @@ class Component:
 
             return func
 
-            # @functools.wraps(func)
-            # def wrapper(state: CustomDict, value: Any) -> Any:
-            #     if (
-            #         type_hint
-            #         and inspect.isclass(type_hint)
-            #         and issubclass(type_hint, BaseModel)
-            #         and not isinstance(value, type_hint)
-            #     ):
-            #         try:
-            #             value = type_hint(**value)
-            #         except Exception:
-            #             raise ValueError(
-            #                 f"value argument must be of type {type_hint.__name__}"
-            #             )
-
-            #     return func(state, value)
-
-            # wrapper._op = "infer"  # type: ignore
-
-            # for key in keys:
-            #     self.add_route(key, wrapper._op, wrapper)  # type: ignore
-
-            # return wrapper
-
         return decorator
 
     def fit(self, keys: Union[str, List[str]]) -> Any:

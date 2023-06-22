@@ -135,7 +135,6 @@ class Executor:
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
-                    # batch_size=route.udf._batch_size,  # type: ignore
                     save_state_func=self._save_state_func,
                     load_state_func=self._load_state_func,
                     queue_identifier=self._get_queue_identifier(rkey, udf_name),
@@ -173,7 +172,6 @@ class Executor:
                     self.worker_tasks[pname] = FitTask(
                         self._instance_name,
                         route,
-                        # batch_size=route.udf._batch_size,  # type: ignore
                         save_state_func=self._save_state_func,
                         load_state_func=self._load_state_func,
                         queue_identifier=self._get_queue_identifier(rkey, udf_name),
