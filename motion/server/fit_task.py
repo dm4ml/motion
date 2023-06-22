@@ -1,7 +1,7 @@
 import asyncio
 import multiprocessing
 import traceback
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 import cloudpickle
 import redis
@@ -67,17 +67,17 @@ class FitTask(multiprocessing.Process):
         lock = Lock(redis_con, self.instance_name, lock_timeout)
 
         while self.running.value:
-            item = None
+            item: Dict[str, Any] = {}
             try:
                 # for _ in range(self.batch_size):
-                item = redis_con.blpop(self.queue_identifier, timeout=0.5)
-                if item is None:
+                full_item = redis_con.blpop(self.queue_identifier, timeout=0.5)
+                if full_item is None:
                     if not self.running.value:
                         break  # no more items in the list
                     else:
                         continue
 
-                item = cloudpickle.loads(item[1])
+                item = cloudpickle.loads(full_item[1])
                 # self.batch.append(item)
                 # if flush_fit:
                 #     break
@@ -86,7 +86,7 @@ class FitTask(multiprocessing.Process):
                 break
 
             # Check if we should stop
-            if not self.running.value and item is None:
+            if not self.running.value and not item:
                 # self.cleanup()
                 break
 

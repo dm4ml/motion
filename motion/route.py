@@ -16,7 +16,7 @@ class Route(BaseModel):
     )
     _udf_params: Dict[str, Any] = PrivateAttr()
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         udf_params = inspect.signature(self.udf).parameters
         self._udf_params = {param: udf_params[param].default for param in udf_params}
