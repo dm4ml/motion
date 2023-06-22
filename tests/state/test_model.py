@@ -16,7 +16,7 @@ def setUp():
     model = LinearRegression()
     model.fit(X, y)
 
-    return {"model": model}
+    return {"model": model, "training_batch": []}
 
 
 @c.infer("value")
@@ -24,14 +24,18 @@ def predict(state, value):
     return state["model"].predict([[value]])[0]
 
 
-@c.fit("value", batch_size=2)
-def finetune(state, values, infer_results):
-    # Perform training on the batch of data
+@c.fit("value")
+def finetune(state, value, infer_result):
+    training_batch = state["training_batch"]
+    training_batch.append((value, infer_result))
+    if len(training_batch) < 2:
+        return {"training_batch": training_batch}
 
+    # Perform training on the batch of data
     # Example training logic:
     model = state["model"]
-    X = [[v] for v in values]
-    y = [r + 0.02 for r in infer_results]
+    X = [[v[0]] for v in training_batch]
+    y = [r[1] + 0.02 for r in training_batch]
     model.fit(X, y)
 
     # Return updated state if needed
@@ -40,10 +44,14 @@ def finetune(state, values, infer_results):
 
 def test_model_component():
     c_instance = c()
-    first_run = c_instance.run(value=1)
-    assert first_run == c_instance.run(value=1, flush_fit=True)
+    first_run = c_instance.run("value", kwargs={"value": 1})
+    assert first_run == c_instance.run(
+        "value", kwargs={"value": 1}, flush_fit=True
+    )
 
-    second_run = c_instance.run(value=1, force_refresh=True)
+    second_run = c_instance.run(
+        "value", kwargs={"value": 1}, force_refresh=True
+    )
 
     # The model should have been updated
     assert second_run != first_run
@@ -51,10 +59,14 @@ def test_model_component():
 
 def test_ignore_cache():
     c_instance = c()
-    first_run = c_instance.run(value=1)
-    assert first_run == c_instance.run(value=1, flush_fit=True)
+    first_run = c_instance.run("value", kwargs={"value": 1})
+    assert first_run == c_instance.run(
+        "value", kwargs={"value": 1}, flush_fit=True
+    )
 
-    second_run = c_instance.run(value=1, ignore_cache=True)
+    second_run = c_instance.run(
+        "value", kwargs={"value": 1}, ignore_cache=True
+    )
 
     # The model should have been updated
     assert second_run != first_run

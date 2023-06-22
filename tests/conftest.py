@@ -1,11 +1,12 @@
 import redis
+import psutil
 import pytest
 import os
 
 from motion.utils import RedisParams
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def redis_fixture():
     """Set up redis as a pytest fixture."""
     # Set env vars
@@ -31,4 +32,21 @@ def redis_fixture():
     r.flushdb()
     assert len(r.keys()) == 0
 
-    yield
+    yield r
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    # Print process count before test execution starts
+    print_process_count()
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    # Print process count after test execution ends
+    print_process_count()
+
+
+def print_process_count():
+    count = sum(1 for _ in psutil.process_iter())
+    print(f"Number of processes: {count}")

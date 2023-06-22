@@ -3,6 +3,8 @@ from typing import Any, Callable, Dict
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from motion.utils import logger
+
 
 class Route(BaseModel):
     key: str = Field(..., description="The keyword to which this route applies.")
@@ -23,5 +25,10 @@ class Route(BaseModel):
         filtered_kwargs = {
             param: kwargs[param] for param in self._udf_params if param in kwargs
         }
-        result = self.udf(**filtered_kwargs)
+        try:
+            result = self.udf(**filtered_kwargs)
+        except Exception as e:
+            logger.error(f"Error in {self.key} flow: {e}")
+            raise e
+
         return result

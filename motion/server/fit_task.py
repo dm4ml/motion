@@ -28,6 +28,7 @@ class FitTask(multiprocessing.Process):
         running: Any,
     ):
         super().__init__()
+        self.name = f"FitTask-{instance_name}-{route.key}-{route.udf.__name__}"
         self.instance_name = instance_name
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
@@ -69,7 +70,7 @@ class FitTask(multiprocessing.Process):
             item = None
             try:
                 # for _ in range(self.batch_size):
-                item = redis_con.blpop(self.queue_identifier, timeout=1)
+                item = redis_con.blpop(self.queue_identifier, timeout=0.5)
                 if item is None:
                     if not self.running.value:
                         break  # no more items in the list
@@ -153,7 +154,6 @@ class FitTask(multiprocessing.Process):
                     }
                 ),
             )
-            print(f"Published {item['identifier']} to channel")
 
     # def cleanup(self) -> None:
     #     redis_con = redis.Redis(

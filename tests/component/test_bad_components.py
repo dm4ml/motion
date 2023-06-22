@@ -29,13 +29,13 @@ def setUp():
 
 
 @c.fit("add")
-def plus(state, values, infer_results):
-    return {"value": state["value"] + sum(values)}
+def plus(state, value, infer_result):
+    return {"value": state["value"] + value}
 
 
 @c.fit("add")
-def plus2(state, values, infer_results):
-    return {"value": state["value"] + sum(values)}
+def plus2(state, value, infer_result):
+    return {"value": state["value"] + value}
 
 
 @c.infer("read")
@@ -46,7 +46,7 @@ def read(state, value):
 def test_double_fit_component():
     c_instance = c()
 
-    c_instance.run(add=1, flush_fit=True)
+    c_instance.run("add", kwargs={"value": 1}, flush_fit=True)
 
-    assert c_instance.run(read=1) == 2
+    assert c_instance.run("read", kwargs={"value": 2}) == 2
     c_instance.shutdown()

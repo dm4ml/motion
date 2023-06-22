@@ -51,12 +51,12 @@ def noop(state, value):
 
 
 @c.fit("something")
-def increment(state, values, infer_results):
+def increment(state, value, infer_result):
     return {"fit_count": state["fit_count"] + 1}
 
 
 def test_db_component():
     c_instance = c()
-    assert c_instance.run(count=1) == [(2,)]
-    c_instance.run(something=1, flush_fit=True)
-    assert c_instance.run(something=5) == 1
+    assert c_instance.run("count", kwargs={"value": 1}) == [(2,)]
+    c_instance.run("something", kwargs={"value": 1}, flush_fit=True)
+    assert c_instance.run("something", kwargs={"value": 5}) == 1

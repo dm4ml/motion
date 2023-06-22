@@ -15,8 +15,8 @@ def noop(state, value):
     return state["value"] * value
 
 
-@Counter.fit("multiply", batch_size=1)
-def increment(state, values, infer_results):
+@Counter.fit("multiply")
+def increment(state, value, infer_result):
     print(state["does_not_exist"])  # This should break thread
     return {"value": state["value"] + 1}
 
@@ -24,10 +24,10 @@ def increment(state, values, infer_results):
 def test_release_lock_on_broken_fit():
     c = Counter("same_id")
     with pytest.raises(RuntimeError):
-        c.run(multiply=2, flush_fit=True)
+        c.run("multiply", kwargs={"value": 2}, flush_fit=True)
     c.shutdown()
 
     # Should be able to run again
     c2 = Counter("same_id")
-    c2.run(multiply=2)
+    c2.run("multiply", kwargs={"value": 2})
     c2.shutdown()

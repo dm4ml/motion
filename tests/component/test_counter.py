@@ -14,9 +14,9 @@ def noop(state, value):
     return state["value"], value
 
 
-@Counter.fit("number", batch_size=1)
-def increment(state, values, infer_results):
-    return {"value": state["value"] + sum(values)}
+@Counter.fit("number")
+def increment(state, value, infer_result):
+    return {"value": state["value"] + value}
 
 
 def test_create():
@@ -24,22 +24,13 @@ def test_create():
 
     assert c.read_state("value") == 0
 
-    assert c.run(number=1)[1] == 1
-    c.run(number=2, flush_fit=True)
-    assert c.run(number=3, flush_fit=True)[1] == 3
-    assert c.run(number=4, flush_fit=True)[0] == 6
+    assert c.run("number", kwargs={"value": 1})[1] == 1
+    c.run("number", kwargs={"value": 2}, flush_fit=True)
+    assert c.run("number", kwargs={"value": 3}, flush_fit=True)[1] == 3
+    assert c.run("number", kwargs={"value": 4}, flush_fit=True)[0] == 6
 
     # Should raise errors
     with pytest.raises(KeyError):
-        c.run(number2=6)
-
-    with pytest.raises(ValueError):
-        c.run(number=6, number2=7)
-
-    with pytest.raises(ValueError):
-        c.run()
-
-    with pytest.raises(TypeError):
         c.run(6)
 
     # Get value
@@ -53,4 +44,4 @@ def test_fit_error():
 
     # Should raise error bc fit op won't work
     with pytest.raises(RuntimeError):
-        c.run(number=[1], flush_fit=True)
+        c.run("number", kwargs={"value": [1]}, flush_fit=True)

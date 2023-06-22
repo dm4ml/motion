@@ -18,32 +18,32 @@ def noop(state, value):
     return value
 
 
-@Counter.fit("increment", batch_size=1)
-def increment(state, values, infer_results):
+@Counter.fit("increment")
+def increment(state, value, infer_result):
     return {"value": state["value"] + 1}
 
 
-@Counter.fit("decrement", batch_size=1)
-def nothing(state, values, infer_results):
+@Counter.fit("decrement")
+def nothing(state, value, infer_result):
     return {"value": state["value"] - 1}
 
 
-@Counter.fit(["accumulate", "something_else"], batch_size=1)
-def multifit(state, values, infer_results):
-    return {"multifit": state["multifit"] + values}
+@Counter.fit(["accumulate", "something_else"])
+def multifit(state, value, infer_result):
+    return {"multifit": state["multifit"] + [value]}
 
 
 def test_many_keys():
     c = Counter()
 
-    c.run(increment=1, flush_fit=True)
+    c.run("increment", kwargs={"value": 1}, flush_fit=True)
     assert c.read_state("value") == 2
-    c.run(decrement=1, flush_fit=True)
+    c.run("decrement", kwargs={"value": 1}, flush_fit=True)
     assert c.read_state("value") == 1
 
     # Test multifit
-    c.run(accumulate=1)
-    c.run(something_else=2)
+    c.run("accumulate", kwargs={"value": 1})
+    c.run("something_else", kwargs={"value": 2})
 
     c.flush_fit("accumulate")
     c.flush_fit("something_else")

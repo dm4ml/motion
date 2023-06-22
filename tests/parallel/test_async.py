@@ -22,30 +22,30 @@ def sync_noop(state, value):
     return state["value"] * value
 
 
-@Counter.fit("multiply", batch_size=1)
-async def increment(state, values, infer_results):
+@Counter.fit("multiply")
+async def increment(state, value, infer_result):
     return {"value": state["value"] + 1}
 
 
 @pytest.mark.asyncio
 async def test_async_infer():
     c = Counter()
-    assert await c.arun(multiply=2) == 2
+    assert await c.arun("multiply", kwargs={"value": 2}) == 2
 
     # Test that the user can't call run
     with pytest.raises(TypeError):
-        c.run(multiply=2, force_refresh=True)
+        c.run("multiply", kwargs={"value": 2}, force_refresh=True)
 
-    # Test that the user can't call arun
+    # Test that the user can't call arun for regular functions
     with pytest.raises(TypeError):
-        assert await c.arun(sync_multiply=2) == 2
+        assert await c.arun("sync_multiply", kwargs={"value": 2}) == 2
 
 
 @pytest.mark.asyncio
 async def test_async_fit():
     c = Counter()
 
-    await c.arun(multiply=2, flush_fit=True)
+    await c.arun("multiply", kwargs={"value": 2}, flush_fit=True)
     assert c.read_state("value") == 2
 
 
@@ -54,7 +54,10 @@ async def test_async_fit():
 async def test_gather():
     c = Counter()
 
-    tasks = [c.arun(multiply=i, force_refresh=True) for i in range(100)]
+    tasks = [
+        c.arun("multiply", kwargs={"value": i}, force_refresh=True)
+        for i in range(100)
+    ]
     # Run all tasks at the same time
     await asyncio.gather(*tasks)
 
