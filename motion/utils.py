@@ -134,7 +134,7 @@ class CustomDict(dict):
         self,
         component_name: str,
         dict_type: str,
-        instance_id: str = None,
+        instance_id: Optional[str] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
