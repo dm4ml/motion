@@ -57,7 +57,12 @@ class Executor:
 
         # Set up state
         self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        self._state = CustomDict(self._instance_name, "state", {})
+        self._state = CustomDict(
+            instance_name.split("__")[0],
+            "state",
+            instance_name.split("__")[1],
+            {},
+        )
         if self.version is None:
             self.version = 1
             # Setup state

@@ -134,10 +134,12 @@ class CustomDict(dict):
         self,
         component_name: str,
         dict_type: str,
+        instance_id: str = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.instance_name = component_name
+        self.component_name = component_name
+        self.instance_id = instance_id
         self.dict_type = dict_type
         super().__init__(*args, **kwargs)
 
@@ -147,7 +149,7 @@ class CustomDict(dict):
         except KeyError:
             raise KeyError(
                 f"Key `{key}` not found in {self.dict_type} for "
-                + f"instance {self.instance_name}."
+                + f"instance {self.component_name}__{self.instance_id}."
             )
 
 
@@ -190,7 +192,9 @@ def loadState(
     load_state_func: Optional[Callable],
 ) -> CustomDict:
     # Get state from redis
-    state = CustomDict(instance_name, "state", {})
+    state = CustomDict(
+        instance_name.split("__")[0], "state", instance_name.split("__")[1], {}
+    )
     loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
     if not loaded_state:
