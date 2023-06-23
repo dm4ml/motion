@@ -137,7 +137,7 @@ class CustomDict(dict):
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.component_name = component_name
+        self.instance_name = component_name
         self.dict_type = dict_type
         super().__init__(*args, **kwargs)
 
@@ -147,7 +147,7 @@ class CustomDict(dict):
         except KeyError:
             raise KeyError(
                 f"Key `{key}` not found in {self.dict_type} for "
-                + f"component {self.component_name}."
+                + f"instance {self.instance_name}."
             )
 
 
