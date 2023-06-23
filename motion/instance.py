@@ -210,9 +210,6 @@ class ComponentInstance:
         Warning: this is a blocking operation and could take
         a while if your fit op takes a long time!
 
-        The fit queue will be flushed even if there aren't
-        the predefined batch_size number of elements.
-
         Example Usage:
         ```python
         from motion import Component
