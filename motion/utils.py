@@ -242,17 +242,23 @@ class FitEvent:
             if message["type"] != "message":
                 continue
 
-            error_data = eval(message["data"])
-            identifier = error_data["identifier"]
-            exception_str = error_data["exception"]
+            message_data_str = message["data"].decode("utf-8")
+            if message_data_str[0] == "{":
+                error_data = eval(message["data"])
+                identifier = error_data["identifier"]
+                exception_str = error_data["exception"]
 
-            if identifier != self.identifier:
-                continue
+                if identifier != self.identifier:
+                    continue
 
-            if exception_str:
-                raise RuntimeError(exception_str)
+                if exception_str:
+                    raise RuntimeError(exception_str)
 
-            break
+                break
+
+            else:
+                if message_data_str == self.identifier:
+                    break
 
 
 class FitEventGroup:
