@@ -43,10 +43,10 @@ class RedisParams(BaseModel):
             with open(config_file, "r") as file:
                 config = yaml.safe_load(file)
             
-            kwargs.setdefault("host", config.get("MOTION_REDIS_HOST", "localhost"))
-            kwargs.setdefault("port", config.get("MOTION_REDIS_PORT", "6379"))
-            kwargs.setdefault("db", config.get("MOTION_REDIS_DB", "0"))
-            kwargs.setdefault("password", config.get("MOTION_REDIS_PASSWORD", None))
+            kwargs.setdefault("host", config.get("MOTION_REDIS_HOST", os.getenv("MOTION_REDIS_HOST", "localhost")))
+            kwargs.setdefault("port", config.get("MOTION_REDIS_PORT", int(os.getenv("MOTION_REDIS_PORT", "6379"))))
+            kwargs.setdefault("db", config.get("MOTION_REDIS_DB", int(os.getenv("MOTION_REDIS_DB", "0"))))
+            kwargs.setdefault("password", config.get("MOTION_REDIS_PASSWORD", os.getenv("MOTION_REDIS_PASSWORD", None)))
         else:
             kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
             kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
