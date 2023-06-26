@@ -1,4 +1,0 @@
-
-port: 6379
-db: 1
-password: pass
