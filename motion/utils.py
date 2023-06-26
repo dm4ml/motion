@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import random
+import yaml
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -37,13 +38,26 @@ class RedisParams(BaseModel):
     db: int
     password: Optional[str] = None
 
-    def __init__(self, **kwargs: Any) -> None:
-        kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
-        kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
-        kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
-        kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
+    def __init__(self,**kwargs: Any) -> None:
+        config_file = "config.yaml"
+
+        if os.path.isfile(config_file):
+            # host,port,db,password = self.load_from_yaml(config_file)
+            with open(config_file, "r") as file:
+                config = yaml.safe_load(file)
+            
+            kwargs.setdefault("host", config.get("MOTION_REDIS_HOST", "localhost"))
+            kwargs.setdefault("port", config.get("MOTION_REDIS_PORT", "6379"))
+            kwargs.setdefault("db", config.get("MOTION_REDIS_DB", "0"))
+            kwargs.setdefault("password", config.get("MOTION_REDIS_PASSWORD", None))
+        else:
+            kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
+            kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
+            kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
+            kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
 
         super().__init__(**kwargs)
+    
 
 
 def clear_instance(instance_name: str) -> bool:
