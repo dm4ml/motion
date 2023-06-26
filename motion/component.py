@@ -144,7 +144,7 @@ class Component:
                     have created.
         """
         self._name = name
-        self._params = CustomDict(name, "params", params)
+        self._params = CustomDict(name, "params", "", params)
 
         # Set up routes
         self._infer_routes: Dict[str, Route] = {}
