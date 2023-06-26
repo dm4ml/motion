@@ -16,6 +16,7 @@ redis = "^4.5.5"
 psutil = "^5.9.5"
 rich = "^13.4.1"
 pyyaml = "^5.4.1" 
+types-pyyaml = "^6.0.12.10"
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"
