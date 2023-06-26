@@ -1,5 +1,7 @@
 import atexit
 import logging
+import os
+import yaml
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from motion.execute import Executor
@@ -316,6 +318,13 @@ class ComponentInstance:
             to run if `flush_fit = True` and the fit operation is
             computationally expensive.
         """
+        config_file = "config.yaml"
+        if os.path.isfile(config_file):
+            with open(config_file, "r") as file:
+                config = yaml.safe_load(file) or {}
+
+            cache_ttl = config.get(self._component_name, cache_ttl)
+
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
 
@@ -387,7 +396,13 @@ class ComponentInstance:
         Returns:
             Awaitable[Any]: Awaitable Result of the inference call.
         """
+        config_file = "config.yaml"
+        if os.path.isfile(config_file):
+            with open(config_file, "r") as file:
+                config = yaml.safe_load(file) or {}
 
+            cache_ttl = config.get(self._component_name, cache_ttl)
+            
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
 
