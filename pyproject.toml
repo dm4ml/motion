@@ -16,7 +16,6 @@ redis = "^4.5.5"
 psutil = "^5.9.5"
 rich = "^13.4.1"
 pyyaml = "^5.4.1" 
-types-pyyaml = "^6.0.12.10"
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"
@@ -41,6 +40,7 @@ fastapi = "^0.95.2"
 httpx = "^0.24.1"
 pytest-asyncio = "^0.21.0"
 pytest-timeout = "^2.1.0"
+types-pyyaml = "^6.0.12.10"
 
 [tool.poetry.scripts]
 motion = "motion.cli:motioncli"
