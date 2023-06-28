@@ -54,6 +54,18 @@ class MigrationResult(BaseModel):
 
 class StateMigrator:
     def __init__(self, component: Component, migrate_func: Callable) -> None:
+        """Creates a StateMigrator object.
+
+        Args:
+            component (Component): Component to perform the migration for.
+            migrate_func (Callable): Function to apply to the state of each
+                instance of the component.
+
+        Raises:
+            TypeError: if component is not a valid Component
+            ValueError: if migrate_func does not have exactly one parameter
+        """
+
         # Type check
         if not isinstance(component, Component):
             raise TypeError("component must be a valid Component")
