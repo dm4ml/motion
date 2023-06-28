@@ -6,7 +6,7 @@ import redis
 from pydantic import BaseConfig, BaseModel, Field
 
 from motion.component import Component
-from motion.utils import RedisParams, loadState, logger, saveState
+from motion.utils import CustomDict, RedisParams, loadState, logger, saveState
 
 
 def process_migration(
@@ -26,7 +26,14 @@ def process_migration(
             "Migration function must return a dict."
             + " Warning: partial progress may have been made!"
         )
-        saveState(new_state, redis_con, instance_name, save_state_fn)
+        empty_state = CustomDict(
+            instance_name.split("__")[0],
+            "state",
+            instance_name.split("__")[1],
+            {},
+        )
+        empty_state.update(new_state)
+        saveState(empty_state, redis_con, instance_name, save_state_fn)
     except Exception as e:
         if isinstance(e, AssertionError):
             raise e
@@ -116,8 +123,8 @@ class StateMigrator:
             )
 
         # Strip component name from instance names
-        results = [
+        mresults = [
             MigrationResult(instance_id=instance_name.split("__")[-1], exception=e)
             for instance_name, e in results
         ]
-        return results
+        return mresults
