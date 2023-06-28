@@ -237,8 +237,6 @@ class Executor:
 
         acquired_lock = lock.acquire(blocking=True)
         if acquired_lock:
-            self._state.update(new_state)
-
             # Get latest state
             self._state = self._loadState()
             self._state.update(new_state)

@@ -16,9 +16,11 @@ nav:
       - Component: api/component.md
       - ComponentInstance: api/component-instance.md
       - FitEventGroup: api/fit-event-group.md
+      - StateMigrator: api/state-migrator.md
   - Helpful Tools:
       - Component Visualization: tools/vis.md
       - CLI: tools/cli.md
+      - State Migrator: tools/migrator.md
 
 theme:
   name: material

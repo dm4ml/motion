@@ -66,9 +66,15 @@ class ComponentInstance:
 
     @property
     def instance_name(self) -> str:
-        """Component name with a random phrase to represent
+        """Component name with a random phrase or user-defined ID to represent
         the name of this instance."""
         return self._instance_name
+
+    @property
+    def instance_id(self) -> str:
+        """Latter part of the instance name, which is a random phrase
+        or a user-defined ID."""
+        return self._instance_name.split("__")[-1]
 
     def shutdown(self) -> None:
         """Shuts down a Motion component instance, saving state.
