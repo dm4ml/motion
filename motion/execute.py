@@ -33,6 +33,7 @@ class Executor:
         load_state_func: Optional[Callable],
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
+        disabled: bool = False,
     ):
         self._instance_name = instance_name
 
@@ -91,7 +92,9 @@ class Executor:
         # self._shutdown_event = threading.Event()
 
         # Set up fit queues, batch sizes, and threads
-        self._build_fit_jobs()
+        self.disabled = disabled
+        if not disabled:
+            self._build_fit_jobs()
 
     def _connectToRedis(self) -> redis.Redis:
         rp = RedisParams()
@@ -198,6 +201,9 @@ class Executor:
         return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
+        if self.disabled:
+            return
+
         if not self.running.value:
             return
 

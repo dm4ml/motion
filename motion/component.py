@@ -483,6 +483,7 @@ class Component:
         name: str = "",
         init_state_params: Dict[str, Any] = {},
         logging_level: str = "WARNING",
+        disabled: bool = False,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -517,6 +518,10 @@ class Component:
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
+            disabled (bool, optional):
+                Whether or not to disable the component instance. Useful for
+                printing out state values without running dataflows.
+                Defaults to False.
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
@@ -542,6 +547,7 @@ class Component:
                 infer_routes=self._infer_routes,
                 fit_routes=self._fit_routes,
                 logging_level=logging_level,
+                disabled=disabled,
             )
         except RuntimeError:
             raise RuntimeError(
