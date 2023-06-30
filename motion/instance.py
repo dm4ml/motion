@@ -30,6 +30,7 @@ class ComponentInstance:
         infer_routes: Dict[str, Route],
         fit_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
+        disabled: bool = False,
     ):
         """Creates a new instance of a Motion component.
 
@@ -53,6 +54,7 @@ class ComponentInstance:
         self._instance_name = instance_name
 
         self.running = False
+        self.disabled = disabled
         self._executor = Executor(
             self._instance_name,
             init_state_func=init_state_func,
@@ -61,6 +63,7 @@ class ComponentInstance:
             load_state_func=load_state_func,
             infer_routes=infer_routes,
             fit_routes=fit_routes,
+            disabled=self.disabled,
         )
         self.running = True
 
@@ -98,6 +101,9 @@ class ComponentInstance:
         c_instance.shutdown()
         ```
         """
+        if self.disabled:
+            return
+
         if not self.running:
             return
 
@@ -239,7 +245,14 @@ class ComponentInstance:
 
         Args:
             dataflow_key (str): Key of the dataflow.
+
+        Raises:
+            RuntimeError: If the component instance was initialized to
+            be disabled.
         """
+        if self.disabled:
+            raise RuntimeError("Cannot run a disabled component instance.")
+
         self._executor.flush_fit(dataflow_key)
 
     def run(
@@ -316,12 +329,17 @@ class ComponentInstance:
 
         Raises:
             ValueError: If more than one dataflow key-value pair is passed.
+            RuntimeError: If the component instance was initialized to
+            be disabled.
 
         Returns:
             Any: Result of the inference call. Might take a long time
             to run if `flush_fit = True` and the fit operation is
             computationally expensive.
         """
+        if self.disabled:
+            raise RuntimeError("Cannot run a disabled component instance.")
+
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
 
@@ -390,9 +408,16 @@ class ComponentInstance:
                 Keyword arguments for the infer and fit ops. You can only
                 pass in one pair.
 
+        Raises:
+            ValueError: If more than one dataflow key-value pair is passed.
+            RuntimeError: If the component instance was initialized to
+            be disabled.
+
         Returns:
             Awaitable[Any]: Awaitable Result of the inference call.
         """
+        if self.disabled:
+            raise RuntimeError("Cannot run a disabled component instance.")
 
         if len(kwargs) != 1:
             raise ValueError("Only one key-value pair is allowed in kwargs.")
