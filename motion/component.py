@@ -422,7 +422,7 @@ class Component:
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "update"):
                 raise ValueError(
-                    f"Fit method {func.__name__} should have >= 2 arguments: "
+                    f"Update op {func.__name__} should have >= 2 arguments: "
                     + "`state` and `serve_result`."
                 )
 
