@@ -1,8 +1,5 @@
-import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
-
-from pydantic import BaseModel
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from motion.instance import ComponentInstance
 from motion.route import Route
@@ -28,14 +25,15 @@ class Component:
             return state["value"] + value
 
         @AdderComponent.fit("add")
-        def add(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        def add(state, value, infer_result):
+            return {"value": state["value"] + value}
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run(add=1, flush_fit=True) # Will return 1, blocking until fit
+            c.run("add", kwargs={"value": 1}, flush_fit=True) # Blocks until fit
             # is done. Resulting state is {"value": 1}
-            c.run(add=2) # Will return 3, not waiting for fit operation.
+            c.run("add", kwargs={"value": 2}) # Will return 3, not waiting
+            # for fit operation.
             # Resulting state will eventually be {"value": 3}
         ```
 
@@ -54,26 +52,27 @@ class Component:
             return state["value"] + value
 
         @Calculator.fit("add")
-        def increment(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        def increment(state, infer_result, value):
+            return {"value": state["value"] + value}
 
         @Calculator.infer("subtract")
         def minus(state, value):
             return state["value"] - value
 
         @Calculator.fit("subtract")
-        def decrement(state, values, infer_results):
-            return {"value": state["value"] - sum(values)}
+        def decrement(state, infer_result, value):
+            return {"value": state["value"] - value}
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run(add=1, flush_fit=True) # Will return 1, blocking until fit
-            # is done. Resulting state is {"value": 1}
-            c.run(subtract=1, flush_fit=True) # Will return 0, blocking
-            # until fit is done. Resulting state is {"value": 0}
+            c.run("add", kwargs={"value": 1}, flush_fit=True) # Will return 1,
+            # blocking until fit is done. Resulting state is {"value": 1}
+            c.run("subtract", kwargs={"value": 1}, flush_fit=True)
+            # Will return 0, blocking until fit is done. Resulting state is #
+            # {"value": 0}
         ```
 
-    === "Batch Size > 1"
+    === "Batching Fit Operations"
 
         ```python
         from motion import Component
@@ -83,52 +82,42 @@ class Component:
 
         @MLMonitor.init_state
         def setUp():
-            return {"model": YOUR_MODEL_HERE, "history": []}
+            return {
+                "model": YOUR_MODEL_HERE,
+                "historical_values": [],
+                "historical_infer_results": []
+            }
 
         @MLMonitor.infer("features")
         def predict(state, value):
             return state["model"].predict(value)
 
-        @MLMonitor.fit("features", batch_size=10)
-        def monitor(state, values, infer_results):
-            new_X = np.array(values)
-            new_y = np.array(infer_results)
-            concatenated = np.concatenate((state["history"], new_y))
-            if YOUR_ANOMALY_ALGORITHM(concatenated, history):
-                # Fire an alert
-                YOUR_ALERT_FUNCTION()
-            return {"history": history + [concatenated]}
+        @MLMonitor.fit("features")
+        def monitor(state, value, infer_result):
+
+            values = state["historical_values"] + [value]
+            infer_results = state["historical_infer_results"] + [infer_result]
+
+            # Check drift every 10 values
+            if len(values) == 10:
+                if YOUR_ANOMALY_ALGORITHM(values, infer_results):
+                    # Fire an alert
+                    YOUR_ALERT_FUNCTION()
+                values = []
+                infer_results = []
+
+            return {
+                "historical_values": values,
+                "historical_infer_results": infer_results
+            }
 
         if __name__ == "__main__":
             c = MLMonitor() # Create instance
-            c.run(features=YOUR_FEATURES_HERE) # Don't wait for fit to finish
-            # because batch size is 10
+            c.run(features=YOUR_FEATURES_HERE)
 
             for _ in range(100):
                 c.run(features=YOUR_FEATURES_HERE)
                 # Some alert may be fired in the background!
-        ```
-
-    === "Type Validation"
-        ```python
-        from motion import Component
-        from pydantic import BaseModel
-
-        class MyModel(BaseModel):
-            value: int
-
-        MyComponent = Component("MyComponentWithValidation")
-
-        @MyComponent.infer("noop")
-        def noop(state, value: MyModel):
-            return value.value
-
-        if __name__ == "__main__":
-            c = MyComponent()
-            c.run(noop=MyModel(value=1)) # Will return 1
-            c.run(noop={"value": 1}) # Will return 1
-            c.run(noop=MyModel(value="1")) # Will raise an Error
-            c.run(noop=1) # Will raise an Error
         ```
     """
 
@@ -298,8 +287,10 @@ class Component:
         return func
 
     def infer(self, keys: Union[str, List[str]]) -> Callable:
-        """Decorator for any infer dataflow through the component. Takes
-        in a string that represents the input keyword for the infer dataflow.
+        """Decorator for any infer operation for a dataflow through the
+        component. Takes in a string or list of strings that represents the
+        dataflow key. If the decorator is called with a list of strings, each
+        dataflow key will be mapped to the same infer function.
 
         2 arguments required for an infer operation:
             * `state`: The current state of the component, which is a
@@ -307,14 +298,10 @@ class Component:
             * `value`: The value passed in through a `c.run` call with the
                 `key` argument.
 
-        Components can have multiple infer ops, but each infer op must have its
-        own unique `key` argument. Infer ops should not modify the state
-        object. If you want to modify the state object, use the `fit` decorator.
-
-        The `value` argument can be optionally type checked with Pydantic type
-        hints. If the type hint is a Pydantic model, the `value` argument will
-        be converted to that model if it is a dictionary and not already of the
-        model type.
+        Components can have multiple infer ops, but no dataflow key within
+        the component can have more than one infer op. Infer ops should not
+        modify the state object. If you want to modify the state object, use
+        the `fit` decorator.
 
         Example Usage:
         ```python
@@ -335,8 +322,8 @@ class Component:
             return state["value"] * value
 
         c = MyComponent()
-        c.run(add=1, flush_fit=True) # Returns 1
-        c.run(multiply=2) # Returns 2
+        c.run("add", kwargs={"value": 1}, flush_fit=True) # Returns 1
+        c.run("multiply", kwargs={"value": 2}) # Returns 2
         ```
 
         Args:
@@ -356,52 +343,31 @@ class Component:
                 )
 
         def decorator(func: Callable) -> Any:
-            type_hint = get_type_hints(func).get("value", None)
+            # type_hint = get_type_hints(func).get("value", None)
             if not validate_args(inspect.signature(func).parameters, "infer"):
                 raise ValueError(
-                    f"Infer function {func.__name__} should have 2 arguments "
-                    + "`state` and `value`"
+                    f"Infer function {func.__name__} should have arguments " + "`state`"
                 )
 
-            @functools.wraps(func)
-            def wrapper(state: CustomDict, value: Any) -> Any:
-                if (
-                    type_hint
-                    and inspect.isclass(type_hint)
-                    and issubclass(type_hint, BaseModel)
-                    and not isinstance(value, type_hint)
-                ):
-                    try:
-                        value = type_hint(**value)
-                    except Exception:
-                        raise ValueError(
-                            f"value argument must be of type {type_hint.__name__}"
-                        )
-
-                return func(state, value)
-
-            wrapper._op = "infer"  # type: ignore
+            func._op = "infer"  # type: ignore
 
             for key in keys:
-                self.add_route(key, wrapper._op, wrapper)  # type: ignore
+                self.add_route(key, func._op, func)  # type: ignore
 
-            return wrapper
+            return func
 
         return decorator
 
-    def fit(self, keys: Union[str, List[str]], batch_size: int = 1) -> Any:
-        """Decorator for any fit dataflows through the component. Takes
-        in a string that represents the input keyword for the fit op.
-        Only executes the fit op (function) when the batch size is reached.
+    def fit(self, keys: Union[str, List[str]]) -> Any:
+        """Decorator for any fit operations for dataflows through the
+        component. Takes in a string or list of strings that represents the
+        dataflow key. If the decorator is called with a list of strings, each
+        dataflow key will be mapped to the same fit operation.
 
-        3 arguments required for a fit operation:
+        2 arguments required for a fit operation:
             - `state`: The current state of the component, represented as a
             dictionary.
-            - `values`: A list of values passed in through a `c.run` call with
-            the `key` argument. Of length `batch_size`.
-            - `infer_results`: A list of the results from the infer ops that
-            correspond to the values in the `values` argument. Of length
-            `batch_size`.
+            - `infer_result`: The result from the infer op that occurred before.
 
         Components can have multiple fit ops, and the same key can also have
         multiple fit ops. Fit functions should return a dictionary
@@ -425,27 +391,22 @@ class Component:
         def multiply(state, value):
             return state["value"] * value
 
-        @MyComponent.fit("multiply", batch_size=2) # Runs after 2 c.run calls
-        def multiply(state, values, infer_results):
-            product = 1
-            for value in values:
-                product *= value
-            return state["value"] * product
+        @MyComponent.fit("multiply")
+        def multiply(state, infer_result, value):
+            return state["value"] * value
 
         c = MyComponent()
-        c.run(add=1, flush_fit=True) # Returns 1
-        c.run(multiply=2) # Returns 2, fit not executed yet
-        c.run(multiply=3) # Returns 3, fit will execute; state["value"] = 6
+        c.run("add", kwargs={"value": 1}, flush_fit=True) # Returns 1
+        c.run("multiply", kwargs={"value": 2}) # Returns 2, fit not executed yet
+        c.run("multiply", kwargs={"value": 3}) # Returns 3, fit will execute
+        # to get state["value"] = 6
         # Some time later...
-        c.run(multiply=4) # Returns 24
+        c.run("multiply", kwargs={"value": 4}) # Returns 24
         ```
 
         Args:
             keys (Union[str, List[str]]): String or list of strings that
                 represent the input keyword(s) for the fit dataflow.
-            batch_size (int, optional):
-                Number of values to wait for before
-                calling the fit function. Defaults to 1.
 
         Returns:
             Callable: Decorated fit function.
@@ -463,12 +424,12 @@ class Component:
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "fit"):
                 raise ValueError(
-                    f"Fit method {func.__name__} should have 3 arguments: "
-                    + "`state`, `values`, and `infer_results`."
+                    f"Fit method {func.__name__} should have >= 2 arguments: "
+                    + "`state` and `infer_result`."
                 )
 
             # func._input_key = key  # type: ignore
-            func._batch_size = batch_size  # type: ignore
+            # func._batch_size = batch_size  # type: ignore
             func._op = "fit"  # type: ignore
 
             for key in keys:
@@ -505,9 +466,10 @@ class Component:
         @MyComponent.fit("key1)
         def ...
 
-        c_instance = MyComponent(init_state_params={"starting_val": 3})
         # Creates instance of MyComponent
-        c_instance.run(..)
+        if __name__ == "__main__":
+            c_instance = MyComponent(init_state_params={"starting_val": 3})
+            c_instance.run(..)
         ```
 
         Args:
@@ -581,7 +543,7 @@ class Component:
                     {
                         "name": route.udf.__name__,
                         "udf": inspect.getsource(route.udf),
-                        "batch_size": route.udf._batch_size,  # type: ignore
+                        # "batch_size": route.udf._batch_size,  # type: ignore
                     }
                 )
 
@@ -667,7 +629,7 @@ class Component:
                         "data": {
                             "label": fit["name"],
                             "udf": fit["udf"],
-                            "batch_size": fit["batch_size"],
+                            # "batch_size": fit["batch_size"],
                         },
                         "type": "fit",
                     }
@@ -680,7 +642,7 @@ class Component:
                             "source": fit_node["id"],
                             "sourceHandle": "top",
                             "animated": True,  # type: ignore
-                            "label": f"batch_size: {fit['batch_size']}",
+                            # "label": f"batch_size: {fit['batch_size']}",
                         }
                     )
 

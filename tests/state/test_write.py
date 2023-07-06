@@ -11,7 +11,7 @@ def setUp():
 
 
 @C.infer("my_key")
-def infer(state, value):
+def infer(state):
     return state.instance_id
 
 
@@ -35,4 +35,4 @@ def test_update_state():
 
 def test_read_instance_id():
     c_instance = C("some_id")
-    assert c_instance.run(my_key=True) == "some_id"
+    assert c_instance.run("my_key", ignore_cache=True) == "some_id"

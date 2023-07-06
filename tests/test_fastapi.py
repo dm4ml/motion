@@ -25,7 +25,7 @@ async def noop(state, value):
 
 
 @Test.fit("increment")
-def noop(state, values, infer_results):
+def noopfit(state, infer_result):
     return {"count": state["count"] + 1}
 
 
@@ -36,7 +36,7 @@ app = FastAPI()
 def read_endpoint():
     # Create some instance of a component
     t = Test("testid")
-    t.run(increment=True)
+    t.run("increment")
     t.flush_fit("increment")
 
     return {"value": t.read_state("count")}
@@ -45,7 +45,7 @@ def read_endpoint():
 @app.get("/async_endpoint")
 async def read_noop():
     t = Test("testid")
-    return {"value": await t.arun(noop=1)}
+    return {"value": await t.arun("noop", kwargs={"value": 1})}
 
 
 @pytest.fixture

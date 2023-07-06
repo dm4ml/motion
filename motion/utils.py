@@ -54,19 +54,19 @@ def clear_instance(instance_name: str) -> bool:
     ```
 
     Args:
-        instance (str): Instance name of the component to clear.
-            In the form `componentname__instancename`.
+        instance_name (str): Instance name of the component to clear.
+            In the form `componentname__instanceid`.
 
     Raises:
         ValueError:
             If the instance name is not in the form
-            `componentname__instancename`.
+            `componentname__instanceid`.
 
     Returns:
         bool: True if the instance existed, False otherwise.
     """
     if "__" not in instance_name:
-        raise ValueError("Instance must be in the form `componentname__instancename`.")
+        raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
     rp = RedisParams()
     redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
@@ -103,19 +103,19 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
     ```
 
     Args:
-        instance (str): Instance name of the component to inspect.
-            In the form `componentname__instancename`.
+        instance_name (str): Instance name of the component to inspect.
+            In the form `componentname__instanceid`.
 
     Raises:
         ValueError:
             If the instance name is not in the form
-            `componentname__instancename` or if the instance does not exist.
+            `componentname__instanceid` or if the instance does not exist.
 
     Returns:
         Dict[str, Any]: The state of the component instance.
     """
     if "__" not in instance_name:
-        raise ValueError("Instance must be in the form `componentname__instancename`.")
+        raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
     rp = RedisParams()
     redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
@@ -154,15 +154,11 @@ class CustomDict(dict):
 
 
 def validate_args(parameters: Any, op: str) -> bool:
-    expected_args = (
-        ["state", "values", "infer_results"] if op == "fit" else ["state", "value"]
-    )
-    if len(parameters) != len(expected_args):
+    if "state" not in parameters.keys():
         return False
 
-    for param_name, _ in parameters.items():
-        if param_name not in expected_args:
-            return False
+    if op == "fit" and "infer_result" not in parameters.keys():
+        return False
 
     return True
 

@@ -69,8 +69,10 @@ class ComponentInstance:
 
     @property
     def instance_name(self) -> str:
-        """Component name with a random phrase or user-defined ID to represent
-        the name of this instance."""
+        """Component name with a random phrase to represent
+        the name of this instance.
+        In the form of componentname__randomphrase.
+        """
         return self._instance_name
 
     @property
@@ -95,10 +97,11 @@ class ComponentInstance:
 
         # Define infer and fit operations
 
-        c_instance = C()
-        c_instance.run(...)
-        c_instance.run(...)
-        c_instance.shutdown()
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.run(...)
+            c_instance.run(...)
+            c_instance.shutdown()
         ```
         """
         if self.disabled:
@@ -133,8 +136,9 @@ class ComponentInstance:
 
         # Define infer and fit operations
 
-        c_instance = C()
-        c_instance.get_version() # Returns 1 (first version)
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.get_version() # Returns 1 (first version)
         ```
         """
         return self._executor.version  # type: ignore
@@ -210,9 +214,6 @@ class ComponentInstance:
         Warning: this is a blocking operation and could take
         a while if your fit op takes a long time!
 
-        The fit queue will be flushed even if there aren't
-        the predefined batch_size number of elements.
-
         Example Usage:
         ```python
         from motion import Component
@@ -227,20 +228,21 @@ class ComponentInstance:
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add", batch_size=2)
-        def add(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        @C.fit("add")
+        def add(state, value, infer_result):
+            return {"value": state["value"] + value}
 
         @C.infer("multiply")
         def multiply(state, value):
             return state["value"] * value
 
-        c = C() # Create instance of C
-        c.run(add=1)
-        c.flush_fit("add") # (1)!
-        c.run(add=2) # This will use the updated state
+        if __name__ == "__main__":
+            c = C() # Create instance of C
+            c.run("add", kwargs={"value": 1})
+            c.flush_fit("add") # (1)!
+            c.run("add", kwargs={"value": 2}) # This will use the updated state
 
-        # 1. Runs the fit op even though only one element is in the batch
+        # 1. Waits for the fit op to finish, then updates the state
         ```
 
         Args:
@@ -257,17 +259,17 @@ class ComponentInstance:
 
     def run(
         self,
-        *,
+        # *,
+        dataflow_key: str,
+        kwargs: Dict[str, Any] = {},
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
-        **kwargs: Any,
     ) -> Any:
         """Runs the dataflow (infer and fit ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
-        is raised. Only one keyword argument should be passed in.
-        Fit ops are only executed when the batch size is reached.
+        is raised. Only one dataflow key should be passed in.
 
         Example Usage:
         ```python
@@ -283,31 +285,32 @@ class ComponentInstance:
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add", batch_size=2)
-        def add(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        @C.fit("add")
+        def add(state, value, infer_result):
+            return {"value": state["value"] + value}
 
-        @C.infer("multiply")
-        def multiply(state, value):
-            return state["value"] * value
+        if __name__ == "__main__":
+            c = C() # Create instance of C
+            c.run("add", kwargs={"value": 1}, flush_fit=True) # (1)!
+            c.run("add", kwargs={"value": 1}) # Returns 1
+            c.run("add", kwargs={"value": 2}, flush_fit=True) # (2)!
 
-        c = C() # Create instance of C
-        c.run(add=1, flush_fit=True) # (1)!
-        c.run(add=1) # Returns 1
-        c.run(add=2, flush_fit=True) # Returns 2, result state["value"] = 4
-        # Previous line called fit function and flushed fit queue
-        c.run(add=3) # No fit op runs since batch size = 1
-        c.run(multiply=2) # Returns 8 since state["value"] = 4
-        c.run(multiply=3, flush_fit=True) # (2)!
+            c.run("add", kwargs={"value": 3})
+            time.sleep(3) # Wait for the previous fit op to finish
 
-        # 1. This forces the fit op to run even though the batch size
-        #   isn't reached, and waits for the fit op to finish running
-        # 2. This doesn't force or wait for any fit ops, since there are
-        #   no fit ops defined for `multiply`
+            c.run("add", kwargs={"value": 3}, force_refresh=True) # (3)!
+
+        # 1. Waits for the fit op to finish, then updates the state
+        # 2. Returns 2, result state["value"] = 4
+        # 3. Force refreshes the state before running the dataflow, and
+        #    reruns the infer op even though the result might be cached.
         ```
 
 
         Args:
+            dataflow_key (str): Key of the dataflow to run.
+            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
@@ -323,14 +326,6 @@ class ComponentInstance:
                 returning. If the fit queue hasn't reached batch_size
                 yet, the fit op runs anyways. Force refreshes the
                 state after the fit op completes. Defaults to False.
-            **kwargs:
-                Keyword arguments for the infer and fit ops. You can only
-                pass in one pair.
-
-        Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
-            RuntimeError: If the component instance was initialized to
-            be disabled.
 
         Returns:
             Any: Result of the inference call. Might take a long time
@@ -340,14 +335,9 @@ class ComponentInstance:
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        if len(kwargs) != 1:
-            raise ValueError("Only one key-value pair is allowed in kwargs.")
-
-        key, value = next(iter(kwargs.items()))
-
         infer_result = self._executor.run(
-            key=key,
-            value=value,
+            key=dataflow_key,
+            kwargs=kwargs,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
@@ -358,15 +348,16 @@ class ComponentInstance:
 
     async def arun(
         self,
-        *,
+        # *,
+        dataflow_key: str,
+        kwargs: Dict[str, Any] = {},
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
-        **kwargs: Any,
     ) -> Awaitable[Any]:
-        """Async version of run. Runs the dataflow (infer and fit ops) for the .
-        keyword argument.
+        """Async version of run. Runs the dataflow (infer and fit ops) for the
+        specified key.
 
         Example Usage:
         ```python
@@ -382,13 +373,16 @@ class ComponentInstance:
 
         async def main():
             c = C()
-            await c.arun(sleep=1)
+            await c.arun("sleep", kwargs={"value": 1})
 
         if __name__ == "__main__":
             asyncio.run(main())
         ```
 
         Args:
+            dataflow_key (str): Key of the dataflow to run.
+            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
@@ -419,14 +413,10 @@ class ComponentInstance:
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        if len(kwargs) != 1:
-            raise ValueError("Only one key-value pair is allowed in kwargs.")
-
-        key, value = next(iter(kwargs.items()))
-
         infer_result = await self._executor.arun(
-            key=key,
-            value=value,
+            key=dataflow_key,
+            kwargs=kwargs,
+            # value=value,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
