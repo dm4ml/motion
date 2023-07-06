@@ -23,15 +23,15 @@ def setUp():
     return {"mean": None, "std": None}
 
 
-@ZScoreComponent.infer("number")
+@ZScoreComponent.serve("number")
 def normalize(state, value):
     if state["mean"] is None:
         return None
     return abs(value - state["mean"]) / state["std"]
 
 
-@ZScoreComponent.fit("number", batch_size=10)
-def update(state, values, infer_results):
+@ZScoreComponent.update("number", batch_size=10)
+def update(state, values, serve_results):
     # We don't do anything with the results, but we could!
     mean = sum(values) / len(values)
     std = sum((n - mean) ** 2 for n in values) / len(values)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run(number=i))
 
-    c.run(number=9, flush_fit=True)
+    c.run(number=9, flush_update=True)
     for i in range(10, 19):
         print(c.run(number=i))
 ```

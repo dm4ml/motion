@@ -27,8 +27,8 @@ class ComponentInstance:
         init_state_params: Optional[Dict[str, Any]],
         save_state_func: Optional[Callable],
         load_state_func: Optional[Callable],
-        infer_routes: Dict[str, Route],
-        fit_routes: Dict[str, List[Route]],
+        serve_routes: Dict[str, Route],
+        update_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
         disabled: bool = False,
     ):
@@ -61,8 +61,8 @@ class ComponentInstance:
             init_state_params=init_state_params if init_state_params else {},
             save_state_func=save_state_func,
             load_state_func=load_state_func,
-            infer_routes=infer_routes,
-            fit_routes=fit_routes,
+            serve_routes=serve_routes,
+            update_routes=update_routes,
             disabled=self.disabled,
         )
         self.running = True
@@ -95,7 +95,7 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        # Define infer and fit operations
+        # Define serve and update operations
 
         if __name__ == "__main__":
             c_instance = C()
@@ -122,7 +122,7 @@ class ComponentInstance:
     def get_version(self) -> int:
         """
         Gets the state version (might be outdated) currently being
-        used for infer ops.
+        used for serve ops.
 
         Usage:
         ```python
@@ -134,7 +134,7 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        # Define infer and fit operations
+        # Define serve and update operations
 
         if __name__ == "__main__":
             c_instance = C()
@@ -143,11 +143,11 @@ class ComponentInstance:
         """
         return self._executor.version  # type: ignore
 
-    def update_state(self, state_update: Dict[str, Any]) -> None:
+    def write_state(self, state_update: Dict[str, Any]) -> None:
         """Writes the state update to the component instance's state.
-        If a fit op is currently running, the state update will be
-        applied after the fit op is finished. Warning: this could
-        take a while if your fit op takes a long time!
+        If a update op is currently running, the state update will be
+        applied after the update op is finished. Warning: this could
+        take a while if your update ops take a long time!
 
         Usage:
         ```python
@@ -159,13 +159,13 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        # Define infer and fit operations
+        # Define serve and update operations
         ...
 
         if __name__ == "__main__":
             c_instance = C()
             c_instance.read_state("value") # Returns 0
-            c_instance.update_state({"value": 1, "value2": 2})
+            c_instance.write_state({"value": 1, "value2": 2})
             c_instance.read_state("value") # Returns 1
             c_instance.read_state("value2") # Returns 2
         ```
@@ -189,7 +189,7 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        # Define infer and fit operations
+        # Define serve and update operations
         ...
 
         if __name__ == "__main__":
@@ -208,11 +208,11 @@ class ComponentInstance:
         """
         return self._executor._loadState()[key]
 
-    def flush_fit(self, dataflow_key: str) -> None:
-        """Flushes the fit queue corresponding to the dataflow
+    def flush_update(self, dataflow_key: str) -> None:
+        """Flushes the update queue corresponding to the dataflow
         key, if it exists, and updates the instance state.
         Warning: this is a blocking operation and could take
-        a while if your fit op takes a long time!
+        a while if your update op takes a long time!
 
         Example Usage:
         ```python
@@ -224,25 +224,25 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        @C.infer("add")
+        @C.serve("add")
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add")
-        def add(state, value, infer_result):
+        @C.update("add")
+        def add(state, value, serve_result):
             return {"value": state["value"] + value}
 
-        @C.infer("multiply")
+        @C.serve("multiply")
         def multiply(state, value):
             return state["value"] * value
 
         if __name__ == "__main__":
             c = C() # Create instance of C
             c.run("add", kwargs={"value": 1})
-            c.flush_fit("add") # (1)!
+            c.flush_update("add") # (1)!
             c.run("add", kwargs={"value": 2}) # This will use the updated state
 
-        # 1. Waits for the fit op to finish, then updates the state
+        # 1. Waits for the update op to finish, then updates the state
         ```
 
         Args:
@@ -255,7 +255,7 @@ class ComponentInstance:
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        self._executor.flush_fit(dataflow_key)
+        self._executor.flush_update(dataflow_key)
 
     def run(
         self,
@@ -265,9 +265,9 @@ class ComponentInstance:
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
-        flush_fit: bool = False,
+        flush_update: bool = False,
     ) -> Any:
-        """Runs the dataflow (infer and fit ops) for the keyword argument
+        """Runs the dataflow (serve and update ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
         is raised. Only one dataflow key should be passed in.
 
@@ -281,29 +281,29 @@ class ComponentInstance:
         def setUp():
             return {"value": 0}
 
-        @C.infer("add")
+        @C.serve("add")
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add")
-        def add(state, value, infer_result):
+        @C.update("add")
+        def add(state, value, serve_result):
             return {"value": state["value"] + value}
 
         if __name__ == "__main__":
             c = C() # Create instance of C
-            c.run("add", kwargs={"value": 1}, flush_fit=True) # (1)!
+            c.run("add", kwargs={"value": 1}, flush_update=True) # (1)!
             c.run("add", kwargs={"value": 1}) # Returns 1
-            c.run("add", kwargs={"value": 2}, flush_fit=True) # (2)!
+            c.run("add", kwargs={"value": 2}, flush_update=True) # (2)!
 
             c.run("add", kwargs={"value": 3})
-            time.sleep(3) # Wait for the previous fit op to finish
+            time.sleep(3) # Wait for the previous update op to finish
 
             c.run("add", kwargs={"value": 3}, force_refresh=True) # (3)!
 
-        # 1. Waits for the fit op to finish, then updates the state
+        # 1. Waits for the update op to finish, then updates the state
         # 2. Returns 2, result state["value"] = 4
         # 3. Force refreshes the state before running the dataflow, and
-        #    reruns the infer op even though the result might be cached.
+        #    reruns the serve op even though the result might be cached.
         ```
 
 
@@ -312,39 +312,39 @@ class ComponentInstance:
             kwargs (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
             cache_ttl (int, optional):
-                How long the inference result should live in a cache (in
+                How long the serveence result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
             ignore_cache (bool, optional):
-                If True, ignores the cache and runs the infer op. Does not
+                If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
-                state before running an inference call, otherwise a stale
+                state before running an serveence call, otherwise a stale
                 version of the state or a cached result may be used.
                 Defaults to False.
-            flush_fit (bool, optional):
-                If True, waits for the fit op to finish executing before
-                returning. If the fit queue hasn't reached batch_size
-                yet, the fit op runs anyways. Force refreshes the
-                state after the fit op completes. Defaults to False.
+            flush_update (bool, optional):
+                If True, waits for the update op to finish executing before
+                returning. If the update queue hasn't reached batch_size
+                yet, the update op runs anyways. Force refreshes the
+                state after the update op completes. Defaults to False.
 
         Returns:
-            Any: Result of the inference call. Might take a long time
-            to run if `flush_fit = True` and the fit operation is
+            Any: Result of the serveence call. Might take a long time
+            to run if `flush_update = True` and the update operation is
             computationally expensive.
         """
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        infer_result = self._executor.run(
+        serve_result = self._executor.run(
             key=dataflow_key,
             kwargs=kwargs,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
-            flush_fit=flush_fit,
+            flush_update=flush_update,
         )
 
-        return infer_result
+        return serve_result
 
     async def arun(
         self,
@@ -354,9 +354,9 @@ class ComponentInstance:
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
-        flush_fit: bool = False,
+        flush_update: bool = False,
     ) -> Awaitable[Any]:
-        """Async version of run. Runs the dataflow (infer and fit ops) for the
+        """Async version of run. Runs the dataflow (serve and update ops) for the
         specified key.
 
         Example Usage:
@@ -366,7 +366,7 @@ class ComponentInstance:
 
         C = Component("MyComponent")
 
-        @C.infer("sleep")
+        @C.serve("sleep")
         async def sleep(state, value):
             await asyncio.sleep(value)
             return "Slept!"
@@ -384,22 +384,22 @@ class ComponentInstance:
             kwargs (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
             cache_ttl (int, optional):
-                How long the inference result should live in a cache (in
+                How long the serveence result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
             ignore_cache (bool, optional):
-                If True, ignores the cache and runs the infer op. Does not
+                If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
-                state before running an inference call, otherwise a stale
+                state before running an serveence call, otherwise a stale
                 version of the state or a cached result may be used.
                 Defaults to False.
-            flush_fit (bool, optional):
-                If True, waits for the fit op to finish executing before
-                returning. If the fit queue hasn't reached batch_size
-                yet, the fit op runs anyways. Force refreshes the
-                state after the fit op completes. Defaults to False.
+            flush_update (bool, optional):
+                If True, waits for the update op to finish executing before
+                returning. If the update queue hasn't reached batch_size
+                yet, the update op runs anyways. Force refreshes the
+                state after the update op completes. Defaults to False.
             **kwargs:
-                Keyword arguments for the infer and fit ops. You can only
+                Keyword arguments for the serve and update ops. You can only
                 pass in one pair.
 
         Raises:
@@ -408,19 +408,19 @@ class ComponentInstance:
             be disabled.
 
         Returns:
-            Awaitable[Any]: Awaitable Result of the inference call.
+            Awaitable[Any]: Awaitable Result of the serveence call.
         """
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        infer_result = await self._executor.arun(
+        serve_result = await self._executor.arun(
             key=dataflow_key,
             kwargs=kwargs,
             # value=value,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
-            flush_fit=flush_fit,
+            flush_update=flush_update,
         )  # type: ignore
 
-        return infer_result  # type: ignore
+        return serve_result  # type: ignore

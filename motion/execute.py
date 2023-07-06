@@ -10,12 +10,12 @@ import redis
 from redis.lock import Lock
 
 from motion.route import Route
-from motion.server.fit_task import FitTask
+from motion.server.update_task import UpdateTask
 from motion.utils import (
     CustomDict,
-    FitEvent,
-    FitEventGroup,
     RedisParams,
+    UpdateEvent,
+    UpdateEventGroup,
     hash_object,
     loadState,
     logger,
@@ -31,8 +31,8 @@ class Executor:
         init_state_params: Dict[str, Any],
         save_state_func: Optional[Callable],
         load_state_func: Optional[Callable],
-        infer_routes: Dict[str, Route],
-        fit_routes: Dict[str, List[Route]],
+        serve_routes: Dict[str, Route],
+        update_routes: Dict[str, List[Route]],
         disabled: bool = False,
     ):
         self._instance_name = instance_name
@@ -82,16 +82,16 @@ class Executor:
         self.version = int(self.version)
 
         # Set up routes
-        self._infer_routes: Dict[str, Route] = infer_routes
-        self._fit_routes: Dict[str, Dict[str, Route]] = {
+        self._serve_routes: Dict[str, Route] = serve_routes
+        self._update_routes: Dict[str, Dict[str, Route]] = {
             rkey: {route.udf.__name__: route for route in routes}
-            for rkey, routes in fit_routes.items()
+            for rkey, routes in update_routes.items()
         }
 
         # Set up shutdown event
         # self._shutdown_event = threading.Event()
 
-        # Set up fit queues, batch sizes, and threads
+        # Set up update queues, batch sizes, and threads
         self.disabled = disabled
         if not disabled:
             self._build_fit_jobs()
@@ -120,7 +120,7 @@ class Executor:
         return {}
 
     def _build_fit_jobs(self) -> None:
-        """Builds fit jobs."""
+        """Builds update jobs."""
         # Set up worker loops
         self.worker_tasks = {}
         # self.worker_stop_events = {}
@@ -128,11 +128,11 @@ class Executor:
         rp = RedisParams()
         # self.worker_states = {}
 
-        for rkey, routes in self._fit_routes.items():
+        for rkey, routes in self._update_routes.items():
             for udf_name, route in routes.items():
                 pname = f"{self._instance_name}::{rkey}::{udf_name}"
                 multiprocessing.Event()
-                self.worker_tasks[pname] = FitTask(
+                self.worker_tasks[pname] = UpdateTask(
                     self._instance_name,
                     route,
                     save_state_func=self._save_state_func,
@@ -162,14 +162,14 @@ class Executor:
             for pname, process in self.worker_tasks.items():
                 if not process.is_alive():
                     logger.debug(
-                        f"Failed to detect heartbeat for fit task {pname}."
+                        f"Failed to detect heartbeat for update task {pname}."
                         + " Restarting the task in the background."
                     )
                     # Restart
                     rkey = pname.split("::")[1]
                     udf_name = pname.split("::")[2]
-                    route = self._fit_routes[rkey][udf_name]
-                    self.worker_tasks[pname] = FitTask(
+                    route = self._update_routes[rkey][udf_name]
+                    self.worker_tasks[pname] = UpdateTask(
                         self._instance_name,
                         route,
                         save_state_func=self._save_state_func,
@@ -206,7 +206,7 @@ class Executor:
             return
 
         if is_open:
-            logger.info("Running fit operations on remaining data...")
+            logger.info("Running update operations on remaining data...")
 
         # Set shutdown event
         self.stop_event.set()
@@ -222,7 +222,7 @@ class Executor:
 
         self._redis_con.close()
 
-        # Join fit processes
+        # Join update processes
         for process in processes_to_wait_for:
             process.join()
 
@@ -258,50 +258,50 @@ class Executor:
             # Release lock
             lock.release()
 
-    def _enqueue_and_trigger_fit(
+    def _enqueue_and_trigger_update(
         self,
         key: str,
         kwargs: Dict[str, Any],
-        infer_result: Any,
-        flush_fit: bool,
+        serve_result: Any,
+        flush_update: bool,
         route_hit: bool,
     ) -> bool:
-        # Run the fit routes
-        # Enqueue results into fit queues
-        if key in self._fit_routes.keys():
+        # Run the update routes
+        # Enqueue results into update queues
+        if key in self._update_routes.keys():
             route_hit = True
 
-            fit_events = FitEventGroup(key)
-            for fit_udf_name in self._fit_routes[key].keys():
-                queue_identifier: str = self._get_queue_identifier(key, fit_udf_name)
+            update_events = UpdateEventGroup(key)
+            for update_udf_name in self._update_routes[key].keys():
+                queue_identifier: str = self._get_queue_identifier(key, update_udf_name)
                 channel_identifier: str = self._get_channel_identifier(
-                    key, fit_udf_name
+                    key, update_udf_name
                 )
 
                 identifier = str(uuid4())
 
-                if flush_fit:
+                if flush_update:
                     # Add pubsub channel to listen to
-                    fit_event = FitEvent(
+                    update_event = UpdateEvent(
                         self._redis_con, channel_identifier, identifier
                     )
-                    fit_events.add(fit_udf_name, fit_event)
+                    update_events.add(update_udf_name, update_event)
 
-                # Add to fit queue
+                # Add to update queue
                 self._redis_con.rpush(
                     queue_identifier,
                     cloudpickle.dumps(
                         {
                             "kwargs": kwargs,
-                            "infer_result": infer_result,
+                            "serve_result": serve_result,
                             "identifier": identifier,
                         }
                     ),
                 )
 
-            if flush_fit:
-                # Wait for fit result to finish
-                fit_events.wait()
+            if flush_update:
+                # Wait for update result to finish
+                update_events.wait()
                 # Update state
                 self._state = self._loadState()
                 v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
@@ -314,7 +314,7 @@ class Executor:
 
         return route_hit
 
-    def _try_cached_infer(
+    def _try_cached_serve(
         self,
         key: str,
         kwargs: Dict[str, Any],
@@ -322,7 +322,7 @@ class Executor:
         force_refresh: bool,
     ) -> Tuple[bool, Optional[Any], Optional[str]]:
         route_run = False
-        infer_result = None
+        serve_result = None
 
         if force_refresh:
             self._state = self._loadState()
@@ -345,10 +345,10 @@ class Executor:
         if value_hash and not force_refresh and not ignore_cache:
             cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
-                infer_result = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                serve_result = cloudpickle.loads(self._redis_con.get(cache_result_key))
                 route_run = True
 
-        return route_run, infer_result, value_hash
+        return route_run, serve_result, value_hash
 
     def run(
         self,
@@ -357,25 +357,25 @@ class Executor:
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
-        flush_fit: bool,
+        flush_update: bool,
     ) -> Any:
         route_hit = False
-        infer_result = None
+        serve_result = None
 
-        # Run the infer route
-        if key in self._infer_routes.keys():
+        # Run the serve route
+        if key in self._serve_routes.keys():
             route_hit = True
-            route_run, infer_result, value_hash = self._try_cached_infer(
+            route_run, serve_result, value_hash = self._try_cached_serve(
                 key, kwargs, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                infer_result = self._infer_routes[key].run(state=self._state, **kwargs)
+                serve_result = self._serve_routes[key].run(state=self._state, **kwargs)
 
-                # Check that infer_result is not an awaitable
-                if asyncio.iscoroutine(infer_result):
+                # Check that serve_result is not an awaitable
+                if asyncio.iscoroutine(serve_result):
                     raise TypeError(
                         f"Route {key} returned an awaitable. "
                         + "Call `await instance.arun(...)` instead."
@@ -388,20 +388,20 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(infer_result),
+                        cloudpickle.dumps(serve_result),
                         ex=cache_ttl,
                     )
 
-        # Run the fit routes
-        # Enqueue results into fit queues
-        route_hit = self._enqueue_and_trigger_fit(
-            key, kwargs, infer_result, flush_fit, route_hit
+        # Run the update routes
+        # Enqueue results into update queues
+        route_hit = self._enqueue_and_trigger_update(
+            key, kwargs, serve_result, flush_update, route_hit
         )
 
         if not route_hit:
             raise KeyError(f"Key {key} not in routes.")
 
-        return infer_result
+        return serve_result
 
     async def arun(
         self,
@@ -410,31 +410,31 @@ class Executor:
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
-        flush_fit: bool,
+        flush_update: bool,
     ) -> Any:
         route_hit = False
-        infer_result = None
+        serve_result = None
 
-        # Run the infer route
-        if key in self._infer_routes.keys():
+        # Run the serve route
+        if key in self._serve_routes.keys():
             route_hit = True
-            route_run, infer_result, value_hash = self._try_cached_infer(
+            route_run, serve_result, value_hash = self._try_cached_serve(
                 key, kwargs, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                infer_result_awaitable = self._infer_routes[key].run(
+                serve_result_awaitable = self._serve_routes[key].run(
                     state=self._state, **kwargs
                 )
-                if not asyncio.iscoroutine(infer_result_awaitable):
+                if not asyncio.iscoroutine(serve_result_awaitable):
                     raise TypeError(
                         f"Route {key} returned a non-awaitable. "
                         + "Call `instance.run(...)` instead."
                     )
 
-                infer_result = await infer_result_awaitable
+                serve_result = await serve_result_awaitable
 
                 # Cache result
                 if value_hash:
@@ -443,56 +443,56 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(infer_result),
+                        cloudpickle.dumps(serve_result),
                         ex=cache_ttl,
                     )
 
-        # Run the fit routes
-        # Enqueue results into fit queues
-        route_hit = self._enqueue_and_trigger_fit(
-            key, kwargs, infer_result, flush_fit, route_hit
+        # Run the update routes
+        # Enqueue results into update queues
+        route_hit = self._enqueue_and_trigger_update(
+            key, kwargs, serve_result, flush_update, route_hit
         )
 
         if not route_hit:
             raise KeyError(f"Key {key} not in routes.")
 
-        return infer_result
+        return serve_result
 
-    def flush_fit(self, dataflow_key: str) -> None:
-        # Check if key has fit ops
-        if dataflow_key not in self._fit_routes.keys():
+    def flush_update(self, dataflow_key: str) -> None:
+        # Check if key has update ops
+        if dataflow_key not in self._update_routes.keys():
             return
 
         # Push a noop into the relevant queues
-        fit_events = FitEventGroup(dataflow_key)
-        for fit_udf_name in self._fit_routes[dataflow_key].keys():
+        update_events = UpdateEventGroup(dataflow_key)
+        for update_udf_name in self._update_routes[dataflow_key].keys():
             queue_identifier: str = self._get_queue_identifier(
-                dataflow_key, fit_udf_name
+                dataflow_key, update_udf_name
             )
             channel_identifier: str = self._get_channel_identifier(
-                dataflow_key, fit_udf_name
+                dataflow_key, update_udf_name
             )
 
             identifier = "NOOP_" + str(uuid4())
 
             # Add pubsub channel to listen to
-            fit_event = FitEvent(self._redis_con, channel_identifier, identifier)
-            fit_events.add(fit_udf_name, fit_event)
+            update_event = UpdateEvent(self._redis_con, channel_identifier, identifier)
+            update_events.add(update_udf_name, update_event)
 
-            # Add to fit queue
+            # Add to update queue
             self._redis_con.rpush(
                 queue_identifier,
                 cloudpickle.dumps(
                     {
                         "value": None,
-                        "infer_result": None,
+                        "serve_result": None,
                         "identifier": identifier,
                     }
                 ),
             )
 
-        # Wait for fit result to finish
-        fit_events.wait()
+        # Wait for update result to finish
+        update_events.wait()
         # Update state
         self._state = self._loadState()
         v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")

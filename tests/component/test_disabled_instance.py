@@ -10,13 +10,13 @@ def setUp():
     return {"value": 0}
 
 
-@Counter.infer("number")
+@Counter.serve("number")
 def noop(state, value):
     return state["value"], value
 
 
-@Counter.fit("number")
-def increment(state, value, infer_result):
+@Counter.update("number")
+def increment(state, value, serve_result):
     return {"value": state["value"] + value}
 
 

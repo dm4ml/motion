@@ -10,27 +10,27 @@ def setUp():
     return {"value": 0}
 
 
-@C.infer("my_key")
-def infer(state):
+@C.serve("my_key")
+def serve(state):
     return state.instance_id
 
 
-def test_update_state():
+def test_write_state():
     c_instance = C()
     assert c_instance.read_state("value") == 0
-    c_instance.update_state({"value": 1, "value2": 2})
+    c_instance.write_state({"value": 1, "value2": 2})
     assert c_instance.read_state("value") == 1
     assert c_instance.read_state("value2") == 2
 
     # Test something that should fail
     with pytest.raises(TypeError):
-        c_instance.update_state(1)
+        c_instance.write_state(1)
 
     with pytest.raises(TypeError):
-        c_instance.update_state("Hello")
+        c_instance.write_state("Hello")
 
     # Should do nothing
-    c_instance.update_state({})
+    c_instance.write_state({})
 
 
 def test_read_instance_id():
