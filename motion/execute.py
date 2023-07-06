@@ -135,7 +135,7 @@ class Executor:
                 self.worker_tasks[pname] = FitTask(
                     self._instance_name,
                     route,
-                    batch_size=route.udf._batch_size,  # type: ignore
+                    # batch_size=route.udf._batch_size,  # type: ignore
                     save_state_func=self._save_state_func,
                     load_state_func=self._load_state_func,
                     queue_identifier=self._get_queue_identifier(rkey, udf_name),
@@ -173,7 +173,7 @@ class Executor:
                     self.worker_tasks[pname] = FitTask(
                         self._instance_name,
                         route,
-                        batch_size=route.udf._batch_size,  # type: ignore
+                        # batch_size=route.udf._batch_size,  # type: ignore
                         save_state_func=self._save_state_func,
                         load_state_func=self._load_state_func,
                         queue_identifier=self._get_queue_identifier(rkey, udf_name),
@@ -260,17 +260,10 @@ class Executor:
             # Release lock
             lock.release()
 
-    def empty_batch(self) -> Dict[str, List[Any]]:
-        return {
-            "fit_events": [],
-            "values": [],
-            "infer_results": [],
-        }
-
     def _enqueue_and_trigger_fit(
         self,
         key: str,
-        value: Any,
+        kwargs: Dict[str, Any],
         infer_result: Any,
         flush_fit: bool,
         route_hit: bool,
@@ -300,14 +293,11 @@ class Executor:
                 self._redis_con.rpush(
                     queue_identifier,
                     cloudpickle.dumps(
-                        (
-                            {
-                                "value": value,
-                                "infer_result": infer_result,
-                                "identifier": identifier,
-                            },
-                            flush_fit,
-                        )
+                        {
+                            "kwargs": kwargs,
+                            "infer_result": infer_result,
+                            "identifier": identifier,
+                        }
                     ),
                 )
 
@@ -329,7 +319,7 @@ class Executor:
     def _try_cached_infer(
         self,
         key: str,
-        value: Any,
+        kwargs: Dict[str, Any],
         ignore_cache: bool,
         force_refresh: bool,
     ) -> Tuple[bool, Optional[Any], Optional[str]]:
@@ -348,7 +338,7 @@ class Executor:
 
         # Try hashing the value
         try:
-            value_hash = hash_object(value)
+            value_hash = hash_object(kwargs)
         except TypeError:
             value_hash = None
 
@@ -365,7 +355,7 @@ class Executor:
     def run(
         self,
         key: str,
-        value: Any,
+        kwargs: Dict[str, Any],
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
@@ -378,15 +368,13 @@ class Executor:
         if key in self._infer_routes.keys():
             route_hit = True
             route_run, infer_result, value_hash = self._try_cached_infer(
-                key, value, ignore_cache, force_refresh
+                key, kwargs, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                infer_result = self._infer_routes[key].run(
-                    state=self._state, value=value
-                )
+                infer_result = self._infer_routes[key].run(state=self._state, **kwargs)
 
                 # Check that infer_result is not an awaitable
                 if asyncio.iscoroutine(infer_result):
@@ -409,7 +397,7 @@ class Executor:
         # Run the fit routes
         # Enqueue results into fit queues
         route_hit = self._enqueue_and_trigger_fit(
-            key, value, infer_result, flush_fit, route_hit
+            key, kwargs, infer_result, flush_fit, route_hit
         )
 
         if not route_hit:
@@ -420,7 +408,7 @@ class Executor:
     async def arun(
         self,
         key: str,
-        value: Any,
+        kwargs: Dict[str, Any],
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
@@ -433,14 +421,14 @@ class Executor:
         if key in self._infer_routes.keys():
             route_hit = True
             route_run, infer_result, value_hash = self._try_cached_infer(
-                key, value, ignore_cache, force_refresh
+                key, kwargs, ignore_cache, force_refresh
             )
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
                 infer_result_awaitable = self._infer_routes[key].run(
-                    state=self._state, value=value
+                    state=self._state, **kwargs
                 )
                 if not asyncio.iscoroutine(infer_result_awaitable):
                     raise TypeError(
@@ -464,7 +452,7 @@ class Executor:
         # Run the fit routes
         # Enqueue results into fit queues
         route_hit = self._enqueue_and_trigger_fit(
-            key, value, infer_result, flush_fit, route_hit
+            key, kwargs, infer_result, flush_fit, route_hit
         )
 
         if not route_hit:
@@ -497,14 +485,11 @@ class Executor:
             self._redis_con.rpush(
                 queue_identifier,
                 cloudpickle.dumps(
-                    (
-                        {
-                            "value": None,
-                            "infer_result": None,
-                            "identifier": identifier,
-                        },
-                        True,
-                    )
+                    {
+                        "value": None,
+                        "infer_result": None,
+                        "identifier": identifier,
+                    }
                 ),
             )
 

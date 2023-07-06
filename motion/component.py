@@ -1,8 +1,5 @@
-import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
-
-from pydantic import BaseModel
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from motion.instance import ComponentInstance
 from motion.route import Route
@@ -356,52 +353,54 @@ class Component:
                 )
 
         def decorator(func: Callable) -> Any:
-            type_hint = get_type_hints(func).get("value", None)
+            # type_hint = get_type_hints(func).get("value", None)
             if not validate_args(inspect.signature(func).parameters, "infer"):
                 raise ValueError(
-                    f"Infer function {func.__name__} should have 2 arguments "
-                    + "`state` and `value`"
+                    f"Infer function {func.__name__} should have arguments " + "`state`"
                 )
 
-            @functools.wraps(func)
-            def wrapper(state: CustomDict, value: Any) -> Any:
-                if (
-                    type_hint
-                    and inspect.isclass(type_hint)
-                    and issubclass(type_hint, BaseModel)
-                    and not isinstance(value, type_hint)
-                ):
-                    try:
-                        value = type_hint(**value)
-                    except Exception:
-                        raise ValueError(
-                            f"value argument must be of type {type_hint.__name__}"
-                        )
-
-                return func(state, value)
-
-            wrapper._op = "infer"  # type: ignore
+            func._op = "infer"  # type: ignore
 
             for key in keys:
-                self.add_route(key, wrapper._op, wrapper)  # type: ignore
+                self.add_route(key, func._op, func)  # type: ignore
 
-            return wrapper
+            return func
+
+            # @functools.wraps(func)
+            # def wrapper(state: CustomDict, value: Any) -> Any:
+            #     if (
+            #         type_hint
+            #         and inspect.isclass(type_hint)
+            #         and issubclass(type_hint, BaseModel)
+            #         and not isinstance(value, type_hint)
+            #     ):
+            #         try:
+            #             value = type_hint(**value)
+            #         except Exception:
+            #             raise ValueError(
+            #                 f"value argument must be of type {type_hint.__name__}"
+            #             )
+
+            #     return func(state, value)
+
+            # wrapper._op = "infer"  # type: ignore
+
+            # for key in keys:
+            #     self.add_route(key, wrapper._op, wrapper)  # type: ignore
+
+            # return wrapper
 
         return decorator
 
-    def fit(self, keys: Union[str, List[str]], batch_size: int = 1) -> Any:
+    def fit(self, keys: Union[str, List[str]]) -> Any:
         """Decorator for any fit dataflows through the component. Takes
         in a string that represents the input keyword for the fit op.
         Only executes the fit op (function) when the batch size is reached.
 
-        3 arguments required for a fit operation:
+        2 arguments required for a fit operation:
             - `state`: The current state of the component, represented as a
             dictionary.
-            - `values`: A list of values passed in through a `c.run` call with
-            the `key` argument. Of length `batch_size`.
-            - `infer_results`: A list of the results from the infer ops that
-            correspond to the values in the `values` argument. Of length
-            `batch_size`.
+            - `infer_result`: The result from the infer op that occurred before.
 
         Components can have multiple fit ops, and the same key can also have
         multiple fit ops. Fit functions should return a dictionary
@@ -463,12 +462,12 @@ class Component:
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "fit"):
                 raise ValueError(
-                    f"Fit method {func.__name__} should have 3 arguments: "
-                    + "`state`, `values`, and `infer_results`."
+                    f"Fit method {func.__name__} should have >= 2 arguments: "
+                    + "`state` and `infer_result`."
                 )
 
             # func._input_key = key  # type: ignore
-            func._batch_size = batch_size  # type: ignore
+            # func._batch_size = batch_size  # type: ignore
             func._op = "fit"  # type: ignore
 
             for key in keys:
@@ -581,7 +580,7 @@ class Component:
                     {
                         "name": route.udf.__name__,
                         "udf": inspect.getsource(route.udf),
-                        "batch_size": route.udf._batch_size,  # type: ignore
+                        # "batch_size": route.udf._batch_size,  # type: ignore
                     }
                 )
 
@@ -667,7 +666,7 @@ class Component:
                         "data": {
                             "label": fit["name"],
                             "udf": fit["udf"],
-                            "batch_size": fit["batch_size"],
+                            # "batch_size": fit["batch_size"],
                         },
                         "type": "fit",
                     }
@@ -680,7 +679,7 @@ class Component:
                             "source": fit_node["id"],
                             "sourceHandle": "top",
                             "animated": True,  # type: ignore
-                            "label": f"batch_size: {fit['batch_size']}",
+                            # "label": f"batch_size: {fit['batch_size']}",
                         }
                     )
 

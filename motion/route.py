@@ -1,6 +1,7 @@
-from typing import Any, Callable
+import inspect
+from typing import Any, Callable, Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 class Route(BaseModel):
@@ -8,11 +9,19 @@ class Route(BaseModel):
     op: str = Field(..., description="The operation to perform.", regex="^(infer|fit)$")
     udf: Callable = Field(
         ...,
-        description="The udf to call for the op. The udf should have 2 args:"
-        + " `state` and `value` for `infer` and 3 arguments: `state`, "
-        + "`values`, and `infer_results` for `fit`.",
+        description="The udf to call for the op. The udf should have at least "
+        + "a `state` argument.",
     )
+    _udf_params: Dict[str, Any] = PrivateAttr()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        udf_params = inspect.signature(self.udf).parameters
+        self._udf_params = {param: udf_params[param].default for param in udf_params}
 
     def run(self, **kwargs: Any) -> Any:
-        result = self.udf(**kwargs)
+        filtered_kwargs = {
+            param: kwargs[param] for param in self._udf_params if param in kwargs
+        }
+        result = self.udf(**filtered_kwargs)
         return result

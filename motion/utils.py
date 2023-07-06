@@ -154,15 +154,11 @@ class CustomDict(dict):
 
 
 def validate_args(parameters: Any, op: str) -> bool:
-    expected_args = (
-        ["state", "values", "infer_results"] if op == "fit" else ["state", "value"]
-    )
-    if len(parameters) != len(expected_args):
+    if "state" not in parameters.keys():
         return False
 
-    for param_name, _ in parameters.items():
-        if param_name not in expected_args:
-            return False
+    if op == "fit" and "infer_result" not in parameters.keys():
+        return False
 
     return True
 

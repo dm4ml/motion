@@ -257,12 +257,13 @@ class ComponentInstance:
 
     def run(
         self,
-        *,
+        # *,
+        dataflow_key: str,
+        kwargs: Dict[str, Any],
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
-        **kwargs: Any,
     ) -> Any:
         """Runs the dataflow (infer and fit ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
@@ -308,6 +309,9 @@ class ComponentInstance:
 
 
         Args:
+            dataflow_key (str): Key of the dataflow to run.
+            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
@@ -323,14 +327,6 @@ class ComponentInstance:
                 returning. If the fit queue hasn't reached batch_size
                 yet, the fit op runs anyways. Force refreshes the
                 state after the fit op completes. Defaults to False.
-            **kwargs:
-                Keyword arguments for the infer and fit ops. You can only
-                pass in one pair.
-
-        Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
-            RuntimeError: If the component instance was initialized to
-            be disabled.
 
         Returns:
             Any: Result of the inference call. Might take a long time
@@ -340,14 +336,9 @@ class ComponentInstance:
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        if len(kwargs) != 1:
-            raise ValueError("Only one key-value pair is allowed in kwargs.")
-
-        key, value = next(iter(kwargs.items()))
-
         infer_result = self._executor.run(
-            key=key,
-            value=value,
+            key=dataflow_key,
+            kwargs=kwargs,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
@@ -358,12 +349,13 @@ class ComponentInstance:
 
     async def arun(
         self,
-        *,
+        # *,
+        dataflow_key: str,
+        kwargs: Dict[str, Any],
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_fit: bool = False,
-        **kwargs: Any,
     ) -> Awaitable[Any]:
         """Async version of run. Runs the dataflow (infer and fit ops) for the .
         keyword argument.
@@ -389,6 +381,9 @@ class ComponentInstance:
         ```
 
         Args:
+            dataflow_key (str): Key of the dataflow to run.
+            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the inference result should live in a cache (in
                 seconds). Defaults to 1 day (60 * 60 * 24).
@@ -419,14 +414,10 @@ class ComponentInstance:
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
 
-        if len(kwargs) != 1:
-            raise ValueError("Only one key-value pair is allowed in kwargs.")
-
-        key, value = next(iter(kwargs.items()))
-
         infer_result = await self._executor.arun(
-            key=key,
-            value=value,
+            key=dataflow_key,
+            kwargs=kwargs,
+            # value=value,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
