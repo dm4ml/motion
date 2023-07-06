@@ -15,9 +15,9 @@ def noop(state, value):
     return state["value"], value
 
 
-@Counter.fit("number", batch_size=1)
-def increment(state, values, infer_results):
-    return {"value": state["value"] + sum(values)}
+@Counter.fit("number")
+def increment(state, value, infer_result):
+    return {"value": state["value"] + value}
 
 
 # Create enabled component in a subprocess
@@ -30,7 +30,7 @@ def test_disabled():
     # Create disabled component
     c = Counter(disabled=True)
     with pytest.raises(RuntimeError):
-        c.run(number=1)
+        c.run("number", kwargs={"value": 1})
 
     process = multiprocessing.Process(target=counter_process)
     process.start()
