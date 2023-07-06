@@ -9,13 +9,12 @@ nav:
       - Installation: getting-started/installation.md
       - Concepts: getting-started/concepts.md
   - Examples:
-      - Design Patterns: examples/design-patterns.md
+      - Hello World: examples/hello-world.md
+      - Common Design Patterns: examples/design-patterns.md
       - Querying Data with Natural Language: examples/nl-query.md
-      - Fine-tuning a CLIP model: examples/clip-finetuning.md
   - API Reference:
       - Component: api/component.md
       - ComponentInstance: api/component-instance.md
-      - FitEventGroup: api/fit-event-group.md
       - StateMigrator: api/state-migrator.md
   - Helpful Tools:
       - Component Visualization: tools/vis.md

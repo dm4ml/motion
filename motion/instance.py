@@ -69,8 +69,10 @@ class ComponentInstance:
 
     @property
     def instance_name(self) -> str:
-        """Component name with a random phrase or user-defined ID to represent
-        the name of this instance."""
+        """Component name with a random phrase to represent
+        the name of this instance.
+        In the form of componentname__randomphrase.
+        """
         return self._instance_name
 
     @property
@@ -95,10 +97,11 @@ class ComponentInstance:
 
         # Define infer and fit operations
 
-        c_instance = C()
-        c_instance.run(...)
-        c_instance.run(...)
-        c_instance.shutdown()
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.run(...)
+            c_instance.run(...)
+            c_instance.shutdown()
         ```
         """
         if self.disabled:
@@ -133,8 +136,9 @@ class ComponentInstance:
 
         # Define infer and fit operations
 
-        c_instance = C()
-        c_instance.get_version() # Returns 1 (first version)
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.get_version() # Returns 1 (first version)
         ```
         """
         return self._executor.version  # type: ignore
@@ -224,20 +228,21 @@ class ComponentInstance:
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add", batch_size=2)
-        def add(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        @C.fit("add")
+        def add(state, value, infer_result):
+            return {"value": state["value"] + value}
 
         @C.infer("multiply")
         def multiply(state, value):
             return state["value"] * value
 
-        c = C() # Create instance of C
-        c.run(add=1)
-        c.flush_fit("add") # (1)!
-        c.run(add=2) # This will use the updated state
+        if __name__ == "__main__":
+            c = C() # Create instance of C
+            c.run("add", kwargs={"value": 1})
+            c.flush_fit("add") # (1)!
+            c.run("add", kwargs={"value": 2}) # This will use the updated state
 
-        # 1. Runs the fit op even though only one element is in the batch
+        # 1. Waits for the fit op to finish, then updates the state
         ```
 
         Args:
@@ -264,8 +269,7 @@ class ComponentInstance:
     ) -> Any:
         """Runs the dataflow (infer and fit ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
-        is raised. Only one keyword argument should be passed in.
-        Fit ops are only executed when the batch size is reached.
+        is raised. Only one dataflow key should be passed in.
 
         Example Usage:
         ```python
@@ -281,27 +285,25 @@ class ComponentInstance:
         def add(state, value):
             return state["value"] + value
 
-        @C.fit("add", batch_size=2)
-        def add(state, values, infer_results):
-            return {"value": state["value"] + sum(values)}
+        @C.fit("add")
+        def add(state, value, infer_result):
+            return {"value": state["value"] + value}
 
-        @C.infer("multiply")
-        def multiply(state, value):
-            return state["value"] * value
+        if __name__ == "__main__":
+            c = C() # Create instance of C
+            c.run("add", kwargs={"value": 1}, flush_fit=True) # (1)!
+            c.run("add", kwargs={"value": 1}) # Returns 1
+            c.run("add", kwargs={"value": 2}, flush_fit=True) # (2)!
 
-        c = C() # Create instance of C
-        c.run(add=1, flush_fit=True) # (1)!
-        c.run(add=1) # Returns 1
-        c.run(add=2, flush_fit=True) # Returns 2, result state["value"] = 4
-        # Previous line called fit function and flushed fit queue
-        c.run(add=3) # No fit op runs since batch size = 1
-        c.run(multiply=2) # Returns 8 since state["value"] = 4
-        c.run(multiply=3, flush_fit=True) # (2)!
+            c.run("add", kwargs={"value": 3})
+            time.sleep(3) # Wait for the previous fit op to finish
 
-        # 1. This forces the fit op to run even though the batch size
-        #   isn't reached, and waits for the fit op to finish running
-        # 2. This doesn't force or wait for any fit ops, since there are
-        #   no fit ops defined for `multiply`
+            c.run("add", kwargs={"value": 3}, force_refresh=True) # (3)!
+
+        # 1. Waits for the fit op to finish, then updates the state
+        # 2. Returns 2, result state["value"] = 4
+        # 3. Force refreshes the state before running the dataflow, and
+        #    reruns the infer op even though the result might be cached.
         ```
 
 
@@ -354,8 +356,8 @@ class ComponentInstance:
         force_refresh: bool = False,
         flush_fit: bool = False,
     ) -> Awaitable[Any]:
-        """Async version of run. Runs the dataflow (infer and fit ops) for the .
-        keyword argument.
+        """Async version of run. Runs the dataflow (infer and fit ops) for the
+        specified key.
 
         Example Usage:
         ```python
@@ -371,7 +373,7 @@ class ComponentInstance:
 
         async def main():
             c = C()
-            await c.arun(sleep=1)
+            await c.arun("sleep", kwargs={"value": 1})
 
         if __name__ == "__main__":
             asyncio.run(main())

@@ -8,7 +8,7 @@ Motion is a lightweight **framework** for building machine learning (ML) applica
 
 ## Why Motion?
 
-While building an ML application demo is easier than ever thanks to state-of-the-art models and open-source libraries, making sure ML applications _update with new data over time_ is still a challenge. As a result, developers painstakingly stitch together and maintain pipelines that run on a schedule (e.g., fine-tuning, updating indexes).
+While building an ML application demo is easier than ever thanks to state-of-the-art models and open-source libraries, making sure ML applications _update with new data over time_ is still a challenge. As a result, developers painstakingly stitch together data tools and maintain pipelines that run on a schedule (e.g., fine-tuning, updating indexes).
 
 With Motion, a dataflow-based framework, your state is automatically updated in the background when you run your pipelines on new data. Moreover, multiple pipelines can easily share the same state.
 
