@@ -40,23 +40,23 @@ def load(state):
     return {"cursor": cursor, "fit_count": state["fit_count"]}
 
 
-@c.infer("count")
+@c.serve("count")
 def execute_fn(state, value):
     return state["cursor"].execute("SELECT COUNT(*) FROM users").fetchall()
 
 
-@c.infer("something")
+@c.serve("something")
 def noop(state, value):
     return state["fit_count"]
 
 
-@c.fit("something")
-def increment(state, value, infer_result):
+@c.update("something")
+def increment(state, value, serve_result):
     return {"fit_count": state["fit_count"] + 1}
 
 
 def test_db_component():
     c_instance = c()
     assert c_instance.run("count", kwargs={"value": 1}) == [(2,)]
-    c_instance.run("something", kwargs={"value": 1}, flush_fit=True)
+    c_instance.run("something", kwargs={"value": 1}, flush_update=True)
     assert c_instance.run("something", kwargs={"value": 5}) == 1

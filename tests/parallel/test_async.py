@@ -11,24 +11,24 @@ def setup():
     return {"value": 1}
 
 
-@Counter.infer("multiply")
+@Counter.serve("multiply")
 async def noop(state, value):
     await asyncio.sleep(0.5)
     return state["value"] * value
 
 
-@Counter.infer("sync_multiply")
+@Counter.serve("sync_multiply")
 def sync_noop(state, value):
     return state["value"] * value
 
 
-@Counter.fit("multiply")
-async def increment(state, value, infer_result):
+@Counter.update("multiply")
+async def increment(state, value, serve_result):
     return {"value": state["value"] + 1}
 
 
 @pytest.mark.asyncio
-async def test_async_infer():
+async def test_async_serve():
     c = Counter()
     assert await c.arun("multiply", kwargs={"value": 2}) == 2
 
@@ -42,10 +42,10 @@ async def test_async_infer():
 
 
 @pytest.mark.asyncio
-async def test_async_fit():
+async def test_async_update():
     c = Counter()
 
-    await c.arun("multiply", kwargs={"value": 2}, flush_fit=True)
+    await c.arun("multiply", kwargs={"value": 2}, flush_update=True)
     assert c.read_state("value") == 2
 
 
@@ -62,7 +62,7 @@ async def test_gather():
     await asyncio.gather(*tasks)
 
     # Flush instance
-    c.flush_fit("multiply")
+    c.flush_update("multiply")
 
     # Assert new state
     assert c.read_state("value") == 101

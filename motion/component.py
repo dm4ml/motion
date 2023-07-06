@@ -20,20 +20,20 @@ class Component:
         def setUp():
             return {"value": 0}
 
-        @AdderComponent.infer("add")
+        @AdderComponent.serve("add")
         def plus(state, value):
             return state["value"] + value
 
-        @AdderComponent.fit("add")
-        def add(state, value, infer_result):
+        @AdderComponent.update("add")
+        def add(state, value, serve_result):
             return {"value": state["value"] + value}
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run("add", kwargs={"value": 1}, flush_fit=True) # Blocks until fit
-            # is done. Resulting state is {"value": 1}
+            c.run("add", kwargs={"value": 1}, flush_update=True) # Blocks
+            # until update is done. Resulting state is {"value": 1}
             c.run("add", kwargs={"value": 2}) # Will return 3, not waiting
-            # for fit operation.
+            # for update operation.
             # Resulting state will eventually be {"value": 3}
         ```
 
@@ -47,32 +47,32 @@ class Component:
         def setUp():
             return {"value": 0}
 
-        @Calculator.infer("add")
+        @Calculator.serve("add")
         def plus(state, value):
             return state["value"] + value
 
-        @Calculator.fit("add")
-        def increment(state, infer_result, value):
+        @Calculator.update("add")
+        def increment(state, serve_result, value):
             return {"value": state["value"] + value}
 
-        @Calculator.infer("subtract")
+        @Calculator.serve("subtract")
         def minus(state, value):
             return state["value"] - value
 
-        @Calculator.fit("subtract")
-        def decrement(state, infer_result, value):
+        @Calculator.update("subtract")
+        def decrement(state, serve_result, value):
             return {"value": state["value"] - value}
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run("add", kwargs={"value": 1}, flush_fit=True) # Will return 1,
-            # blocking until fit is done. Resulting state is {"value": 1}
-            c.run("subtract", kwargs={"value": 1}, flush_fit=True)
-            # Will return 0, blocking until fit is done. Resulting state is #
+            c.run("add", kwargs={"value": 1}, flush_update=True) # Will return 1,
+            # blocking until update is done. Resulting state is {"value": 1}
+            c.run("subtract", kwargs={"value": 1}, flush_update=True)
+            # Will return 0, blocking until update is done. Resulting state is #
             # {"value": 0}
         ```
 
-    === "Batching Fit Operations"
+    === "Batching update operations"
 
         ```python
         from motion import Component
@@ -85,30 +85,30 @@ class Component:
             return {
                 "model": YOUR_MODEL_HERE,
                 "historical_values": [],
-                "historical_infer_results": []
+                "historical_serve_results": []
             }
 
-        @MLMonitor.infer("features")
+        @MLMonitor.serve("features")
         def predict(state, value):
             return state["model"].predict(value)
 
-        @MLMonitor.fit("features")
-        def monitor(state, value, infer_result):
+        @MLMonitor.update("features")
+        def monitor(state, value, serve_result):
 
             values = state["historical_values"] + [value]
-            infer_results = state["historical_infer_results"] + [infer_result]
+            serve_results = state["historical_serve_results"] + [serve_result]
 
             # Check drift every 10 values
             if len(values) == 10:
-                if YOUR_ANOMALY_ALGORITHM(values, infer_results):
+                if YOUR_ANOMALY_ALGORITHM(values, serve_results):
                     # Fire an alert
                     YOUR_ALERT_FUNCTION()
                 values = []
-                infer_results = []
+                serve_results = []
 
             return {
                 "historical_values": values,
-                "historical_infer_results": infer_results
+                "historical_serve_results": serve_results
             }
 
         if __name__ == "__main__":
@@ -136,8 +136,8 @@ class Component:
         self._params = CustomDict(name, "params", "", params)
 
         # Set up routes
-        self._infer_routes: Dict[str, Route] = {}
-        self._fit_routes: Dict[str, List[Route]] = {}
+        self._serve_routes: Dict[str, Route] = {}
+        self._update_routes: Dict[str, List[Route]] = {}
         self._init_state_func: Optional[Callable] = None
         self._save_state_func: Optional[Callable] = None
         self._load_state_func: Optional[Callable] = None
@@ -160,18 +160,18 @@ class Component:
         return self._name
 
     def add_route(self, key: str, op: str, udf: Callable) -> None:
-        if op == "infer":
-            if key in self._infer_routes.keys():
+        if op == "serve":
+            if key in self._serve_routes.keys():
                 raise ValueError(
-                    f"Cannot have more than one infer route for key `{key}`."
+                    f"Cannot have more than one serve route for key `{key}`."
                 )
 
-            self._infer_routes[key] = Route(key=key, op=op, udf=udf)
-        elif op == "fit":
-            if key not in self._fit_routes.keys():
-                self._fit_routes[key] = []
+            self._serve_routes[key] = Route(key=key, op=op, udf=udf)
+        elif op == "update":
+            if key not in self._update_routes.keys():
+                self._update_routes[key] = []
 
-            self._fit_routes[key].append(Route(key=key, op=op, udf=udf))
+            self._update_routes[key].append(Route(key=key, op=op, udf=udf))
 
         else:
             raise ValueError(f"Invalid op `{op}`.")
@@ -193,7 +193,7 @@ class Component:
         def setUp():
             return {"value": 0}
 
-        @MyComponent.infer("add")
+        @MyComponent.serve("add")
         def plus(state, value):
             # Access params with MyComponent.params["param_name"]
             return state["value"] + value + MyComponent.params["param1"] +
@@ -286,22 +286,20 @@ class Component:
         self._load_state_func = func
         return func
 
-    def infer(self, keys: Union[str, List[str]]) -> Callable:
-        """Decorator for any infer operation for a dataflow through the
+    def serve(self, keys: Union[str, List[str]]) -> Callable:
+        """Decorator for any serve operation for a dataflow through the
         component. Takes in a string or list of strings that represents the
         dataflow key. If the decorator is called with a list of strings, each
-        dataflow key will be mapped to the same infer function.
+        dataflow key will be mapped to the same serve function.
 
-        2 arguments required for an infer operation:
+        1 argument required for an serve operation:
             * `state`: The current state of the component, which is a
-                dictionary with string keys and any type values.
-            * `value`: The value passed in through a `c.run` call with the
-                `key` argument.
+                dictionary with string keys and any-type values.
 
-        Components can have multiple infer ops, but no dataflow key within
-        the component can have more than one infer op. Infer ops should not
+        Components can have multiple serve ops, but no dataflow key within
+        the component can have more than one serve op. serve ops should not
         modify the state object. If you want to modify the state object, use
-        the `fit` decorator.
+        the `update` decorator.
 
         Example Usage:
         ```python
@@ -313,25 +311,25 @@ class Component:
         def setUp():
             return {"value": 0}
 
-        @MyComponent.infer("add")
+        @MyComponent.serve("add")
         def add(state, value):
             return state["value"] + value
 
-        @MyComponent.infer("multiply")
+        @MyComponent.serve("multiply")
         def multiply(state, value):
             return state["value"] * value
 
         c = MyComponent()
-        c.run("add", kwargs={"value": 1}, flush_fit=True) # Returns 1
+        c.run("add", kwargs={"value": 1}, flush_update=True) # Returns 1
         c.run("multiply", kwargs={"value": 2}) # Returns 2
         ```
 
         Args:
             keys (Union[str, List[str]]): String or list of strings that
-                represent the input keyword(s) for the infer dataflow.
+                represent the input keyword(s) for the serve dataflow.
 
         Returns:
-            Callable: Decorated infer function.
+            Callable: Decorated serve function.
         """
         if isinstance(keys, str):
             keys = [keys]
@@ -344,12 +342,12 @@ class Component:
 
         def decorator(func: Callable) -> Any:
             # type_hint = get_type_hints(func).get("value", None)
-            if not validate_args(inspect.signature(func).parameters, "infer"):
+            if not validate_args(inspect.signature(func).parameters, "serve"):
                 raise ValueError(
-                    f"Infer function {func.__name__} should have arguments " + "`state`"
+                    f"serve function {func.__name__} should have arguments " + "`state`"
                 )
 
-            func._op = "infer"  # type: ignore
+            func._op = "serve"  # type: ignore
 
             for key in keys:
                 self.add_route(key, func._op, func)  # type: ignore
@@ -358,19 +356,19 @@ class Component:
 
         return decorator
 
-    def fit(self, keys: Union[str, List[str]]) -> Any:
-        """Decorator for any fit operations for dataflows through the
+    def update(self, keys: Union[str, List[str]]) -> Any:
+        """Decorator for any update operations for dataflows through the
         component. Takes in a string or list of strings that represents the
         dataflow key. If the decorator is called with a list of strings, each
-        dataflow key will be mapped to the same fit operation.
+        dataflow key will be mapped to the same update operation.
 
-        2 arguments required for a fit operation:
+        2 arguments required for a update operation:
             - `state`: The current state of the component, represented as a
             dictionary.
-            - `infer_result`: The result from the infer op that occurred before.
+            - `serve_result`: The result from the serve op that occurred before.
 
-        Components can have multiple fit ops, and the same key can also have
-        multiple fit ops. Fit functions should return a dictionary
+        Components can have multiple update ops, and the same key can also have
+        multiple update ops. Update functions should return a dictionary
         of state updates to be merged with the current state.
 
         Example Usage:
@@ -383,22 +381,22 @@ class Component:
         def setUp():
             return {"value": 0}
 
-        @MyComponent.fit("add")
+        @MyComponent.update("add")
         def add(state, values):
             return {"value": state["value"] + sum(values)}
 
-        @MyComponent.infer("multiply")
+        @MyComponent.serve("multiply")
         def multiply(state, value):
             return state["value"] * value
 
-        @MyComponent.fit("multiply")
-        def multiply(state, infer_result, value):
+        @MyComponent.update("multiply")
+        def multiply(state, serve_result, value):
             return state["value"] * value
 
         c = MyComponent()
-        c.run("add", kwargs={"value": 1}, flush_fit=True) # Returns 1
-        c.run("multiply", kwargs={"value": 2}) # Returns 2, fit not executed yet
-        c.run("multiply", kwargs={"value": 3}) # Returns 3, fit will execute
+        c.run("add", kwargs={"value": 1}, flush_update=True) # Returns 1
+        c.run("multiply", kwargs={"value": 2}) # Returns 2, update not executed yet
+        c.run("multiply", kwargs={"value": 3}) # Returns 3, update will execute
         # to get state["value"] = 6
         # Some time later...
         c.run("multiply", kwargs={"value": 4}) # Returns 24
@@ -406,31 +404,31 @@ class Component:
 
         Args:
             keys (Union[str, List[str]]): String or list of strings that
-                represent the input keyword(s) for the fit dataflow.
+                represent the input keyword(s) for the update dataflow.
 
         Returns:
-            Callable: Decorated fit function.
+            Callable: Decorated update function.
         """
         frame = inspect.currentframe().f_back  # type: ignore
         fname = frame.f_code.co_name  # type: ignore
         if fname != "<module>":
             raise ValueError(
-                f"Component {self.name} fit method must be defined in a module "
+                f"Component {self.name} update method must be defined in a module "
                 + f"context. It's currently initialized from function {fname}."
             )
         if isinstance(keys, str):
             keys = [keys]
 
         def decorator(func: Callable) -> Any:
-            if not validate_args(inspect.signature(func).parameters, "fit"):
+            if not validate_args(inspect.signature(func).parameters, "update"):
                 raise ValueError(
                     f"Fit method {func.__name__} should have >= 2 arguments: "
-                    + "`state` and `infer_result`."
+                    + "`state` and `serve_result`."
                 )
 
             # func._input_key = key  # type: ignore
             # func._batch_size = batch_size  # type: ignore
-            func._op = "fit"  # type: ignore
+            func._op = "update"  # type: ignore
 
             for key in keys:
                 self.add_route(key, func._op, func)  # type: ignore
@@ -459,11 +457,11 @@ class Component:
         def setUp(starting_val):
             return {"value": starting_val}
 
-        # Define infer and fit operations
-        @MyComponent.infer("key1")
+        # Define serve and update operations
+        @MyComponent.serve("key1")
         def ...
 
-        @MyComponent.fit("key1)
+        @MyComponent.update("key1)
         def ...
 
         # Creates instance of MyComponent
@@ -506,8 +504,8 @@ class Component:
                 init_state_params=init_state_params,
                 save_state_func=self._save_state_func,
                 load_state_func=self._load_state_func,
-                infer_routes=self._infer_routes,
-                fit_routes=self._fit_routes,
+                serve_routes=self._serve_routes,
+                update_routes=self._update_routes,
                 logging_level=logging_level,
                 disabled=disabled,
             )
@@ -521,25 +519,25 @@ class Component:
 
     def get_graph(self, x_offset_step: int = 600) -> Dict[str, Any]:
         """
-        Gets the graph of infer and fit ops for this component.
+        Gets the graph of serve and update ops for this component.
         """
 
         graph: Dict[str, Dict[str, Any]] = {}
 
-        for key, route in self._infer_routes.items():
+        for key, route in self._serve_routes.items():
             graph[key] = {
-                "infer": {
+                "serve": {
                     "name": route.udf.__name__,
                     "udf": inspect.getsource(route.udf),
                 },
             }
 
-        for key, routes in self._fit_routes.items():
+        for key, routes in self._update_routes.items():
             if key not in graph:
                 graph[key] = {}
-            graph[key]["fit"] = []
+            graph[key]["update"] = []
             for route in routes:
-                graph[key]["fit"].append(
+                graph[key]["update"].append(
                     {
                         "name": route.udf.__name__,
                         "udf": inspect.getsource(route.udf),
@@ -583,55 +581,55 @@ class Component:
             nodes.append(key_node)
             node_id += 1
 
-            # Assign x position for infer nodes
-            infer_x_offset = x_offset
+            # Assign x position for serve nodes
+            serve_x_offset = x_offset
 
-            if "infer" in value.keys():
-                # Add infer node
-                infer_node = {
+            if "serve" in value.keys():
+                # Add serve node
+                serve_node = {
                     "id": str(node_id),
-                    "position": {"x": infer_x_offset, "y": key_y_position},
+                    "position": {"x": serve_x_offset, "y": key_y_position},
                     "data": {
-                        "label": value["infer"]["name"],
-                        "udf": value["infer"]["udf"],
+                        "label": value["serve"]["name"],
+                        "udf": value["serve"]["udf"],
                     },
-                    "type": "infer",
+                    "type": "serve",
                 }
-                nodes.append(infer_node)
+                nodes.append(serve_node)
                 edges.append(
                     {
-                        "id": "e{}-{}".format(key_node["id"], infer_node["id"]),
+                        "id": "e{}-{}".format(key_node["id"], serve_node["id"]),
                         "source": key_node["id"],
-                        "target": infer_node["id"],
+                        "target": serve_node["id"],
                         "targetHandle": "left",
                     }
                 )
                 edges.append(
                     {
-                        "id": "e{}-{}".format(state_node["id"], infer_node["id"]),
+                        "id": "e{}-{}".format(state_node["id"], serve_node["id"]),
                         "source": state_node["id"],
-                        "target": infer_node["id"],
+                        "target": serve_node["id"],
                         "targetHandle": "top",
                     }
                 )
                 node_id += 1
 
-            # Assign x position for fit nodes
-            infer_x_offset += x_offset_step
-            fit_x_offset = infer_x_offset
+            # Assign x position for update nodes
+            serve_x_offset += x_offset_step
+            fit_x_offset = serve_x_offset
 
-            if "fit" in value.keys():
-                for fit in value["fit"]:
-                    # Add fit node
+            if "update" in value.keys():
+                for update in value["update"]:
+                    # Add update node
                     fit_node = {
                         "id": str(node_id),
                         "position": {"x": fit_x_offset, "y": key_y_position},
                         "data": {
-                            "label": fit["name"],
-                            "udf": fit["udf"],
+                            "label": update["name"],
+                            "udf": update["udf"],
                             # "batch_size": fit["batch_size"],
                         },
-                        "type": "fit",
+                        "type": "update",
                     }
                     nodes.append(fit_node)
 
@@ -646,11 +644,11 @@ class Component:
                         }
                     )
 
-                    if "infer" in value.keys():
+                    if "serve" in value.keys():
                         edges.append(
                             {
-                                "id": "e{}-{}".format(infer_node["id"], fit_node["id"]),
-                                "source": infer_node["id"],
+                                "id": "e{}-{}".format(serve_node["id"], fit_node["id"]),
+                                "source": serve_node["id"],
                                 "sourceHandle": "right",
                                 "target": fit_node["id"],
                                 "targetHandle": "left",

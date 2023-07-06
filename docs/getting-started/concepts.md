@@ -8,18 +8,18 @@ When a component instance is first created, an `init` function initializes the c
 
 Components can have multiple dataflows that read and update the state. A dataflow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
 
-- **Infer**: a function that takes in (1) the current state dictionary and (2) any keyword arguments, then returns a result back to the user.
+- **serve**: a function that takes in (1) the current state dictionary and (2) any keyword arguments, then returns a result back to the user.
 
-- **Fit**: a function that runs in the background and takes in (1) the current state dictionary, (2) the result from the infer operation, and (3) any keyword arguments. It returns any updates to the state, which can be used in future operations.
+- **update**: a function that runs in the background and takes in (1) the current state dictionary, (2) the result from the serve operation, and (3) any keyword arguments. It returns any updates to the state, which can be used in future operations.
 
-Infer operations do not modify the state, while fit operations do.
+serve operations do not modify the state, while update operations do.
 
 ### Things to Keep in Mind
 
-- The `infer` operation is run on the main thread, while the `fit` operation is run in the background. You directly get access to `infer` results, but `fit` results are not accessible unless you read values from the state dictionary.
-- Components can only have one infer operation per key.
-- Components can have many dataflows, each with their own key, infer operation, and fit operation(s).
-- `Infer` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same dataflow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
+- The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
+- Components can only have one serve operation per key.
+- Components can have many dataflows, each with their own key, serve operation, and update operation(s).
+- `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same dataflow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
 
 ## Example Component
 
@@ -37,15 +37,15 @@ def setUp():
     return {"mean": None, "std": None, "values": []}
 
 
-@ZScoreComponent.infer("number")
-def infer(state, value):  # (1)!
+@ZScoreComponent.serve("number")
+def serve(state, value):  # (1)!
     if state["mean"] is None:
         return None
     return abs(value - state["mean"]) / state["std"]
 
 
-@ZScoreComponent.fit("number")
-def fit(state, infer_result, value):  # (2)!
+@ZScoreComponent.update("number")
+def update(state, serve_result, value):  # (2)!
     # We don't do anything with the results, but we could!
     value_list = state["values"]
     value_list.append(value)
@@ -68,19 +68,19 @@ if __name__ == "__main__":
     for i in range(9):
         print(c.run("number", kwargs={"value": i}))  # (1)!
 
-    c.run("number", kwargs={"value": 9}, flush_fit=True)  # (2)!
+    c.run("number", kwargs={"value": 9}, flush_update=True)  # (2)!
     for i in range(10, 19):
         print(c.run("number", kwargs={"value": i}))  # (3)!
 
     print(c.run("number", kwargs={"value": 10})) # (4)!
-    time.sleep(5)  # Give time for the second fit to finish
+    time.sleep(5)  # Give time for the second update to finish
     print(c.run("number", kwargs={"value": 10}, force_refresh=True))
 ```
 
 1. The first few runs might return None, as the mean and std are not yet initialized.
-2. This will block until the resulting fit operation has finished running. Fit ops run in the order that dataflows were executed (i.e., the fit op for number 8 will run before the fit op for number 9).
-3. This uses the updated state dictionary from the previous run operation, since `flush_fit` also updates the state.
-4. This uses the cached result for 10. To ignore the cached result and rerun the infer op with a (potentially old) state, we should call `c.run("number", kwargs={"value": 10}, ignore_cache=True)`. To make sure we have the latest state, we can call `c.run("number", kwargs={"value": 10}, force_refresh=True)`.
+2. This will block until the resulting update operation has finished running. update ops run in the order that dataflows were executed (i.e., the update op for number 8 will run before the update op for number 9).
+3. This uses the updated state dictionary from the previous run operation, since `flush_update` also updates the state.
+4. This uses the cached result for 10. To ignore the cached result and rerun the serve op with a (potentially old) state, we should call `c.run("number", kwargs={"value": 10}, ignore_cache=True)`. To make sure we have the latest state, we can call `c.run("number", kwargs={"value": 10}, force_refresh=True)`.
 
 The output of the above code is:
 
@@ -108,7 +108,7 @@ None
 0.03327787021630613
 ```
 
-Note that the `fit` operation is running in a separate process, whenever new results come in. This is why the first several calls to `c.run` return `None`.
+Note that the `update` operation is running in a separate process, whenever new results come in. This is why the first several calls to `c.run` return `None`.
 
 ## Component Parameters
 
@@ -123,8 +123,8 @@ ZScoreComponent = Component("ZScore", params={"alert_threshold": 2.0})
 Then, you can access the parameters in your operations:
 
 ```python
-@ZScoreComponent.infer("number")
-def infer(state, value):
+@ZScoreComponent.serve("number")
+def serve(state, value):
     if state["mean"] is None:
         return None
     z_score = abs(value - state["mean"]) / state["std"]

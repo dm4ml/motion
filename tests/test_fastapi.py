@@ -19,13 +19,13 @@ def setup():
     return {"count": 0}
 
 
-@Test.infer("noop")
+@Test.serve("noop")
 async def noop(state, value):
     return value
 
 
-@Test.fit("increment")
-def noopfit(state, infer_result):
+@Test.update("increment")
+def noopupdate(state, serve_result):
     return {"count": state["count"] + 1}
 
 
@@ -37,7 +37,7 @@ def read_endpoint():
     # Create some instance of a component
     t = Test("testid")
     t.run("increment")
-    t.flush_fit("increment")
+    t.flush_update("increment")
 
     return {"value": t.read_state("count")}
 

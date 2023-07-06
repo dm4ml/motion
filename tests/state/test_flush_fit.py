@@ -8,16 +8,16 @@ def setUp():
     return {"value": 0, "values": []}
 
 
-@Counter.infer("number")
+@Counter.serve("number")
 def noop(state, value):
     return value
 
 
 # Arbitrarily large batch
-@Counter.fit("number")
-def increment(state, infer_result):
+@Counter.update("number")
+def increment(state, serve_result):
     values = state["values"]
-    values.append(infer_result)
+    values.append(serve_result)
 
     if len(values) == 10:
         return {"values": [], "value": sum(values) + state["value"]}
@@ -34,7 +34,7 @@ def test_flush_instance():
         counter.run("number", kwargs={"value": i})
 
     # Flush instance
-    counter.flush_fit("number")
+    counter.flush_update("number")
 
     # Assert new state is different from old state
     assert counter.get_version() > 1
@@ -42,8 +42,8 @@ def test_flush_instance():
     assert counter.read_state("value") == sum(range(10))
 
     # If I flush again, nothing should happen since
-    # there are no elements in the fit queue
-    counter.flush_fit("number")
+    # there are no elements in the update queue
+    counter.flush_update("number")
     assert counter.get_version() > 1
 
     counter.shutdown()
@@ -56,7 +56,7 @@ def test_fit_daemon():
         counter.run("number", kwargs={"value": i})
 
     # Flush instance
-    counter.flush_fit("number")
+    counter.flush_update("number")
 
     # Assert new state is different from old state
     assert counter.get_version() > 1

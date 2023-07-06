@@ -8,7 +8,9 @@ from motion.utils import logger
 
 class Route(BaseModel):
     key: str = Field(..., description="The keyword to which this route applies.")
-    op: str = Field(..., description="The operation to perform.", regex="^(infer|fit)$")
+    op: str = Field(
+        ..., description="The operation to perform.", regex="^(serve|update)$"
+    )
     udf: Callable = Field(
         ...,
         description="The udf to call for the op. The udf should have at least "

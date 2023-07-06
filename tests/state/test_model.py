@@ -19,15 +19,15 @@ def setUp():
     return {"model": model, "training_batch": []}
 
 
-@c.infer("value")
+@c.serve("value")
 def predict(state, value):
     return state["model"].predict([[value]])[0]
 
 
-@c.fit("value")
-def finetune(state, value, infer_result):
+@c.update("value")
+def finetune(state, value, serve_result):
     training_batch = state["training_batch"]
-    training_batch.append((value, infer_result))
+    training_batch.append((value, serve_result))
     if len(training_batch) < 2:
         return {"training_batch": training_batch}
 
@@ -46,7 +46,7 @@ def test_model_component():
     c_instance = c()
     first_run = c_instance.run("value", kwargs={"value": 1})
     assert first_run == c_instance.run(
-        "value", kwargs={"value": 1}, flush_fit=True
+        "value", kwargs={"value": 1}, flush_update=True
     )
 
     second_run = c_instance.run(
@@ -61,7 +61,7 @@ def test_ignore_cache():
     c_instance = c()
     first_run = c_instance.run("value", kwargs={"value": 1})
     assert first_run == c_instance.run(
-        "value", kwargs={"value": 1}, flush_fit=True
+        "value", kwargs={"value": 1}, flush_update=True
     )
 
     second_run = c_instance.run(

@@ -9,45 +9,45 @@ def setUp():
     return {"value": 0}
 
 
-@Calculator.infer("add")
+@Calculator.serve("add")
 def plus(state, value):
     return state["value"] + value
 
 
-@Calculator.fit("add")
-def increment(state, value, infer_result):
+@Calculator.update("add")
+def increment(state, value, serve_result):
     return {"value": state["value"] + value}
 
 
-@Calculator.infer("subtract")
+@Calculator.serve("subtract")
 def minus(state, value):
     return state["value"] - value
 
 
-@Calculator.fit("subtract")
-def decrement(state, value, infer_result):
+@Calculator.update("subtract")
+def decrement(state, value, serve_result):
     return {"value": state["value"] - value}
 
 
-@Calculator.infer("identity")
+@Calculator.serve("identity")
 def noop(state, value):
     return value
 
 
-@Calculator.fit("reset")
-def reset(state, infer_result):
+@Calculator.update("reset")
+def reset(state, serve_result):
     return {"value": 0}
 
 
 def test_multiple_routes():
     c = Calculator()
-    assert c.run("add", kwargs={"value": 1}, flush_fit=True) == 1
-    assert c.run("add", kwargs={"value": 2}, flush_fit=True) == 3
-    assert c.run("subtract", kwargs={"value": 1}, flush_fit=True) == 2
+    assert c.run("add", kwargs={"value": 1}, flush_update=True) == 1
+    assert c.run("add", kwargs={"value": 2}, flush_update=True) == 3
+    assert c.run("subtract", kwargs={"value": 1}, flush_update=True) == 2
     assert c.run("identity", kwargs={"value": 1}) == 1
 
-    # Force fit doesn't do anything
-    c.run("identity", kwargs={"value": 1}, flush_fit=True)
+    # Force update doesn't do anything
+    c.run("identity", kwargs={"value": 1}, flush_update=True)
 
-    c.run("reset", flush_fit=True)
-    assert c.run("add", kwargs={"value": 1}, flush_fit=True) == 1
+    c.run("reset", flush_update=True)
+    assert c.run("add", kwargs={"value": 1}, flush_update=True) == 1

@@ -11,7 +11,7 @@ from motion.route import Route
 from motion.utils import loadState, logger, saveState
 
 
-class FitTask(multiprocessing.Process):
+class UpdateTask(multiprocessing.Process):
     def __init__(
         self,
         instance_name: str,
@@ -28,7 +28,7 @@ class FitTask(multiprocessing.Process):
         running: Any,
     ):
         super().__init__()
-        self.name = f"FitTask-{instance_name}-{route.key}-{route.udf.__name__}"
+        self.name = f"UpdateTask-{instance_name}-{route.key}-{route.udf.__name__}"
         self.instance_name = instance_name
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
@@ -79,7 +79,7 @@ class FitTask(multiprocessing.Process):
 
                 item = cloudpickle.loads(full_item[1])
                 # self.batch.append(item)
-                # if flush_fit:
+                # if flush_update:
                 #     break
             except redis.exceptions.ConnectionError:
                 logger.error("Connection to redis lost.")
@@ -107,7 +107,7 @@ class FitTask(multiprocessing.Process):
                 )
                 continue
 
-            # Run fit op
+            # Run update op
             acquired_lock = lock.acquire(blocking=True)
             if acquired_lock:
                 try:
@@ -116,7 +116,7 @@ class FitTask(multiprocessing.Process):
                     )
                     state_update = self.route.run(
                         state=old_state,
-                        infer_result=item["infer_result"],
+                        serve_result=item["serve_result"],
                         **item["kwargs"],
                     )
                     # Await if state_update is a coroutine
@@ -125,7 +125,7 @@ class FitTask(multiprocessing.Process):
 
                     if not isinstance(state_update, dict):
                         logger.error(
-                            "fit methods should return a dict of state updates."
+                            "Update methods should return a dict of state updates."
                         )
                     else:
                         old_state.update(state_update)
@@ -169,7 +169,7 @@ class FitTask(multiprocessing.Process):
     #         pickled_item = cloudpickle.dumps(
     #             (
     #                 item,
-    #                 False,  # flush_fit should be False
+    #                 False,  # flush_update should be False
     #             )
     #         )
 

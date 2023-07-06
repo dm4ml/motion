@@ -157,7 +157,7 @@ def validate_args(parameters: Any, op: str) -> bool:
     if "state" not in parameters.keys():
         return False
 
-    if op == "fit" and "infer_result" not in parameters.keys():
+    if op == "update" and "serve_result" not in parameters.keys():
         return False
 
     return True
@@ -224,8 +224,8 @@ def saveState(
     redis_con.incr(f"MOTION_VERSION:{instance_name}")
 
 
-class FitEvent:
-    """Waits for a fit operation to finish."""
+class UpdateEvent:
+    """Waits for a update operation to finish."""
 
     def __init__(self, redis_con: redis.Redis, channel: str, identifier: str) -> None:
         self.channel = channel
@@ -257,18 +257,18 @@ class FitEvent:
                     break
 
 
-class FitEventGroup:
-    """Stores the events for fit operations on a given key."""
+class UpdateEventGroup:
+    """Stores the events for update operations on a given key."""
 
     def __init__(self, key: str) -> None:
         self.key = key
-        self.events: Dict[str, FitEvent] = {}
+        self.events: Dict[str, UpdateEvent] = {}
 
-    def add(self, udf_name: str, event: FitEvent) -> None:
+    def add(self, udf_name: str, event: UpdateEvent) -> None:
         self.events[udf_name] = event
 
     def wait(self) -> None:
-        """Waits for all fit operations for this dataflow key
+        """Waits for all update operations for this dataflow key
         to finish. Be careful not to trigger an infinite wait if the batch_size
         has not been hit yet!
 
@@ -282,17 +282,17 @@ class FitEventGroup:
         def setUp():
             return {"state_val": 0, "state_val2": 0}
 
-        @c.fit("my_key")
-        def fit1(state, values, infer_results):
+        @c.update("my_key")
+        def fit1(state, values, serve_results):
             return {"state_val": state["state_val"] + sum(values)}
 
-        @c.fit("my_key")
-        def fit2(state, values, infer_results):
+        @c.update("my_key")
+        def fit2(state, values, serve_results):
             return {"state_val2": state["state_val2"] + sum(values)}
 
         result, fit_tasks = c.run(my_key=1)
-        print(result) # None because no infer op was hit
-        fit_tasks.wait() # Wait for all fit tasks to finish
+        print(result) # None because no serve op was hit
+        fit_tasks.wait() # Wait for all update tasks to finish
         # Now `state["state_val"] = 1` and `state["state_val2"] = 1`
         ```
         """
@@ -300,7 +300,7 @@ class FitEventGroup:
             event.wait()
 
     def __str__(self) -> str:
-        return f"FitEventGroup(key={self.key}, events={self.events})"
+        return f"UpdateEventGroup(key={self.key}, events={self.events})"
 
     def __repr__(self) -> str:
         return self.__str__()
