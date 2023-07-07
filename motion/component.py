@@ -497,7 +497,7 @@ class Component:
             ComponentInstance: Component instance to run dataflows with.
         """
         if not instance_id:
-            random_passphrase()
+            instance_id = random_passphrase()
 
         if "__" in instance_id:
             raise ValueError(

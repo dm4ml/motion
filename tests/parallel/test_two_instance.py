@@ -19,14 +19,14 @@ def increment(state, props):
 
 
 def test_redis_saving():
-    inst1 = Counter(component_id="test")
+    inst1 = Counter(instance_id="test")
     assert inst1.run("multiply", props={"value": 2}, flush_update=True) == 2
     assert inst1.read_state("value") == 2
     inst1.shutdown()
 
     print("Starting second instance")
 
-    inst2 = Counter(component_id="test")
+    inst2 = Counter(instance_id="test")
     assert inst2.read_state("value") == 2
     assert inst2.run("multiply", props={"value": 3}, flush_update=True) == 6
     assert inst2.read_state("value") == 3
