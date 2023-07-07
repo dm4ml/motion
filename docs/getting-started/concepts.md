@@ -71,6 +71,7 @@ To run the component, we can create an instance of our component, `c`, and call 
 
 ```python title="main.py" linenums="29"
 if __name__ == "__main__":
+    import time
     c = ZScoreComponent() # Create instance of component
 
     # Observe 10 values of the dataflow's key

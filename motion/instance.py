@@ -51,7 +51,7 @@ class ComponentInstance:
         atexit.register(self.shutdown)
 
         # Create instance name
-        self._instance_name = f"{self.name}__{instance_id}"
+        self._instance_name = f"{self._component_name}__{instance_id}"
 
         self.running = False
         self.disabled = disabled
