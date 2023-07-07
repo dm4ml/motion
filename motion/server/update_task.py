@@ -1,7 +1,7 @@
 import asyncio
 import multiprocessing
 import traceback
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
 import redis
@@ -15,11 +15,11 @@ class UpdateTask(multiprocessing.Process):
     def __init__(
         self,
         instance_name: str,
-        route: Route,
+        routes: Dict[str, Route],
         save_state_func: Optional[Callable],
         load_state_func: Optional[Callable],
-        queue_identifier: str,
-        channel_identifier: str,
+        queue_identifiers: List[str],
+        channel_identifiers: Dict[str, str],
         redis_host: str,
         redis_port: int,
         redis_db: int,
@@ -27,7 +27,7 @@ class UpdateTask(multiprocessing.Process):
         running: Any,
     ):
         super().__init__()
-        self.name = f"UpdateTask-{instance_name}-{route.key}-{route.udf.__name__}"
+        self.name = f"UpdateTask-{instance_name}"
         self.instance_name = instance_name
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
@@ -36,9 +36,9 @@ class UpdateTask(multiprocessing.Process):
         self.redis_db = redis_db
         self.redis_password = redis_password
 
-        self.route = route
-        self.queue_identifier = queue_identifier
-        self.channel_identifier = channel_identifier
+        self.routes = routes
+        self.queue_identifiers = queue_identifiers
+        self.channel_identifiers = channel_identifiers
 
         self.running = running
         self.daemon = True
@@ -56,15 +56,17 @@ class UpdateTask(multiprocessing.Process):
 
         while self.running.value:
             item: Dict[str, Any] = {}
+            queue_name = ""
             try:
                 # for _ in range(self.batch_size):
-                full_item = redis_con.blpop(self.queue_identifier, timeout=0.5)
+                full_item = redis_con.blpop(self.queue_identifiers, timeout=0.5)
                 if full_item is None:
                     if not self.running.value:
                         break  # no more items in the list
                     else:
                         continue
 
+                queue_name = full_item[0].decode("utf-8")
                 item = cloudpickle.loads(full_item[1])
                 # self.batch.append(item)
                 # if flush_update:
@@ -85,7 +87,7 @@ class UpdateTask(multiprocessing.Process):
             # Check if it was a no op
             if item["identifier"].startswith("NOOP_"):
                 redis_con.publish(
-                    self.channel_identifier,
+                    self.channel_identifiers[queue_name],
                     str(
                         {
                             "identifier": item["identifier"],
@@ -100,9 +102,11 @@ class UpdateTask(multiprocessing.Process):
             if acquired_lock:
                 try:
                     old_state = loadState(
-                        redis_con, self.instance_name, self.load_state_func
+                        redis_con,
+                        self.instance_name,
+                        self.load_state_func,
                     )
-                    state_update = self.route.run(
+                    state_update = self.routes[queue_name].run(
                         state=old_state,
                         props=item["props"],
                     )
@@ -133,7 +137,7 @@ class UpdateTask(multiprocessing.Process):
                 logger.error("Lock not acquired; item lost.")
 
             redis_con.publish(
-                self.channel_identifier,
+                self.channel_identifiers[queue_name],
                 str(
                     {
                         "identifier": item["identifier"],
