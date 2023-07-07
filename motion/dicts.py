@@ -2,7 +2,31 @@
 This file contains the props class, which is used to store
 properties of a flow.
 """
-from typing import Any
+from typing import Any, Optional
+
+
+class CustomDict(dict):
+    def __init__(
+        self,
+        component_name: str,
+        dict_type: str,
+        instance_id: Optional[str] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.component_name = component_name
+        self.instance_id = instance_id
+        self.dict_type = dict_type
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: str) -> object:
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            raise KeyError(
+                f"Key `{key}` not found in {self.dict_type} for "
+                + f"instance {self.component_name}__{self.instance_id}."
+            )
 
 
 class Properties(dict):
