@@ -119,69 +119,70 @@ class Executor:
         return {}
 
     def _build_fit_jobs(self) -> None:
-        """Builds update jobs."""
-        # Set up worker loops
-        self.worker_tasks = {}
-        # self.worker_stop_events = {}
-
+        """Builds update job."""
         rp = RedisParams()
         # self.worker_states = {}
 
+        # Set up update task
+        self.route_dict_for_fit = {}
+        self.channel_dict_for_fit = {}
+        self.queue_ids_for_fit = []
         for rkey, routes in self._update_routes.items():
             for udf_name, route in routes.items():
-                pname = f"{self._instance_name}::{rkey}::{udf_name}"
-                multiprocessing.Event()
-                self.worker_tasks[pname] = UpdateTask(
+                queue_id = self._get_queue_identifier(rkey, udf_name)
+                self.queue_ids_for_fit.append(queue_id)
+                self.route_dict_for_fit[queue_id] = route
+                self.channel_dict_for_fit[queue_id] = self._get_channel_identifier(
+                    rkey, udf_name
+                )
+
+        self.worker_task = UpdateTask(
+            self._instance_name,
+            routes=self.route_dict_for_fit,
+            save_state_func=self._save_state_func,
+            load_state_func=self._load_state_func,
+            queue_identifiers=self.queue_ids_for_fit,
+            channel_identifiers=self.channel_dict_for_fit,
+            redis_host=rp.host,
+            redis_port=rp.port,
+            redis_db=rp.db,
+            redis_password=rp.password,  # type: ignore
+            running=self.running,
+        )
+        self.worker_task.start()
+
+        # Set up a monitor thread
+        self.stop_event = threading.Event()
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_process, daemon=True
+        )
+        self.monitor_thread.start()
+
+    def _monitor_process(self) -> None:
+        rp = RedisParams()
+        while not self.stop_event.is_set():
+            # See if the update task is alive
+            if not self.worker_task.is_alive():
+                logger.debug(
+                    f"Failed to detect heartbeat for {self.worker_task.name}."
+                    + " Restarting the task in the background."
+                )
+
+                # Restart
+                self.worker_task = UpdateTask(
                     self._instance_name,
-                    route,
+                    routes=self.route_dict_for_fit,
                     save_state_func=self._save_state_func,
                     load_state_func=self._load_state_func,
-                    queue_identifier=self._get_queue_identifier(rkey, udf_name),
-                    channel_identifier=self._get_channel_identifier(rkey, udf_name),
+                    queue_identifiers=self.queue_ids_for_fit,
+                    channel_identifiers=self.channel_dict_for_fit,
                     redis_host=rp.host,
                     redis_port=rp.port,
                     redis_db=rp.db,
                     redis_password=rp.password,  # type: ignore
                     running=self.running,
                 )
-                # self.worker_stop_events[pname] = worker_stop_event
-                self.worker_tasks[pname].start()
-
-        # Set up a monitor thread
-        self.stop_event = threading.Event()
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_processes, daemon=True
-        )
-        self.monitor_thread.start()
-
-    def _monitor_processes(self) -> None:
-        rp = RedisParams()
-        while not self.stop_event.is_set():
-            # Loop through processes to see if they are alive
-            for pname, process in self.worker_tasks.items():
-                if not process.is_alive():
-                    logger.debug(
-                        f"Failed to detect heartbeat for update task {pname}."
-                        + " Restarting the task in the background."
-                    )
-                    # Restart
-                    rkey = pname.split("::")[1]
-                    udf_name = pname.split("::")[2]
-                    route = self._update_routes[rkey][udf_name]
-                    self.worker_tasks[pname] = UpdateTask(
-                        self._instance_name,
-                        route,
-                        save_state_func=self._save_state_func,
-                        load_state_func=self._load_state_func,
-                        queue_identifier=self._get_queue_identifier(rkey, udf_name),
-                        channel_identifier=self._get_channel_identifier(rkey, udf_name),
-                        redis_host=rp.host,
-                        redis_port=rp.port,
-                        redis_db=rp.db,
-                        redis_password=rp.password,  # type: ignore
-                        running=self.running,
-                    )
-                    self.worker_tasks[pname].start()
+                self.worker_task.start()
 
             if self.stop_event.is_set():
                 break
@@ -211,19 +212,10 @@ class Executor:
         self.stop_event.set()
         self.running.value = False
 
-        processes_to_wait_for = []
-        for process in self.worker_tasks.values():
-            if psutil.pid_exists(process.pid):
-                # os.kill(process.pid, signal.SIGUSR1)  # type:ignore
-                # Set stop event
-                # self.worker_stop_events[pname].set()
-                processes_to_wait_for.append(process)
+        if psutil.pid_exists(self.worker_task.pid):
+            self.worker_task.join()
 
         self._redis_con.close()
-
-        # Join update processes
-        for process in processes_to_wait_for:
-            process.join()
 
         self.monitor_thread.join()
 
