@@ -11,12 +11,12 @@ def setup():
 
 
 @Counter.serve("multiply")
-def noop(state, value):
-    return state["value"] * value
+def noop(state, props):
+    return state["value"] * props["value"]
 
 
 @Counter.update("multiply")
-def increment(state, value, serve_result):
+def increment(state, props):
     print(state["does_not_exist"])  # This should break thread
     return {"value": state["value"] + 1}
 
@@ -24,10 +24,10 @@ def increment(state, value, serve_result):
 def test_release_lock_on_broken_update():
     c = Counter("same_id")
     with pytest.raises(RuntimeError):
-        c.run("multiply", kwargs={"value": 2}, flush_update=True)
+        c.run("multiply", props={"value": 2}, flush_update=True)
     c.shutdown()
 
     # Should be able to run again
     c2 = Counter("same_id")
-    c2.run("multiply", kwargs={"value": 2})
+    c2.run("multiply", props={"value": 2})
     c2.shutdown()

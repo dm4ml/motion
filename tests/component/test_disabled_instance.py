@@ -11,13 +11,13 @@ def setUp():
 
 
 @Counter.serve("number")
-def noop(state, value):
-    return state["value"], value
+def noop(state, props):
+    return state["value"], props["value"]
 
 
 @Counter.update("number")
-def increment(state, value, serve_result):
-    return {"value": state["value"] + value}
+def increment(state, props):
+    return {"value": state["value"] + props["value"]}
 
 
 # Create enabled component in a subprocess
@@ -30,7 +30,7 @@ def test_disabled():
     # Create disabled component
     c = Counter(disabled=True)
     with pytest.raises(RuntimeError):
-        c.run("number", kwargs={"value": 1})
+        c.run("number", props={"value": 1})
 
     process = multiprocessing.Process(target=counter_process)
     process.start()

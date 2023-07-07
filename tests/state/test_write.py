@@ -11,7 +11,7 @@ def setUp():
 
 
 @C.serve("my_key")
-def serve(state):
+def serve(state, props):
     return state.instance_id
 
 

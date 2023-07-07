@@ -9,15 +9,15 @@ def setUp():
 
 
 @Counter.serve("number")
-def noop(state, value):
-    return value
+def noop(state, props):
+    return props["value"]
 
 
 # Arbitrarily large batch
 @Counter.update("number")
-def increment(state, serve_result):
+def increment(state, props):
     values = state["values"]
-    values.append(serve_result)
+    values.append(props.serve_result)
 
     if len(values) == 10:
         return {"values": [], "value": sum(values) + state["value"]}
@@ -31,7 +31,7 @@ def test_flush_instance():
     init_value = counter.read_state("value")
 
     for i in range(10):
-        counter.run("number", kwargs={"value": i})
+        counter.run("number", props={"value": i})
 
     # Flush instance
     counter.flush_update("number")
@@ -53,7 +53,7 @@ def test_fit_daemon():
     counter = Counter()
 
     for i in range(10):
-        counter.run("number", kwargs={"value": i})
+        counter.run("number", props={"value": i})
 
     # Flush instance
     counter.flush_update("number")

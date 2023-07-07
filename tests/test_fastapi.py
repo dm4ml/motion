@@ -20,12 +20,12 @@ def setup():
 
 
 @Test.serve("noop")
-async def noop(state, value):
-    return value
+async def noop(state, props):
+    return props["value"]
 
 
 @Test.update("increment")
-def noopupdate(state, serve_result):
+def noopupdate(state, props):
     return {"count": state["count"] + 1}
 
 
@@ -45,7 +45,7 @@ def read_endpoint():
 @app.get("/async_endpoint")
 async def read_noop():
     t = Test("testid")
-    return {"value": await t.arun("noop", kwargs={"value": 1})}
+    return {"value": await t.arun("noop", props={"value": 1})}
 
 
 @pytest.fixture

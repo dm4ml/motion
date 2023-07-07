@@ -10,13 +10,13 @@ def setUp():
 
 
 @Counter.serve("number")
-def noop(state, value):
-    return state["value"], value
+def noop(state, props):
+    return state["value"], props["value"]
 
 
 @Counter.update("number")
-def increment(state, value, serve_result):
-    return {"value": state["value"] + value}
+def increment(state, props):
+    return {"value": state["value"] + props["value"]}
 
 
 def test_create():
@@ -24,10 +24,10 @@ def test_create():
 
     assert c.read_state("value") == 0
 
-    assert c.run("number", kwargs={"value": 1})[1] == 1
-    c.run("number", kwargs={"value": 2}, flush_update=True)
-    assert c.run("number", kwargs={"value": 3}, flush_update=True)[1] == 3
-    assert c.run("number", kwargs={"value": 4}, flush_update=True)[0] == 6
+    assert c.run("number", props={"value": 1})[1] == 1
+    c.run("number", props={"value": 2}, flush_update=True)
+    assert c.run("number", props={"value": 3}, flush_update=True)[1] == 3
+    assert c.run("number", props={"value": 4}, flush_update=True)[0] == 6
 
     # Should raise errors
     with pytest.raises(KeyError):
@@ -44,4 +44,4 @@ def test_fit_error():
 
     # Should raise error bc update op won't work
     with pytest.raises(RuntimeError):
-        c.run("number", kwargs={"value": [1]}, flush_update=True)
+        c.run("number", props={"value": [1]}, flush_update=True)

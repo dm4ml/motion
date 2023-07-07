@@ -41,22 +41,22 @@ def load(state):
 
 
 @c.serve("count")
-def execute_fn(state, value):
+def execute_fn(state, props):
     return state["cursor"].execute("SELECT COUNT(*) FROM users").fetchall()
 
 
 @c.serve("something")
-def noop(state, value):
+def noop(state, props):
     return state["fit_count"]
 
 
 @c.update("something")
-def increment(state, value, serve_result):
+def increment(state, props):
     return {"fit_count": state["fit_count"] + 1}
 
 
 def test_db_component():
     c_instance = c()
-    assert c_instance.run("count", kwargs={"value": 1}) == [(2,)]
-    c_instance.run("something", kwargs={"value": 1}, flush_update=True)
-    assert c_instance.run("something", kwargs={"value": 5}) == 1
+    assert c_instance.run("count", props={"value": 1}) == [(2,)]
+    c_instance.run("something", props={"value": 1}, flush_update=True)
+    assert c_instance.run("something", props={"value": 5}) == 1

@@ -10,6 +10,8 @@ import colorlog
 import redis
 from pydantic import BaseModel
 
+from motion.dicts import State
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_TTL = 60 * 60 * 24  # 1 day
@@ -129,35 +131,14 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
     return state
 
 
-class CustomDict(dict):
-    def __init__(
-        self,
-        component_name: str,
-        dict_type: str,
-        instance_id: Optional[str] = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        self.component_name = component_name
-        self.instance_id = instance_id
-        self.dict_type = dict_type
-        super().__init__(*args, **kwargs)
-
-    def __getitem__(self, key: str) -> object:
-        try:
-            return super().__getitem__(key)
-        except KeyError:
-            raise KeyError(
-                f"Key `{key}` not found in {self.dict_type} for "
-                + f"instance {self.component_name}__{self.instance_id}."
-            )
-
-
 def validate_args(parameters: Any, op: str) -> bool:
     if "state" not in parameters.keys():
         return False
 
-    if op == "update" and "serve_result" not in parameters.keys():
+    if "props" not in parameters.keys():
+        return False
+
+    if len(parameters.keys()) != 2:
         return False
 
     return True
@@ -186,11 +167,9 @@ def loadState(
     redis_con: redis.Redis,
     instance_name: str,
     load_state_func: Optional[Callable],
-) -> CustomDict:
+) -> State:
     # Get state from redis
-    state = CustomDict(
-        instance_name.split("__")[0], "state", instance_name.split("__")[1], {}
-    )
+    state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
     loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
     if not loaded_state:
@@ -200,6 +179,7 @@ def loadState(
 
     # Unpickle state
     loaded_state = cloudpickle.loads(loaded_state)
+
     if load_state_func is not None:
         state.update(load_state_func(loaded_state))
     else:
@@ -209,7 +189,7 @@ def loadState(
 
 
 def saveState(
-    state_to_save: CustomDict,
+    state_to_save: State,
     redis_con: redis.Redis,
     instance_name: str,
     save_state_func: Optional[Callable],
@@ -269,8 +249,7 @@ class UpdateEventGroup:
 
     def wait(self) -> None:
         """Waits for all update operations for this dataflow key
-        to finish. Be careful not to trigger an infinite wait if the batch_size
-        has not been hit yet!
+        to finish.
 
         Example usage:
         ```python
@@ -283,12 +262,12 @@ class UpdateEventGroup:
             return {"state_val": 0, "state_val2": 0}
 
         @c.update("my_key")
-        def fit1(state, values, serve_results):
-            return {"state_val": state["state_val"] + sum(values)}
+        def fit1(state, props, value):
+            return {"state_val": state["state_val"] + value}
 
         @c.update("my_key")
-        def fit2(state, values, serve_results):
-            return {"state_val2": state["state_val2"] + sum(values)}
+        def fit2(state, props, value):
+            return {"state_val2": state["state_val2"] + value}
 
         result, fit_tasks = c.run(my_key=1)
         print(result) # None because no serve op was hit

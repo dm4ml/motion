@@ -15,38 +15,32 @@ For example, if I had a file called `main.py` like this:
 ```python
 from motion import Component
 
-ZScoreComponent = Component("Z-Score")
+ZScoreComponent = Component("ZScore")
 
 
 @ZScoreComponent.init_state
 def setUp():
-    return {"mean": None, "std": None}
+    return {"mean": None, "std": None, "values": []}
 
 
 @ZScoreComponent.serve("number")
-def normalize(state, value):
+def serve(state, props):  # (1)!
     if state["mean"] is None:
         return None
-    return abs(value - state["mean"]) / state["std"]
+    return abs(props["value"] - state["mean"]) / state["std"]
 
 
-@ZScoreComponent.update("number", batch_size=10)
-def update(state, values, serve_results):
+@ZScoreComponent.update("number")
+def update(state, props):  # (2)!
+    # Result of the serve op can be accessed via
+    # props.serve_result
     # We don't do anything with the results, but we could!
-    mean = sum(values) / len(values)
-    std = sum((n - mean) ** 2 for n in values) / len(values)
-    return {"mean": mean, "std": std}
+    value_list = state["values"]
+    value_list.append(props["value"])
 
-
-if __name__ == "__main__":
-    # Observe 10 values of the dataflow's key
-    c = ZScoreComponent()
-    for i in range(9):
-        print(c.run(number=i))
-
-    c.run(number=9, flush_update=True)
-    for i in range(10, 19):
-        print(c.run(number=i))
+    mean = sum(value_list) / len(value_list)
+    std = sum((n - mean) ** 2 for n in value_list) / len(value_list)
+    return {"mean": mean, "std": std, "values": value_list}
 ```
 
 I would run the CLI tool like this:
