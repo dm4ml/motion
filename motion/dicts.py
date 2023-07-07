@@ -2,7 +2,7 @@
 This file contains the props class, which is used to store
 properties of a flow.
 """
-from typing import Any, Optional
+from typing import Any
 
 
 class Properties(dict):
@@ -102,7 +102,7 @@ class State(dict):
     def __init__(
         self,
         component_name: str,
-        instance_id: Optional[str] = None,
+        instance_id: str,
         *args: Any,
         **kwargs: Any,
     ) -> None:
