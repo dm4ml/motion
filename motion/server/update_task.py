@@ -16,7 +16,6 @@ class UpdateTask(multiprocessing.Process):
         self,
         instance_name: str,
         route: Route,
-        # batch_size: int,
         save_state_func: Optional[Callable],
         load_state_func: Optional[Callable],
         queue_identifier: str,
@@ -38,22 +37,11 @@ class UpdateTask(multiprocessing.Process):
         self.redis_password = redis_password
 
         self.route = route
-        # self.batch_size = batch_size
         self.queue_identifier = queue_identifier
         self.channel_identifier = channel_identifier
 
-        # Keep track of batch
-        # self.batch: List[Any] = []
-
-        # Register the stop event
-        # self.running = True
-        # self.stop_event = stop_event
         self.running = running
         self.daemon = True
-
-    # def handle_signal(self, signum: int, frame: Any) -> None:
-    #     logger.info("Received shutdown signal.")
-    #     self.running = False
 
     def run(self) -> None:
         redis_con = redis.Redis(
@@ -116,8 +104,7 @@ class UpdateTask(multiprocessing.Process):
                     )
                     state_update = self.route.run(
                         state=old_state,
-                        serve_result=item["serve_result"],
-                        **item["kwargs"],
+                        props=item["props"],
                     )
                     # Await if state_update is a coroutine
                     if asyncio.iscoroutine(state_update):
@@ -154,25 +141,3 @@ class UpdateTask(multiprocessing.Process):
                     }
                 ),
             )
-
-    # def cleanup(self) -> None:
-    #     redis_con = redis.Redis(
-    #         host=self.redis_host,
-    #         port=self.redis_port,
-    #         password=self.redis_password,
-    #         db=self.redis_db,
-    #     )
-
-    #     # Add outstanding batch back to queue
-    #     for item in self.batch:
-    #         # Pickle item object
-    #         pickled_item = cloudpickle.dumps(
-    #             (
-    #                 item,
-    #                 False,  # flush_update should be False
-    #             )
-    #         )
-
-    #         redis_con.lpush(self.queue_identifier, pickled_item)
-
-    #     self.batch = []

@@ -1,9 +1,10 @@
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 
+from motion.dicts import Params
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import CustomDict, random_passphrase, validate_args
+from motion.utils import random_passphrase, validate_args
 
 
 class Component:
@@ -21,18 +22,18 @@ class Component:
             return {"value": 0}
 
         @AdderComponent.serve("add")
-        def plus(state, value):
-            return state["value"] + value
+        def plus(state, props):
+            return state["value"] + props["value"]
 
         @AdderComponent.update("add")
-        def add(state, value, serve_result):
-            return {"value": state["value"] + value}
+        def add(state, props):
+            return {"value": props.serve_result}
 
         if __name__ == "__main__":
             c = AdderComponent() # Create instance of AdderComponent
-            c.run("add", kwargs={"value": 1}, flush_update=True) # Blocks
+            c.run("add", props={"value": 1}, flush_update=True) # Blocks
             # until update is done. Resulting state is {"value": 1}
-            c.run("add", kwargs={"value": 2}) # Will return 3, not waiting
+            c.run("add", props={"value": 2}) # Will return 3, not waiting
             # for update operation.
             # Resulting state will eventually be {"value": 3}
         ```
@@ -48,26 +49,22 @@ class Component:
             return {"value": 0}
 
         @Calculator.serve("add")
-        def plus(state, value):
-            return state["value"] + value
-
-        @Calculator.update("add")
-        def increment(state, serve_result, value):
-            return {"value": state["value"] + value}
+        def plus(state, props):
+            return state["value"] + props["value"]
 
         @Calculator.serve("subtract")
-        def minus(state, value):
-            return state["value"] - value
+        def minus(state, props):
+            return state["value"] - props["value"]
 
-        @Calculator.update("subtract")
-        def decrement(state, serve_result, value):
-            return {"value": state["value"] - value}
+        @Calculator.update(["add", "subtract"])
+        def decrement(state, props):
+            return {"value": props.serve_result}
 
         if __name__ == "__main__":
             c = Calculator()
-            c.run("add", kwargs={"value": 1}, flush_update=True) # Will return 1,
+            c.run("add", props={"value": 1}, flush_update=True) # Will return 1,
             # blocking until update is done. Resulting state is {"value": 1}
-            c.run("subtract", kwargs={"value": 1}, flush_update=True)
+            c.run("subtract", props={"value": 1}, flush_update=True)
             # Will return 0, blocking until update is done. Resulting state is #
             # {"value": 0}
         ```
@@ -85,18 +82,18 @@ class Component:
             return {
                 "model": YOUR_MODEL_HERE,
                 "historical_values": [],
-                "historical_serve_results": []
+                "historical_serve_res": []
             }
 
-        @MLMonitor.serve("features")
-        def predict(state, value):
-            return state["model"].predict(value)
+        @MLMonitor.serve("predict")
+        def predict(state, props):
+            return state["model"].predict(props["features"])
 
         @MLMonitor.update("features")
-        def monitor(state, value, serve_result):
+        def monitor(state, props):
 
-            values = state["historical_values"] + [value]
-            serve_results = state["historical_serve_results"] + [serve_result]
+            values = state["historical_values"] + [props["features"]]
+            serve_results = state["historical_serve_res"] + [props.serve_result]
 
             # Check drift every 10 values
             if len(values) == 10:
@@ -108,16 +105,13 @@ class Component:
 
             return {
                 "historical_values": values,
-                "historical_serve_results": serve_results
+                "historical_serve_res": serve_results
             }
 
         if __name__ == "__main__":
             c = MLMonitor() # Create instance
-            c.run(features=YOUR_FEATURES_HERE)
-
-            for _ in range(100):
-                c.run(features=YOUR_FEATURES_HERE)
-                # Some alert may be fired in the background!
+            c.run("predict", props={"features": YOUR_FEATURES_HERE})
+            # Some alert may be fired in the background!
         ```
     """
 
@@ -133,7 +127,7 @@ class Component:
                     have created.
         """
         self._name = name
-        self._params = CustomDict(name, "params", "", params)
+        self._params = Params(params)
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = {}
@@ -292,14 +286,20 @@ class Component:
         dataflow key. If the decorator is called with a list of strings, each
         dataflow key will be mapped to the same serve function.
 
-        1 argument required for an serve operation:
-            * `state`: The current state of the component, which is a
+        2 arguments required for an serve operation:
+            * `state`: The current state of the component instance, which is a
                 dictionary with string keys and any-type values.
+            * `props`: The properties of the current flow, which is passed via
+                the `run` method of the component instance. You can add to
+                the `props` dictionary in the serve op, and the modified
+                `props` will be passed to the subsequent update ops in the flow.
+                Props are short-lived and die after the dataflow's update op
+                finishes.
 
         Components can have multiple serve ops, but no dataflow key within
         the component can have more than one serve op. serve ops should not
-        modify the state object. If you want to modify the state object, use
-        the `update` decorator.
+        modify the state object. If you want to modify the state object, write
+        an `update` op for your flow.
 
         Example Usage:
         ```python
@@ -312,16 +312,16 @@ class Component:
             return {"value": 0}
 
         @MyComponent.serve("add")
-        def add(state, value):
-            return state["value"] + value
+        def add(state, props):
+            return state["value"] + props["value"]
 
         @MyComponent.serve("multiply")
-        def multiply(state, value):
-            return state["value"] * value
+        def multiply(state, props):
+            return state["value"] * props["value"]
 
         c = MyComponent()
-        c.run("add", kwargs={"value": 1}, flush_update=True) # Returns 1
-        c.run("multiply", kwargs={"value": 2}) # Returns 2
+        c.run("add", props={"value": 1}, flush_update=True) # Returns 1
+        c.run("multiply", props={"value": 2}) # Returns 2
         ```
 
         Args:
@@ -344,7 +344,8 @@ class Component:
             # type_hint = get_type_hints(func).get("value", None)
             if not validate_args(inspect.signature(func).parameters, "serve"):
                 raise ValueError(
-                    f"serve function {func.__name__} should have arguments " + "`state`"
+                    f"serve function {func.__name__} should have arguments "
+                    + "`state` and `props`"
                 )
 
             func._op = "serve"  # type: ignore
@@ -365,7 +366,10 @@ class Component:
         2 arguments required for a update operation:
             - `state`: The current state of the component, represented as a
             dictionary.
-            - `serve_result`: The result from the serve op that occurred before.
+            - `props`: The properties of the current flow, which could contain
+            properties that were added to the `props` dictionary
+            in the serve op before this update op. Props are short-lived and
+            die after the dataflow's update op finishes.
 
         Components can have multiple update ops, and the same key can also have
         multiple update ops. Update functions should return a dictionary
@@ -377,29 +381,35 @@ class Component:
 
         MyComponent = Component("MyComponent")
 
+
         @MyComponent.init_state
         def setUp():
             return {"value": 0}
 
-        @MyComponent.update("add")
-        def add(state, values):
-            return {"value": state["value"] + sum(values)}
 
         @MyComponent.serve("multiply")
-        def multiply(state, value):
-            return state["value"] * value
+        def multiply(state, props):
+            props["something"] = props["value"] + 1
+            return state["value"] * props["value"]
+
 
         @MyComponent.update("multiply")
-        def multiply(state, serve_result, value):
-            return state["value"] * value
+        def multiply(state, props):
+            return {"value": props["something"]}
 
-        c = MyComponent()
-        c.run("add", kwargs={"value": 1}, flush_update=True) # Returns 1
-        c.run("multiply", kwargs={"value": 2}) # Returns 2, update not executed yet
-        c.run("multiply", kwargs={"value": 3}) # Returns 3, update will execute
-        # to get state["value"] = 6
-        # Some time later...
-        c.run("multiply", kwargs={"value": 4}) # Returns 24
+
+        if __name__ == "__main__":
+            c = MyComponent()
+            print(
+                c.run("multiply", props={"value": 2}, flush_update=True)
+            )  # Returns 0 and state updates to {"value": 3}
+            print(
+                c.run("multiply", props={"value": 3}, flush_update=True)
+            )  # Returns 9, update will execute
+            # to get state["value"] = 4
+            print(
+                c.run("multiply", props={"value": 4}, flush_update=True)
+            )  # Returns 4 * 4 = 16
         ```
 
         Args:
@@ -422,8 +432,8 @@ class Component:
         def decorator(func: Callable) -> Any:
             if not validate_args(inspect.signature(func).parameters, "update"):
                 raise ValueError(
-                    f"Update op {func.__name__} should have >= 2 arguments: "
-                    + "`state` and `serve_result`."
+                    f"Update op {func.__name__} should have 2 arguments: "
+                    + "`state` and `props`."
                 )
 
             # func._input_key = key  # type: ignore
@@ -439,7 +449,7 @@ class Component:
 
     def __call__(
         self,
-        name: str = "",
+        instance_id: str = "",
         init_state_params: Dict[str, Any] = {},
         logging_level: str = "WARNING",
         disabled: bool = False,
@@ -471,8 +481,9 @@ class Component:
         ```
 
         Args:
-            name (str, optional):
-                Name of the component instance. Defaults to "".
+            instance_id (str, optional):
+                id of the component instance. Defaults to "" which will
+                generate a random id.
             init_state_params (Dict[str, Any], optional):
                 Parameters to pass into the init_state function. Defaults to {}.
             logging_level (str, optional):
@@ -485,21 +496,19 @@ class Component:
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
-        if not name:
-            name = random_passphrase()
+        if not instance_id:
+            instance_id = random_passphrase()
 
-        if "__" in name:
+        if "__" in instance_id:
             raise ValueError(
-                f"Instance name {name} cannot contain '__'. Strip the component"
-                + "name from your instance name."
+                f"Instance name {instance_id} cannot contain '__'. Strip the component"
+                + "name from your instance id."
             )
-
-        instance_name = f"{self.name}__{name}"
 
         try:
             ci = ComponentInstance(
                 component_name=self.name,
-                instance_name=instance_name,
+                instance_id=instance_id,
                 init_state_func=self._init_state_func,
                 init_state_params=init_state_params,
                 save_state_func=self._save_state_func,

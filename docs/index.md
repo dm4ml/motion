@@ -16,8 +16,9 @@ With Motion, a dataflow-based framework, your state is automatically updated in 
 
 Motion is especially useful for applications that:
 
-- Need to continually fine-tune models or do any online learning
-- Need to update prompts based on new data (e.g., maintain a dynamic list of examples in the prompt)
+- Need to update some state based on new data (e.g., maintain a dynamic list of examples in an LLM prompt or fine-tune a model on new data)
+- Need to support different instances of state for a single logical component (e.g., prompts and vectors for each user)
+- Require state persistence (e.g., saving and loading small models, prompts, and other objects)
 
 Motion is built for developers who know how to code in Python and want to be able to control operations in their ML applications. For low-code and domain-specific development patterns (e.g., enhancing videos), you may want to check out other tools.
 

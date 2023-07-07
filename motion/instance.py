@@ -22,7 +22,7 @@ class ComponentInstance:
     def __init__(
         self,
         component_name: str,
-        instance_name: str,
+        instance_id: str,
         init_state_func: Optional[Callable],
         init_state_params: Optional[Dict[str, Any]],
         save_state_func: Optional[Callable],
@@ -35,10 +35,10 @@ class ComponentInstance:
         """Creates a new instance of a Motion component.
 
         Args:
-            name (str):
+            component_name (str):
                 Name of the component we are creating an instance of.
-            instance_name (str):
-                Name of the instance we are creating.
+            instance_id (str):
+                ID of the instance we are creating.
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
@@ -51,7 +51,7 @@ class ComponentInstance:
         atexit.register(self.shutdown)
 
         # Create instance name
-        self._instance_name = instance_name
+        self._instance_name = f"{self._component_name}__{instance_id}"
 
         self.running = False
         self.disabled = disabled
@@ -229,7 +229,7 @@ class ComponentInstance:
             return state["value"] + value
 
         @C.update("add")
-        def add(state, value, serve_result):
+        def add(state, value):
             return {"value": state["value"] + value}
 
         @C.serve("multiply")
@@ -238,9 +238,9 @@ class ComponentInstance:
 
         if __name__ == "__main__":
             c = C() # Create instance of C
-            c.run("add", kwargs={"value": 1})
+            c.run("add", props={"value": 1})
             c.flush_update("add") # (1)!
-            c.run("add", kwargs={"value": 2}) # This will use the updated state
+            c.run("add", props={"value": 2}) # This will use the updated state
 
         # 1. Waits for the update op to finish, then updates the state
         ```
@@ -249,8 +249,7 @@ class ComponentInstance:
             dataflow_key (str): Key of the dataflow.
 
         Raises:
-            RuntimeError: If the component instance was initialized to
-            be disabled.
+            RuntimeError: If the component instance was initialized as disabled.
         """
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
@@ -261,7 +260,7 @@ class ComponentInstance:
         self,
         # *,
         dataflow_key: str,
-        kwargs: Dict[str, Any] = {},
+        props: Dict[str, Any] = {},
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
@@ -286,19 +285,19 @@ class ComponentInstance:
             return state["value"] + value
 
         @C.update("add")
-        def add(state, value, serve_result):
+        def add(state, value):
             return {"value": state["value"] + value}
 
         if __name__ == "__main__":
             c = C() # Create instance of C
-            c.run("add", kwargs={"value": 1}, flush_update=True) # (1)!
-            c.run("add", kwargs={"value": 1}) # Returns 1
-            c.run("add", kwargs={"value": 2}, flush_update=True) # (2)!
+            c.run("add", props={"value": 1}, flush_update=True) # (1)!
+            c.run("add", props={"value": 1}) # Returns 1
+            c.run("add", props={"value": 2}, flush_update=True) # (2)!
 
-            c.run("add", kwargs={"value": 3})
+            c.run("add", props={"value": 3})
             time.sleep(3) # Wait for the previous update op to finish
 
-            c.run("add", kwargs={"value": 3}, force_refresh=True) # (3)!
+            c.run("add", props={"value": 3}, force_refresh=True) # (3)!
 
         # 1. Waits for the update op to finish, then updates the state
         # 2. Returns 2, result state["value"] = 4
@@ -309,7 +308,7 @@ class ComponentInstance:
 
         Args:
             dataflow_key (str): Key of the dataflow to run.
-            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+            props (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the serveence result should live in a cache (in
@@ -327,6 +326,11 @@ class ComponentInstance:
                 yet, the update op runs anyways. Force refreshes the
                 state after the update op completes. Defaults to False.
 
+         Raises:
+            ValueError: If more than one dataflow key-value pair is passed.
+            RuntimeError:
+                If the component instance was initialized as disabled.
+
         Returns:
             Any: Result of the serveence call. Might take a long time
             to run if `flush_update = True` and the update operation is
@@ -337,7 +341,7 @@ class ComponentInstance:
 
         serve_result = self._executor.run(
             key=dataflow_key,
-            kwargs=kwargs,
+            props=props,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
@@ -350,7 +354,7 @@ class ComponentInstance:
         self,
         # *,
         dataflow_key: str,
-        kwargs: Dict[str, Any] = {},
+        props: Dict[str, Any] = {},
         cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
@@ -373,7 +377,7 @@ class ComponentInstance:
 
         async def main():
             c = C()
-            await c.arun("sleep", kwargs={"value": 1})
+            await c.arun("sleep", props={"value": 1})
 
         if __name__ == "__main__":
             asyncio.run(main())
@@ -381,7 +385,7 @@ class ComponentInstance:
 
         Args:
             dataflow_key (str): Key of the dataflow to run.
-            kwargs (Dict[str, Any]): Keyword arguments to pass into the
+            props (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
             cache_ttl (int, optional):
                 How long the serveence result should live in a cache (in
@@ -398,14 +402,11 @@ class ComponentInstance:
                 returning. If the update queue hasn't reached batch_size
                 yet, the update op runs anyways. Force refreshes the
                 state after the update op completes. Defaults to False.
-            **kwargs:
-                Keyword arguments for the serve and update ops. You can only
-                pass in one pair.
 
         Raises:
             ValueError: If more than one dataflow key-value pair is passed.
-            RuntimeError: If the component instance was initialized to
-            be disabled.
+            RuntimeError:
+                If the component instance was initialized as disabled.
 
         Returns:
             Awaitable[Any]: Awaitable Result of the serveence call.
@@ -415,7 +416,7 @@ class ComponentInstance:
 
         serve_result = await self._executor.arun(
             key=dataflow_key,
-            kwargs=kwargs,
+            props=props,
             # value=value,
             cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,

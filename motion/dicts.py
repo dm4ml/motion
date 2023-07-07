@@ -1,0 +1,144 @@
+"""
+This file contains the props class, which is used to store
+properties of a flow.
+"""
+from typing import Any
+
+
+class Properties(dict):
+    """Dictionary that stores properties of a flow.
+
+    Example usage:
+
+    ```python
+    from motion import Component
+
+    some_component = Component("SomeComponent")
+
+    @some_component.init_state
+    def setUp():
+        return {"model": ...}
+
+    @some_component.serve("image")
+    def predict_image(state, props):
+        # props["image_embedding"] is passed in at runtime
+        return state["model"](props["image_embedding"])
+
+    @some_component.update("image")
+    def monitor_prediction(state, props):
+        # props.serve_result is the result of the serve operation
+        if props.serve_result > some_threshold:
+            trigger_alert()
+
+    if __name__ == "__main__":
+        c = some_component()
+        c.run("image", props={"image_embedding": ...})
+    ```
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self._serve_result = None
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: str) -> object:
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            raise KeyError(f"Key `{key}` not found in props. ")
+
+    @property
+    def serve_result(self) -> Any:
+        """Stores the result of the serve operation. Can be accessed
+        in the update operation, not the serve operation.
+
+        Returns:
+            Any: Result of the serve operation.
+        """
+        return self._serve_result
+
+    # def __getattr__(self, key: str) -> object:
+    #     return self.__getitem__(key)
+
+    # def __setattr__(self, key: str, value: Any) -> None:
+    #     self[key] = value
+
+    # def __getstate__(self) -> dict:
+    #     return dict(self)
+
+
+class State(dict):
+    """Dictionary that stores state for a component instance.
+    The instance id is stored in the `instance_id` attribute.
+
+    Example usage:
+
+    ```python
+    from motion import Component
+
+    some_component = Component("SomeComponent")
+
+    @some_component.init_state
+    def setUp():
+        return {"model": ...}
+
+    @some_component.serve("retrieve")
+    def retrieve_nn(state, props):
+        # model can be accessed via state["model"]
+        prediction = state["model"](props["image_embedding"])
+        # match the prediction to some other data to do a retrieval
+        nn_component_instance = SomeOtherMotionComponent(state.instance_id)
+        return nn_component_instance.run("retrieve", props={"prediction": prediction})
+
+    if __name__ == "__main__":
+        c = some_component()
+        nearest_neighbors = c.run("retrieve", props={"image_embedding": ...})
+    ```
+    """
+
+    def __init__(
+        self,
+        component_name: str,
+        instance_id: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.component_name = component_name
+        self._instance_id = instance_id
+        super().__init__(*args, **kwargs)
+
+    @property
+    def instance_id(self) -> str:
+        """
+        Returns the instance id of the component.
+        Useful if wanting to create other component instances
+        within a serve or update operation.
+        """
+        return self._instance_id
+
+    def __getitem__(self, key: str) -> object:
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            raise KeyError(
+                f"Key `{key}` not found in state for "
+                + f"instance {self.component_name}__{self._instance_id}."
+            )
+
+
+class Params(dict):
+    def __init__(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: str) -> object:
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            raise KeyError(f"Key `{key}` not found in component params.")

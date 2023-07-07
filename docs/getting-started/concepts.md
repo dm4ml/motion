@@ -8,17 +8,25 @@ When a component instance is first created, an `init` function initializes the c
 
 Components can have multiple dataflows that read and update the state. A dataflow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
 
-- **serve**: a function that takes in (1) the current state dictionary and (2) any keyword arguments, then returns a result back to the user.
+- **serve**: a function that takes in (1) the current state dictionary, and (2) a user-defined ` props` dictionary (passed in at runtime), then returns a result back to the user.
 
-- **update**: a function that runs in the background and takes in (1) the current state dictionary, (2) the result from the serve operation, and (3) any keyword arguments. It returns any updates to the state, which can be used in future operations.
+- **update**: a function that runs in the background and takes in (1) the current state dictionary, and (2) the user-defined `props` dictionary, including the result of the serve op (accessed via `props.serve_result`). The `update` operation returns any updates to the state, which can be used in future operations. The `props` dictionary dies after the update operation for a dataflow.
 
-serve operations do not modify the state, while update operations do.
+Serve operations do not modify the state, while update operations do.
+
+## State vs Props
+
+The difference between state and props can be a little confusing, since both are dictionaries. The main difference is that state is persistent, while props are ephemeral/limited to a dataflow.
+
+State is initialized when the component is created and persists between successive dataflows. Since Motion is backed by Redis, state also persists when the component is restarted. State is available to all operations for all dataflows, but can only be changed by update operations.
+
+On the other hand, props are passed in at runtime and are only available to the serve and update operations for a _single_ dataflow. Props can be modified in serve operation, so they can be used to pass data between serve and update operations. Of note is `props.serve_result`, which is the result of the serve operation for a dataflow (and thus only accessible in update operations). This is useful for update operations that need to use the result of the serve operation. Think of props like a kwargs dictionary that becomes irrelevant after the particular dataflow is finished.
 
 ### Things to Keep in Mind
 
-- The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
-- Components can only have one serve operation per key.
 - Components can have many dataflows, each with their own key, serve operation, and update operation(s).
+- Components can only have one serve operation per key.
+- The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
 - `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same dataflow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
 
 ## Example Component
@@ -27,7 +35,6 @@ Here is an example component that computes the z-score of a value with respect t
 
 ```python title="main.py" linenums="1"
 from motion import Component
-import time
 
 ZScoreComponent = Component("ZScore")
 
@@ -38,17 +45,19 @@ def setUp():
 
 
 @ZScoreComponent.serve("number")
-def serve(state, value):  # (1)!
+def serve(state, props):  # (1)!
     if state["mean"] is None:
         return None
-    return abs(value - state["mean"]) / state["std"]
+    return abs(props["value"] - state["mean"]) / state["std"]
 
 
 @ZScoreComponent.update("number")
-def update(state, serve_result, value):  # (2)!
+def update(state, props):  # (2)!
+    # Result of the serve op can be accessed via
+    # props.serve_result
     # We don't do anything with the results, but we could!
     value_list = state["values"]
-    value_list.append(value)
+    value_list.append(props["value"])
 
     mean = sum(value_list) / len(value_list)
     std = sum((n - mean) ** 2 for n in value_list) / len(value_list)
@@ -60,27 +69,28 @@ def update(state, serve_result, value):  # (2)!
 
 To run the component, we can create an instance of our component, `c`, and call `c.run` on the dataflow's key and value:
 
-```python title="main.py" linenums="28"
+```python title="main.py" linenums="29"
 if __name__ == "__main__":
+    import time
     c = ZScoreComponent() # Create instance of component
 
     # Observe 10 values of the dataflow's key
     for i in range(9):
-        print(c.run("number", kwargs={"value": i}))  # (1)!
+        print(c.run("number", props={"value": i}))  # (1)!
 
-    c.run("number", kwargs={"value": 9}, flush_update=True)  # (2)!
+    c.run("number", props={"value": 9}, flush_update=True)  # (2)!
     for i in range(10, 19):
-        print(c.run("number", kwargs={"value": i}))  # (3)!
+        print(c.run("number", props={"value": i}))  # (3)!
 
-    print(c.run("number", kwargs={"value": 10})) # (4)!
+    print(c.run("number", props={"value": 10})) # (4)!
     time.sleep(5)  # Give time for the second update to finish
-    print(c.run("number", kwargs={"value": 10}, force_refresh=True))
+    print(c.run("number", props={"value": 10}, force_refresh=True))
 ```
 
 1. The first few runs might return None, as the mean and std are not yet initialized.
 2. This will block until the resulting update operation has finished running. update ops run in the order that dataflows were executed (i.e., the update op for number 8 will run before the update op for number 9).
 3. This uses the updated state dictionary from the previous run operation, since `flush_update` also updates the state.
-4. This uses the cached result for 10. To ignore the cached result and rerun the serve op with a (potentially old) state, we should call `c.run("number", kwargs={"value": 10}, ignore_cache=True)`. To make sure we have the latest state, we can call `c.run("number", kwargs={"value": 10}, force_refresh=True)`.
+4. This uses the cached result for 10. To ignore the cached result and rerun the serve op with a (potentially old) state, we should call `c.run("number", props={"value": 10}, ignore_cache=True)`. To make sure we have the latest state, we can call `c.run("number", props={"value": 10}, force_refresh=True)`.
 
 The output of the above code is:
 
@@ -124,10 +134,10 @@ Then, you can access the parameters in your operations:
 
 ```python
 @ZScoreComponent.serve("number")
-def serve(state, value):
+def serve(state, props):
     if state["mean"] is None:
         return None
-    z_score = abs(value - state["mean"]) / state["std"]
+    z_score = abs(props["value"] - state["mean"]) / state["std"]
     if z_score > ZScoreComponent.params["alert_threshold"]:
         print("Alert!")
     return z_score

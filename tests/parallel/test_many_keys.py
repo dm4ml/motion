@@ -14,36 +14,36 @@ def setup():
 
 
 @Counter.serve(["increment", "decrement"])
-def noop(state, value):
-    return value
+def noop(state, props):
+    return props["value"]
 
 
 @Counter.update("increment")
-def increment(state, value, serve_result):
+def increment(state, props):
     return {"value": state["value"] + 1}
 
 
 @Counter.update("decrement")
-def nothing(state, value, serve_result):
+def nothing(state, props):
     return {"value": state["value"] - 1}
 
 
 @Counter.update(["accumulate", "something_else"])
-def multiupdate(state, value, serve_result):
-    return {"multifit": state["multifit"] + [value]}
+def multiupdate(state, props):
+    return {"multifit": state["multifit"] + [props["value"]]}
 
 
 def test_many_keys():
     c = Counter()
 
-    c.run("increment", kwargs={"value": 1}, flush_update=True)
+    c.run("increment", props={"value": 1}, flush_update=True)
     assert c.read_state("value") == 2
-    c.run("decrement", kwargs={"value": 1}, flush_update=True)
+    c.run("decrement", props={"value": 1}, flush_update=True)
     assert c.read_state("value") == 1
 
     # Test multifit
-    c.run("accumulate", kwargs={"value": 1})
-    c.run("something_else", kwargs={"value": 2})
+    c.run("accumulate", props={"value": 1})
+    c.run("something_else", props={"value": 2})
 
     c.flush_update("accumulate")
     c.flush_update("something_else")

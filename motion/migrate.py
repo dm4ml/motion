@@ -6,7 +6,8 @@ import redis
 from pydantic import BaseConfig, BaseModel, Field
 
 from motion.component import Component
-from motion.utils import CustomDict, RedisParams, loadState, logger, saveState
+from motion.dicts import State
+from motion.utils import RedisParams, loadState, logger, saveState
 
 
 def process_migration(
@@ -26,9 +27,8 @@ def process_migration(
             "Migration function must return a dict."
             + " Warning: partial progress may have been made!"
         )
-        empty_state = CustomDict(
+        empty_state = State(
             instance_name.split("__")[0],
-            "state",
             instance_name.split("__")[1],
             {},
         )

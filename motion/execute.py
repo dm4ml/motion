@@ -9,10 +9,10 @@ import psutil
 import redis
 from redis.lock import Lock
 
+from motion.dicts import Properties, State
 from motion.route import Route
 from motion.server.update_task import UpdateTask
 from motion.utils import (
-    CustomDict,
     RedisParams,
     UpdateEvent,
     UpdateEventGroup,
@@ -58,9 +58,8 @@ class Executor:
 
         # Set up state
         self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        self._state = CustomDict(
+        self._state = State(
             instance_name.split("__")[0],
-            "state",
             instance_name.split("__")[1],
             {},
         )
@@ -106,7 +105,7 @@ class Executor:
         )
         return r
 
-    def _loadState(self) -> CustomDict:
+    def _loadState(self) -> State:
         return loadState(self._redis_con, self._instance_name, self._load_state_func)
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
@@ -261,8 +260,7 @@ class Executor:
     def _enqueue_and_trigger_update(
         self,
         key: str,
-        kwargs: Dict[str, Any],
-        serve_result: Any,
+        props: Properties,
         flush_update: bool,
         route_hit: bool,
     ) -> bool:
@@ -292,8 +290,7 @@ class Executor:
                     queue_identifier,
                     cloudpickle.dumps(
                         {
-                            "kwargs": kwargs,
-                            "serve_result": serve_result,
+                            "props": props,
                             "identifier": identifier,
                         }
                     ),
@@ -317,10 +314,10 @@ class Executor:
     def _try_cached_serve(
         self,
         key: str,
-        kwargs: Dict[str, Any],
+        props: Properties,
         ignore_cache: bool,
         force_refresh: bool,
-    ) -> Tuple[bool, Optional[Any], Optional[str]]:
+    ) -> Tuple[bool, Optional[Any], Properties, Optional[str]]:
         route_run = False
         serve_result = None
 
@@ -336,7 +333,7 @@ class Executor:
 
         # Try hashing the value
         try:
-            value_hash = hash_object(kwargs)
+            value_hash = hash_object(props)
         except TypeError:
             value_hash = None
 
@@ -345,15 +342,16 @@ class Executor:
         if value_hash and not force_refresh and not ignore_cache:
             cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
-                serve_result = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                props = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                serve_result = props.serve_result
                 route_run = True
 
-        return route_run, serve_result, value_hash
+        return route_run, serve_result, props, value_hash
 
     def run(
         self,
         key: str,
-        kwargs: Dict[str, Any],
+        props: Dict[str, Any],
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
@@ -361,18 +359,25 @@ class Executor:
     ) -> Any:
         route_hit = False
         serve_result = None
+        props = Properties(props)
 
         # Run the serve route
         if key in self._serve_routes.keys():
             route_hit = True
-            route_run, serve_result, value_hash = self._try_cached_serve(
-                key, kwargs, ignore_cache, force_refresh
-            )
+            (
+                route_run,
+                serve_result,
+                props,
+                value_hash,
+            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                serve_result = self._serve_routes[key].run(state=self._state, **kwargs)
+                serve_result = self._serve_routes[key].run(
+                    state=self._state, props=props
+                )
+                props._serve_result = serve_result
 
                 # Check that serve_result is not an awaitable
                 if asyncio.iscoroutine(serve_result):
@@ -388,14 +393,14 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(serve_result),
+                        cloudpickle.dumps(props),
                         ex=cache_ttl,
                     )
 
         # Run the update routes
         # Enqueue results into update queues
         route_hit = self._enqueue_and_trigger_update(
-            key, kwargs, serve_result, flush_update, route_hit
+            key, props, flush_update, route_hit
         )
 
         if not route_hit:
@@ -406,7 +411,7 @@ class Executor:
     async def arun(
         self,
         key: str,
-        kwargs: Dict[str, Any],
+        props: Dict[str, Any],
         cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
@@ -414,19 +419,23 @@ class Executor:
     ) -> Any:
         route_hit = False
         serve_result = None
+        props = Properties(props)
 
         # Run the serve route
         if key in self._serve_routes.keys():
             route_hit = True
-            route_run, serve_result, value_hash = self._try_cached_serve(
-                key, kwargs, ignore_cache, force_refresh
-            )
+            (
+                route_run,
+                serve_result,
+                props,
+                value_hash,
+            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
                 serve_result_awaitable = self._serve_routes[key].run(
-                    state=self._state, **kwargs
+                    state=self._state, props=props
                 )
                 if not asyncio.iscoroutine(serve_result_awaitable):
                     raise TypeError(
@@ -435,6 +444,7 @@ class Executor:
                     )
 
                 serve_result = await serve_result_awaitable
+                props._serve_result = serve_result
 
                 # Cache result
                 if value_hash:
@@ -443,14 +453,14 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(serve_result),
+                        cloudpickle.dumps(props),
                         ex=cache_ttl,
                     )
 
         # Run the update routes
         # Enqueue results into update queues
         route_hit = self._enqueue_and_trigger_update(
-            key, kwargs, serve_result, flush_update, route_hit
+            key, props, flush_update, route_hit
         )
 
         if not route_hit:

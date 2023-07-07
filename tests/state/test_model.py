@@ -20,14 +20,14 @@ def setUp():
 
 
 @c.serve("value")
-def predict(state, value):
-    return state["model"].predict([[value]])[0]
+def predict(state, props):
+    return state["model"].predict([[props["value"]]])[0]
 
 
 @c.update("value")
-def finetune(state, value, serve_result):
+def finetune(state, props):
     training_batch = state["training_batch"]
-    training_batch.append((value, serve_result))
+    training_batch.append((props["value"], props.serve_result))
     if len(training_batch) < 2:
         return {"training_batch": training_batch}
 
@@ -44,13 +44,13 @@ def finetune(state, value, serve_result):
 
 def test_model_component():
     c_instance = c()
-    first_run = c_instance.run("value", kwargs={"value": 1})
+    first_run = c_instance.run("value", props={"value": 1})
     assert first_run == c_instance.run(
-        "value", kwargs={"value": 1}, flush_update=True
+        "value", props={"value": 1}, flush_update=True
     )
 
     second_run = c_instance.run(
-        "value", kwargs={"value": 1}, force_refresh=True
+        "value", props={"value": 1}, force_refresh=True
     )
 
     # The model should have been updated
@@ -59,14 +59,12 @@ def test_model_component():
 
 def test_ignore_cache():
     c_instance = c()
-    first_run = c_instance.run("value", kwargs={"value": 1})
+    first_run = c_instance.run("value", props={"value": 1})
     assert first_run == c_instance.run(
-        "value", kwargs={"value": 1}, flush_update=True
+        "value", props={"value": 1}, flush_update=True
     )
 
-    second_run = c_instance.run(
-        "value", kwargs={"value": 1}, ignore_cache=True
-    )
+    second_run = c_instance.run("value", props={"value": 1}, ignore_cache=True)
 
     # The model should have been updated
     assert second_run != first_run
