@@ -59,7 +59,7 @@ class UpdateTask(multiprocessing.Process):
             queue_name = ""
             try:
                 # for _ in range(self.batch_size):
-                full_item = redis_con.blpop(self.queue_identifiers, timeout=0.5)
+                full_item = redis_con.blpop(self.queue_identifiers, timeout=0.1)
                 if full_item is None:
                     if not self.running.value:
                         break  # no more items in the list
