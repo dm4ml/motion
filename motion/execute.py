@@ -136,20 +136,22 @@ class Executor:
                     rkey, udf_name
                 )
 
-        self.worker_task = UpdateTask(
-            self._instance_name,
-            routes=self.route_dict_for_fit,
-            save_state_func=self._save_state_func,
-            load_state_func=self._load_state_func,
-            queue_identifiers=self.queue_ids_for_fit,
-            channel_identifiers=self.channel_dict_for_fit,
-            redis_host=rp.host,
-            redis_port=rp.port,
-            redis_db=rp.db,
-            redis_password=rp.password,  # type: ignore
-            running=self.running,
-        )
-        self.worker_task.start()
+        self.worker_task = None
+        if self.queue_ids_for_fit:
+            self.worker_task = UpdateTask(
+                self._instance_name,
+                routes=self.route_dict_for_fit,
+                save_state_func=self._save_state_func,
+                load_state_func=self._load_state_func,
+                queue_identifiers=self.queue_ids_for_fit,
+                channel_identifiers=self.channel_dict_for_fit,
+                redis_host=rp.host,
+                redis_port=rp.port,
+                redis_db=rp.db,
+                redis_password=rp.password,  # type: ignore
+                running=self.running,
+            )
+            self.worker_task.start()
 
         # Set up a monitor thread
         self.stop_event = threading.Event()
@@ -159,6 +161,9 @@ class Executor:
         self.monitor_thread.start()
 
     def _monitor_process(self) -> None:
+        if not self.worker_task:
+            return
+
         rp = RedisParams()
         while not self.stop_event.is_set():
             # See if the update task is alive
@@ -212,7 +217,7 @@ class Executor:
         self.stop_event.set()
         self.running.value = False
 
-        if psutil.pid_exists(self.worker_task.pid):
+        if self.worker_task and psutil.pid_exists(self.worker_task.pid):
             self.worker_task.join()
 
         self._redis_con.close()
