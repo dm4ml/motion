@@ -126,10 +126,9 @@ class UpdateTask(multiprocessing.Process):
                             self.instance_name,
                             self.save_state_func,
                         )
-                except Exception as e:
-                    # logger.error(f"Error in {self.queue_identifier} fit: {e}")
+                except Exception:
                     logger.error(traceback.format_exc())
-                    exception_str = str(e)
+                    exception_str = str(traceback.format_exc())
                 finally:
                     logger.info("Releasing lock.")
                     lock.release()
