@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from motion.dicts import Params
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import random_passphrase, validate_args
+from motion.utils import DEFAULT_KEY_TTL, random_passphrase, validate_args
 
 
 class Component:
@@ -115,19 +115,33 @@ class Component:
         ```
     """
 
-    def __init__(self, name: str, params: Dict[str, Any] = {}):
+    def __init__(
+        self,
+        name: str,
+        params: Dict[str, Any] = {},
+        cache_ttl: int = DEFAULT_KEY_TTL,
+    ):
         """Creates a new Motion component.
 
         Args:
             name (str):
                 Name of the component.
-                params (Dict[str, Any], optional):
-                    Parameters to be accessed by the component. Defaults to {}.
-                    Usage: `C.params["param_name"]` if C is the Component you
-                    have created.
+            params (Dict[str, Any], optional):
+                Parameters to be accessed by the component. Defaults to {}.
+                Usage: `C.params["param_name"]` if C is the Component you
+                have created.
+            cache_ttl (int, optional):
+                Time to live for cached serve results (seconds).
+                Defaults to 1 day. Set to 0 to disable caching.
         """
+        if cache_ttl is None or cache_ttl < 0:
+            raise ValueError(
+                "cache_ttl must be 0 (caching disabled) or a positive integer."
+            )
+
         self._name = name
         self._params = Params(params)
+        self._cache_ttl = cache_ttl
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = {}
@@ -135,6 +149,11 @@ class Component:
         self._init_state_func: Optional[Callable] = None
         self._save_state_func: Optional[Callable] = None
         self._load_state_func: Optional[Callable] = None
+
+    @property
+    def cache_ttl(self) -> int:
+        """Time to live for cached serve results (seconds)."""
+        return self._cache_ttl
 
     @property
     def name(self) -> str:
@@ -517,6 +536,7 @@ class Component:
                 update_routes=self._update_routes,
                 logging_level=logging_level,
                 disabled=disabled,
+                cache_ttl=self._cache_ttl,
             )
         except RuntimeError:
             raise RuntimeError(

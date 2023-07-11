@@ -27,6 +27,7 @@ class Executor:
     def __init__(
         self,
         instance_name: str,
+        cache_ttl: int,
         init_state_func: Optional[Callable],
         init_state_params: Dict[str, Any],
         save_state_func: Optional[Callable],
@@ -36,6 +37,7 @@ class Executor:
         disabled: bool = False,
     ):
         self._instance_name = instance_name
+        self._cache_ttl = cache_ttl
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -328,6 +330,10 @@ class Executor:
                 )
             self.version = int(v)
 
+        # If caching is disabled, return
+        if self._cache_ttl == 0:
+            return route_run, serve_result, props, None
+
         # Try hashing the value
         try:
             value_hash = hash_object(props)
@@ -349,7 +355,6 @@ class Executor:
         self,
         key: str,
         props: Dict[str, Any],
-        cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
@@ -391,7 +396,7 @@ class Executor:
                     self._redis_con.set(
                         cache_result_key,
                         cloudpickle.dumps(props),
-                        ex=cache_ttl,
+                        ex=self._cache_ttl,
                     )
 
         # Run the update routes
@@ -409,7 +414,6 @@ class Executor:
         self,
         key: str,
         props: Dict[str, Any],
-        cache_ttl: int,
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
@@ -451,7 +455,7 @@ class Executor:
                     self._redis_con.set(
                         cache_result_key,
                         cloudpickle.dumps(props),
-                        ex=cache_ttl,
+                        ex=self._cache_ttl,
                     )
 
         # Run the update routes
