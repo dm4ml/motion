@@ -31,6 +31,7 @@ class ComponentInstance:
         update_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
         disabled: bool = False,
+        cache_ttl: int = DEFAULT_KEY_TTL,
     ):
         """Creates a new instance of a Motion component.
 
@@ -52,11 +53,13 @@ class ComponentInstance:
 
         # Create instance name
         self._instance_name = f"{self._component_name}__{instance_id}"
+        self._cache_ttl = cache_ttl
 
         self.running = False
         self.disabled = disabled
         self._executor = Executor(
             self._instance_name,
+            cache_ttl=self._cache_ttl,
             init_state_func=init_state_func,
             init_state_params=init_state_params if init_state_params else {},
             save_state_func=save_state_func,
@@ -261,7 +264,6 @@ class ComponentInstance:
         # *,
         dataflow_key: str,
         props: Dict[str, Any] = {},
-        cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
@@ -310,14 +312,11 @@ class ComponentInstance:
             dataflow_key (str): Key of the dataflow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
-            cache_ttl (int, optional):
-                How long the serveence result should live in a cache (in
-                seconds). Defaults to 1 day (60 * 60 * 24).
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
-                state before running an serveence call, otherwise a stale
+                state before running an serve call, otherwise a stale
                 version of the state or a cached result may be used.
                 Defaults to False.
             flush_update (bool, optional):
@@ -332,7 +331,7 @@ class ComponentInstance:
                 If the component instance was initialized as disabled.
 
         Returns:
-            Any: Result of the serveence call. Might take a long time
+            Any: Result of the serve call. Might take a long time
             to run if `flush_update = True` and the update operation is
             computationally expensive.
         """
@@ -342,7 +341,6 @@ class ComponentInstance:
         serve_result = self._executor.run(
             key=dataflow_key,
             props=props,
-            cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_update=flush_update,
@@ -355,7 +353,6 @@ class ComponentInstance:
         # *,
         dataflow_key: str,
         props: Dict[str, Any] = {},
-        cache_ttl: int = DEFAULT_KEY_TTL,
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
@@ -387,14 +384,11 @@ class ComponentInstance:
             dataflow_key (str): Key of the dataflow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
                 dataflow ops, in addition to the state.
-            cache_ttl (int, optional):
-                How long the serveence result should live in a cache (in
-                seconds). Defaults to 1 day (60 * 60 * 24).
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
             force_refresh (bool, optional): Read the latest value of the
-                state before running an serveence call, otherwise a stale
+                state before running an serve call, otherwise a stale
                 version of the state or a cached result may be used.
                 Defaults to False.
             flush_update (bool, optional):
@@ -409,7 +403,7 @@ class ComponentInstance:
                 If the component instance was initialized as disabled.
 
         Returns:
-            Awaitable[Any]: Awaitable Result of the serveence call.
+            Awaitable[Any]: Awaitable Result of the serve call.
         """
         if self.disabled:
             raise RuntimeError("Cannot run a disabled component instance.")
@@ -418,7 +412,6 @@ class ComponentInstance:
             key=dataflow_key,
             props=props,
             # value=value,
-            cache_ttl=cache_ttl,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_update=flush_update,
