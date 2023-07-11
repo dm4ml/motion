@@ -151,7 +151,7 @@ class Component:
         self._load_state_func: Optional[Callable] = None
 
     @property
-    def cache_ttl(self) -> bool:
+    def cache_ttl(self) -> int:
         """Time to live for cached serve results (seconds)."""
         return self._cache_ttl
 
