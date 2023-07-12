@@ -2,7 +2,6 @@ import hashlib
 import logging
 import os
 import random
-import yaml
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -39,19 +38,9 @@ class RedisParams(BaseModel):
     password: Optional[str] = None
 
     def __init__(self,**kwargs: Any) -> None:
-<<<<<<< HEAD
         config = kwargs.get('config')
 
         if config is not None:
-=======
-        config_file = "config.yaml"
-
-        if os.path.isfile(config_file):
-            # host,port,db,password = self.load_from_yaml(config_file)
-            with open(config_file, "r") as file:
-                config = yaml.safe_load(file)
-            
->>>>>>> 819ebe94f27d469238f19e94dd73c8e207f53270
             kwargs.setdefault("host", config.get("MOTION_REDIS_HOST", 
                     os.getenv("MOTION_REDIS_HOST", "localhost")))
             kwargs.setdefault("port", config.get("MOTION_REDIS_PORT", 
