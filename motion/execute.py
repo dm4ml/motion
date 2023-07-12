@@ -3,6 +3,8 @@ import multiprocessing
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
+import os
+import yaml
 
 import cloudpickle
 import psutil
@@ -49,7 +51,13 @@ class Executor:
         try:
             self._redis_con.ping()
         except redis.exceptions.ConnectionError:
-            rp = RedisParams()
+            config = None
+            config_file = "config.yaml"
+            if os.path.isfile(config_file):
+                with open(config_file, "r") as file:
+                    config = yaml.safe_load(file)
+
+            rp = RedisParams(config=config)
             raise ConnectionError(
                 f"Could not connect to a Redis backend {rp}. "
                 + "Please set environment variables MOTION_REDIS_HOST, "

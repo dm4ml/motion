@@ -2,6 +2,7 @@ import redis
 import psutil
 import pytest
 import os
+import yaml
 
 from motion.utils import RedisParams
 
@@ -15,7 +16,13 @@ def redis_fixture():
     os.environ.pop("MOTION_REDIS_PASSWORD", None)
     os.environ["MOTION_REDIS_DB"] = "0"
 
-    rp = RedisParams()
+    config = None
+    config_file = "config.yaml"
+    if os.path.isfile(config_file):
+        with open(config_file, "r") as file:
+            config = yaml.safe_load(file)
+
+    rp = RedisParams(config=config)
     r = redis.Redis(
         host=rp.host,
         port=rp.port,
