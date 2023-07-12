@@ -15,7 +15,7 @@ from motion.dicts import CustomDict, State
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_TTL = 60 * 60 * 24  # 1 day
-fake_custom_dict = CustomDict("fake", "fake", "fake", {})a
+fake_custom_dict = CustomDict("fake", "fake", "fake", {})
 
 
 def hash_object(obj: Any) -> str:
