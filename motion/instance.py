@@ -70,6 +70,12 @@ class ComponentInstance:
         )
         self.running = True
 
+    def __enter__(self) -> "ComponentInstance":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
+        self.shutdown()
+
     @property
     def instance_name(self) -> str:
         """Component name with a random phrase to represent
