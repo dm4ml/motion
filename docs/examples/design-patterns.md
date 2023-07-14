@@ -2,3 +2,4 @@
 - Reusing component instances (dynamic retrieval)
 - Caching results to save cost (wrapper around OpenAI LLM)
 - Disabled component instances
+- Context manager component instances

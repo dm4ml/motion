@@ -499,6 +499,14 @@ class Component:
             c_instance.run(..)
         ```
 
+        You can also use component instances as context managers:
+        ```python
+        ...
+        if __name__ == "__main__":
+            with MyComponent(init_state_params={"starting_val": 3}) as c_instance:
+                c_instance.run(..)
+        ```
+
         Args:
             instance_id (str, optional):
                 id of the component instance. Defaults to "" which will
