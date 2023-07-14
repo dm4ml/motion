@@ -16,6 +16,7 @@ def noop(state, props):
 # Arbitrarily large batch
 @Counter.update("number")
 def increment(state, props):
+    print(state.instance_id)
     values = state["values"]
     values.append(props.serve_result)
 

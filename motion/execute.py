@@ -4,7 +4,7 @@ import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-import cloudpickle
+import msgpack
 import psutil
 import redis
 from redis.lock import Lock
@@ -287,9 +287,9 @@ class Executor:
                 # Add to update queue
                 self._redis_con.rpush(
                     queue_identifier,
-                    cloudpickle.dumps(
+                    msgpack.packb(
                         {
-                            "props": props,
+                            "props": props.pack(),
                             "identifier": identifier,
                         }
                     ),
@@ -345,7 +345,7 @@ class Executor:
         if value_hash and not force_refresh and not ignore_cache:
             cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
-                props = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                props = Properties.unpack(self._redis_con.get(cache_result_key))
                 serve_result = props.serve_result
                 route_run = True
 
@@ -395,7 +395,7 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(props),
+                        props.pack(),
                         ex=self._cache_ttl,
                     )
 
@@ -454,7 +454,7 @@ class Executor:
                     )
                     self._redis_con.set(
                         cache_result_key,
-                        cloudpickle.dumps(props),
+                        props.pack(),
                         ex=self._cache_ttl,
                     )
 
@@ -493,7 +493,7 @@ class Executor:
             # Add to update queue
             self._redis_con.rpush(
                 queue_identifier,
-                cloudpickle.dumps(
+                msgpack.packb(
                     {
                         "value": None,
                         "serve_result": None,

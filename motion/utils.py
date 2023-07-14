@@ -5,8 +5,8 @@ import random
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-import cloudpickle
 import colorlog
+import msgpack
 import redis
 from pydantic import BaseModel
 
@@ -179,7 +179,7 @@ def loadState(
         return state
 
     # Unpickle state
-    loaded_state = cloudpickle.loads(loaded_state)
+    loaded_state = msgpack.unpackb(loaded_state)
 
     if load_state_func is not None:
         state.update(load_state_func(loaded_state))
@@ -199,7 +199,7 @@ def saveState(
     if save_state_func is not None:
         state_to_save = save_state_func(state_to_save)
 
-    state_pickled = cloudpickle.dumps(state_to_save)
+    state_pickled = msgpack.packb(state_to_save)
 
     redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
     redis_con.incr(f"MOTION_VERSION:{instance_name}")

@@ -1472,7 +1472,7 @@ files = [
 name = "msgpack"
 version = "1.0.5"
 description = "MessagePack serializer"
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 files = [
@@ -3170,4 +3170,4 @@ testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "b786e5c65ec269e94eff43d12a4b34d5d182638edc57355e8881538928c79fb5"
+content-hash = "df377771414849dffd9d3207a1089b8fce4b654bc1dac49b6fccba9021d1f06d"

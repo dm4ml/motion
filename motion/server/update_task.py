@@ -3,10 +3,11 @@ import multiprocessing
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
-import cloudpickle
+import msgpack
 import redis
 from redis.lock import Lock
 
+from motion.dicts import Properties
 from motion.route import Route
 from motion.utils import loadState, logger, saveState
 
@@ -67,7 +68,7 @@ class UpdateTask(multiprocessing.Process):
                         continue
 
                 queue_name = full_item[0].decode("utf-8")
-                item = cloudpickle.loads(full_item[1])
+                item = msgpack.unpackb(full_item[1])
                 # self.batch.append(item)
                 # if flush_update:
                 #     break
@@ -108,7 +109,7 @@ class UpdateTask(multiprocessing.Process):
                     )
                     state_update = self.routes[queue_name].run(
                         state=old_state,
-                        props=item["props"],
+                        props=Properties.unpack(item["props"]),
                     )
                     # Await if state_update is a coroutine
                     if asyncio.iscoroutine(state_update):

@@ -4,6 +4,8 @@ properties of a flow.
 """
 from typing import Any, Optional
 
+import msgpack
+
 
 class CustomDict(dict):
     def __init__(
@@ -83,6 +85,24 @@ class Properties(dict):
             Any: Result of the serve operation.
         """
         return self._serve_result
+
+    def pack(self):
+        data = {
+            "serve_result": self._serve_result,
+            "properties": dict(self),
+        }
+        return msgpack.packb(data)
+
+    @staticmethod
+    def unpack(data: bytes):
+        unpacked_data = msgpack.unpackb(data)
+        serve_result = unpacked_data["serve_result"]
+        properties = unpacked_data["properties"]
+
+        props = Properties(properties)
+        props._serve_result = serve_result
+
+        return props
 
     # def __getattr__(self, key: str) -> object:
     #     return self.__getitem__(key)
