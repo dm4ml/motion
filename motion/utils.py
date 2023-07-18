@@ -6,11 +6,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 import colorlog
-import msgpack
 import redis
 from pydantic import BaseModel
 
-from motion.dicts import CustomDict, State
+from motion.dicts import CustomDict, State, StateContext
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +78,14 @@ def clear_instance(instance_name: str) -> bool:
         return False
 
     # Delete the instance state, version, and cached results
-    redis_con.delete(f"MOTION_STATE:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
 
+    state_to_delete = redis_con.keys(f"MOTION_STATE:{instance_name}/*")
     results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
     queues_to_delete = redis_con.keys(f"MOTION_QUEUE:{instance_name}/*")
     pipeline = redis_con.pipeline()
+    for st in state_to_delete:
+        pipeline.delete(st)
     for result in results_to_delete:
         pipeline.delete(result)
     for queue in queues_to_delete:
@@ -128,7 +129,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
         raise ValueError(f"Instance {instance_name} does not exist.")
 
     # Get the state
-    state = loadState(redis_con, instance_name, None)
+    state = loadState(redis_con, instance_name, None, None, StateContext.INSPECTOR)
     return state
 
 
@@ -168,41 +169,38 @@ def loadState(
     redis_con: redis.Redis,
     instance_name: str,
     load_state_func: Optional[Callable],
+    save_state_func: Optional[Callable],
+    context: StateContext,
 ) -> State:
     # Get state from redis
-    state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
-    loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
-
-    if not loaded_state:
-        # This is an error
-        logger.warning(f"Could not find state for {instance_name}.")
-        return state
-
-    # Unpickle state
-    loaded_state = msgpack.unpackb(loaded_state)
-
-    if load_state_func is not None:
-        state.update(load_state_func(loaded_state))
-    else:
-        state.update(loaded_state)
-
+    state = State(
+        instance_name.split("__")[0],
+        instance_name.split("__")[1],
+        redis_con,
+        context,
+        load_state_func,
+        save_state_func,
+        {},
+    )
     return state
 
 
-def saveState(
-    state_to_save: State,
-    redis_con: redis.Redis,
-    instance_name: str,
-    save_state_func: Optional[Callable],
-) -> None:
-    # Save state to redis
-    if save_state_func is not None:
-        state_to_save = save_state_func(state_to_save)
+# def saveState(
+#     state_to_save: State,
+#     redis_con: redis.Redis,
+#     instance_name: str,
+#     save_state_func: Optional[Callable],
+# ) -> None:
+#     # Save state to redis
+#     if save_state_func is not None:
+#         state_to_save = save_state_func(state_to_save)
 
-    state_pickled = msgpack.packb(state_to_save)
+#     state_pickled = cloudpickle.dumps(
+#         state_to_save, protocol=cloudpickle.DEFAULT_PROTOCOL
+#     )
 
-    redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
-    redis_con.incr(f"MOTION_VERSION:{instance_name}")
+#     redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
+#     redis_con.incr(f"MOTION_VERSION:{instance_name}")
 
 
 class UpdateEvent:

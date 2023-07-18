@@ -7,9 +7,9 @@ import msgpack
 import redis
 from redis.lock import Lock
 
-from motion.dicts import Properties
+from motion.dicts import Properties, StateContext
 from motion.route import Route
-from motion.utils import loadState, logger, saveState
+from motion.utils import loadState, logger
 
 
 class UpdateTask(multiprocessing.Process):
@@ -106,6 +106,8 @@ class UpdateTask(multiprocessing.Process):
                         redis_con,
                         self.instance_name,
                         self.load_state_func,
+                        self.save_state_func,
+                        context=StateContext.USER,
                     )
                     state_update = self.routes[queue_name].run(
                         state=old_state,
@@ -120,13 +122,14 @@ class UpdateTask(multiprocessing.Process):
                             "Update methods should return a dict of state updates."
                         )
                     else:
-                        old_state.update(state_update)
-                        saveState(
-                            old_state,
-                            redis_con,
-                            self.instance_name,
-                            self.save_state_func,
-                        )
+                        old_state._context = StateContext.EXECUTOR
+                        old_state.customUpdate(state_update)
+                        # saveState(
+                        #     old_state,
+                        #     redis_con,
+                        #     self.instance_name,
+                        #     self.save_state_func,
+                        # )
                 except Exception:
                     logger.error(traceback.format_exc())
                     exception_str = str(traceback.format_exc())

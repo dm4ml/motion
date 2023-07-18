@@ -8,8 +8,9 @@ c = Component("DBComponent")
 @c.init_state
 def setUp():
     # Create in-memory sqlite database
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect("/tmp/test")
     cursor = conn.cursor()
+    cursor.execute("DROP TABLE IF EXISTS users")
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +36,7 @@ def save(state):
 
 @c.load_state
 def load(state):
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect("/tmp/test")
     cursor = conn.cursor()
     return {"cursor": cursor, "fit_count": state["fit_count"]}
 

@@ -2,6 +2,7 @@ import atexit
 import logging
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from motion.dicts import StateContext
 from motion.execute import Executor
 from motion.route import Route
 from motion.utils import DEFAULT_KEY_TTL, configureLogging, logger
@@ -215,7 +216,7 @@ class ComponentInstance:
         Returns:
             Any: Current value for the key.
         """
-        return self._executor._loadState()[key]
+        return self._executor._loadState(context=StateContext.USER)[key]
 
     def flush_update(self, dataflow_key: str) -> None:
         """Flushes the update queue corresponding to the dataflow

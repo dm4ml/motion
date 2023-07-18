@@ -6,8 +6,8 @@ import redis
 from pydantic import BaseConfig, BaseModel, Field
 
 from motion.component import Component
-from motion.dicts import State
-from motion.utils import RedisParams, loadState, logger, saveState
+from motion.dicts import State, StateContext
+from motion.utils import RedisParams, loadState, logger
 
 
 def process_migration(
@@ -21,7 +21,13 @@ def process_migration(
         redis_con = redis.Redis(
             host=rp.host, port=rp.port, password=rp.password, db=rp.db
         )
-        state = loadState(redis_con, instance_name, load_state_fn)
+        state = loadState(
+            redis_con,
+            instance_name,
+            load_state_fn,
+            save_state_fn,
+            context=StateContext.MIGRATOR,
+        )
         new_state = migrate_func(state)
         assert isinstance(new_state, dict), (
             "Migration function must return a dict."
@@ -30,10 +36,14 @@ def process_migration(
         empty_state = State(
             instance_name.split("__")[0],
             instance_name.split("__")[1],
+            redis_con,
+            StateContext.MIGRATOR,
+            load_state_fn,
+            save_state_fn,
             {},
         )
-        empty_state.update(new_state)
-        saveState(empty_state, redis_con, instance_name, save_state_fn)
+        empty_state.customUpdate(new_state)
+        # saveState(empty_state, redis_con, instance_name, save_state_fn)
     except Exception as e:
         if isinstance(e, AssertionError):
             raise e
@@ -111,8 +121,8 @@ class StateMigrator:
         ]
         if not instance_names:
             instance_names = [
-                key.decode("utf-8").replace("MOTION_STATE:", "")
-                for key in redis_con.keys(f"MOTION_STATE:{self.component.name}__*")
+                key.decode("utf-8").replace("MOTION_VERSION:", "")
+                for key in redis_con.keys(f"MOTION_VERSION:{self.component.name}__*")
             ]
 
         if not instance_names:

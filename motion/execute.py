@@ -9,7 +9,7 @@ import psutil
 import redis
 from redis.lock import Lock
 
-from motion.dicts import Properties, State
+from motion.dicts import Properties, State, StateContext
 from motion.route import Route
 from motion.server.update_task import UpdateTask
 from motion.utils import (
@@ -19,7 +19,6 @@ from motion.utils import (
     hash_object,
     loadState,
     logger,
-    saveState,
 )
 
 
@@ -60,24 +59,21 @@ class Executor:
 
         # Set up state
         self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        self._state = State(
-            instance_name.split("__")[0],
-            instance_name.split("__")[1],
-            {},
-        )
         if self.version is None:
             self.version = 1
             # Setup state
-            self._state.update(self.setUp(**self._init_state_params))
-            saveState(
-                self._state,
+            self._state = State(
+                instance_name.split("__")[0],
+                instance_name.split("__")[1],
                 self._redis_con,
-                self._instance_name,
+                StateContext.USER,
+                self._load_state_func,
                 self._save_state_func,
+                self.setUp(**self._init_state_params),
             )
         else:
             # Load state
-            self._state = self._loadState()
+            self._state = self._loadState(StateContext.USER)
             self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
 
         self.version = int(self.version)
@@ -107,8 +103,14 @@ class Executor:
         )
         return r
 
-    def _loadState(self) -> State:
-        return loadState(self._redis_con, self._instance_name, self._load_state_func)
+    def _loadState(self, context: StateContext) -> State:
+        return loadState(
+            self._redis_con,
+            self._instance_name,
+            self._load_state_func,
+            self._save_state_func,
+            context=context,
+        )
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -240,16 +242,16 @@ class Executor:
         acquired_lock = lock.acquire(blocking=True)
         if acquired_lock:
             # Get latest state
-            self._state = self._loadState()
-            self._state.update(new_state)
+            self._state = self._loadState(context=StateContext.EXECUTOR)
+            self._state.customUpdate(new_state)
 
-            # Save state to redis
-            saveState(
-                self._state,
-                self._redis_con,
-                self._instance_name,
-                self._save_state_func,
-            )
+            # # Save state to redis
+            # saveState(
+            #     self._state,
+            #     self._redis_con,
+            #     self._instance_name,
+            #     self._save_state_func,
+            # )
 
             self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
 
@@ -299,7 +301,7 @@ class Executor:
                 # Wait for update result to finish
                 update_events.wait()
                 # Update state
-                self._state = self._loadState()
+                self._state = self._loadState(StateContext.USER)
                 v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
                 if not v:
                     raise ValueError(
@@ -321,7 +323,7 @@ class Executor:
         serve_result = None
 
         if force_refresh:
-            self._state = self._loadState()
+            self._state = self._loadState(StateContext.USER)
             v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
             if not v:
                 raise ValueError(
@@ -505,7 +507,7 @@ class Executor:
         # Wait for update result to finish
         update_events.wait()
         # Update state
-        self._state = self._loadState()
+        self._state = self._loadState(StateContext.USER)
         v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
         if not v:
             raise ValueError(

@@ -59,4 +59,5 @@ def test_state_migration():
     # Assert the instances have the new state
     for instance_id in instance_ids:
         s = Something(instance_id)
-        assert s._executor._state == {"state_val": 0, "another_val": 0}
+        assert s.read_state("state_val") == 0
+        assert s.read_state("another_val") == 0
