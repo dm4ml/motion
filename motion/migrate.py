@@ -7,7 +7,7 @@ from pydantic import BaseConfig, BaseModel, Field
 
 from motion.component import Component
 from motion.dicts import State
-from motion.utils import RedisParams, loadState, logger, saveState
+from motion.utils import get_redis_params, loadState, logger, saveState
 
 
 def process_migration(
@@ -17,7 +17,7 @@ def process_migration(
     save_state_fn: Callable,
 ) -> Tuple[str, Optional[Exception]]:
     try:
-        rp = RedisParams()
+        rp = get_redis_params()
         redis_con = redis.Redis(
             host=rp.host, port=rp.port, password=rp.password, db=rp.db
         )
@@ -101,7 +101,7 @@ class StateMigrator:
         """
         # Read all the states
 
-        rp = RedisParams()
+        rp = get_redis_params()
         redis_con = redis.Redis(
             host=rp.host, port=rp.port, password=rp.password, db=rp.db
         )

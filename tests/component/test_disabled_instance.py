@@ -2,7 +2,7 @@ from motion import Component
 import pytest
 import multiprocessing
 
-from motion.utils import RedisParams
+from motion.utils import get_redis_params
 import redis
 
 Counter = Component("Counter", cache_ttl=0)
@@ -49,7 +49,7 @@ def test_no_caching():
     c.run("number", props={"value": 1}, flush_update=True)
 
     # Check that the result is not in the cache
-    rp = RedisParams()
+    rp = get_redis_params()
     r = redis.Redis(
         host=rp.host,
         port=rp.port,

@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Optional
 import cloudpickle
 import colorlog
 import redis
+import yaml
 from pydantic import BaseModel
 
 from motion.dicts import CustomDict, State
@@ -37,18 +38,35 @@ class RedisParams(BaseModel):
     db: int
     password: Optional[str] = None
 
-    def __init__(self,**kwargs: Any) -> None:
-        config = kwargs.get('config')
+    def __init__(self, **kwargs: Any) -> None:
+        config = kwargs.get("config")
 
         if config is not None:
-            kwargs.setdefault("host", config.get("MOTION_REDIS_HOST", 
-                    os.getenv("MOTION_REDIS_HOST", "localhost")))
-            kwargs.setdefault("port", config.get("MOTION_REDIS_PORT", 
-                    int(os.getenv("MOTION_REDIS_PORT", "6379"))))
-            kwargs.setdefault("db", config.get("MOTION_REDIS_DB", 
-                    int(os.getenv("MOTION_REDIS_DB", "0"))))
-            kwargs.setdefault("password", config.get("MOTION_REDIS_PASSWORD", 
-                    os.getenv("MOTION_REDIS_PASSWORD", None)))
+            kwargs.setdefault(
+                "host",
+                config.get(
+                    "MOTION_REDIS_HOST",
+                    os.getenv("MOTION_REDIS_HOST", "localhost"),
+                ),
+            )
+            kwargs.setdefault(
+                "port",
+                config.get(
+                    "MOTION_REDIS_PORT",
+                    int(os.getenv("MOTION_REDIS_PORT", "6379")),
+                ),
+            )
+            kwargs.setdefault(
+                "db",
+                config.get("MOTION_REDIS_DB", int(os.getenv("MOTION_REDIS_DB", "0"))),
+            )
+            kwargs.setdefault(
+                "password",
+                config.get(
+                    "MOTION_REDIS_PASSWORD",
+                    os.getenv("MOTION_REDIS_PASSWORD", None),
+                ),
+            )
         else:
             kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
             kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
@@ -56,7 +74,20 @@ class RedisParams(BaseModel):
             kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
 
         super().__init__(**kwargs)
-    
+
+
+def get_redis_params(
+    config_file: str = "mconfig.yaml",
+) -> RedisParams:
+    config = None
+    if os.path.isfile(config_file):
+        with open(config_file, "r") as file:
+            config = yaml.safe_load(file)
+    else:
+        logger.info("No mconfig file found, using environment variables.")
+
+    rp = RedisParams(config=config)
+    return rp
 
 
 def clear_instance(instance_name: str) -> bool:
@@ -84,7 +115,7 @@ def clear_instance(instance_name: str) -> bool:
     if "__" not in instance_name:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
-    rp = RedisParams()
+    rp = get_redis_params()
     redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
 
     # Check if the instance exists
@@ -133,7 +164,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
     if "__" not in instance_name:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
-    rp = RedisParams()
+    rp = get_redis_params()
     redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
 
     # Check if the instance exists

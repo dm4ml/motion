@@ -3,8 +3,6 @@ import multiprocessing
 import threading
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import uuid4
-import os
-import yaml
 
 import cloudpickle
 import psutil
@@ -18,6 +16,7 @@ from motion.utils import (
     RedisParams,
     UpdateEvent,
     UpdateEventGroup,
+    get_redis_params,
     hash_object,
     loadState,
     logger,
@@ -47,19 +46,12 @@ class Executor:
         self._save_state_func = save_state_func
 
         self.running: Any = multiprocessing.Value("b", False)
-        self._redis_con = self._connectToRedis()
+        self._redis_params, self._redis_con = self._connectToRedis()
         try:
             self._redis_con.ping()
         except redis.exceptions.ConnectionError:
-            config = None
-            config_file = "config.yaml"
-            if os.path.isfile(config_file):
-                with open(config_file, "r") as file:
-                    config = yaml.safe_load(file)
-
-            rp = RedisParams(config=config)
             raise ConnectionError(
-                f"Could not connect to a Redis backend {rp}. "
+                f"Could not connect to a Redis backend {self._redis_params}. "
                 + "Please set environment variables MOTION_REDIS_HOST, "
                 + "MOTION_REDIS_PORT, MOTION_REDIS_DB, and/or "
                 + "MOTION_REDIS_PASSWORD to your Redis params."
@@ -105,15 +97,15 @@ class Executor:
         if not disabled:
             self._build_fit_jobs()
 
-    def _connectToRedis(self) -> redis.Redis:
-        rp = RedisParams()
+    def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
+        rp = get_redis_params()
         r = redis.Redis(
             host=rp.host,
             port=rp.port,
             password=rp.password,
             db=rp.db,
         )
-        return r
+        return rp, r
 
     def _loadState(self) -> State:
         return loadState(self._redis_con, self._instance_name, self._load_state_func)
@@ -130,7 +122,6 @@ class Executor:
 
     def _build_fit_jobs(self) -> None:
         """Builds update job."""
-        rp = RedisParams()
         # self.worker_states = {}
 
         # Set up update task
@@ -155,10 +146,10 @@ class Executor:
                 load_state_func=self._load_state_func,
                 queue_identifiers=self.queue_ids_for_fit,
                 channel_identifiers=self.channel_dict_for_fit,
-                redis_host=rp.host,
-                redis_port=rp.port,
-                redis_db=rp.db,
-                redis_password=rp.password,  # type: ignore
+                redis_host=self._redis_params.host,
+                redis_port=self._redis_params.port,
+                redis_db=self._redis_params.db,
+                redis_password=self._redis_params.password,  # type: ignore
                 running=self.running,
             )
             self.worker_task.start()
@@ -174,7 +165,6 @@ class Executor:
         if not self.worker_task:
             return
 
-        rp = RedisParams()
         while not self.stop_event.is_set():
             # See if the update task is alive
             if not self.worker_task.is_alive():
@@ -191,10 +181,10 @@ class Executor:
                     load_state_func=self._load_state_func,
                     queue_identifiers=self.queue_ids_for_fit,
                     channel_identifiers=self.channel_dict_for_fit,
-                    redis_host=rp.host,
-                    redis_port=rp.port,
-                    redis_db=rp.db,
-                    redis_password=rp.password,  # type: ignore
+                    redis_host=self._redis_params.host,
+                    redis_port=self._redis_params.port,
+                    redis_db=self._redis_params.db,
+                    redis_password=self._redis_params.password,  # type: ignore
                     running=self.running,
                 )
                 self.worker_task.start()
