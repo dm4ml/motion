@@ -7,7 +7,6 @@ from uuid import uuid4
 import cloudpickle
 import psutil
 import redis
-from redis.lock import Lock
 
 from motion.dicts import Properties, State
 from motion.route import Route
@@ -231,12 +230,7 @@ class Executor:
         if not isinstance(new_state, dict):
             raise TypeError("State should be a dict.")
 
-        # Acquire a lock
-        lock_timeout = 5  # Lock timeout in seconds
-        lock = Lock(self._redis_con, self._instance_name, lock_timeout)
-
-        acquired_lock = lock.acquire(blocking=True)
-        if acquired_lock:
+        with self._redis_con.lock(self._instance_name):
             # Get latest state
             self._state = self._loadState()
             self._state.update(new_state)
@@ -250,9 +244,6 @@ class Executor:
             )
 
             self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-
-            # Release lock
-            lock.release()
 
     def _enqueue_and_trigger_update(
         self,
