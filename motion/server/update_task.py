@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
 import redis
-from redis.lock import Lock
 
 from motion.route import Route
 from motion.utils import loadState, logger, saveState
@@ -50,9 +49,6 @@ class UpdateTask(multiprocessing.Process):
             password=self.redis_password,
             db=self.redis_db,
         )
-        # Acquire a lock
-        lock_timeout = 300  # Lock timeout in seconds
-        lock = Lock(redis_con, self.instance_name, lock_timeout)
 
         while self.running.value:
             item: Dict[str, Any] = {}
@@ -98,9 +94,8 @@ class UpdateTask(multiprocessing.Process):
                 continue
 
             # Run update op
-            acquired_lock = lock.acquire(blocking=True)
-            if acquired_lock:
-                try:
+            try:
+                with redis_con.lock(self.instance_name):
                     old_state = loadState(
                         redis_con,
                         self.instance_name,
@@ -126,14 +121,9 @@ class UpdateTask(multiprocessing.Process):
                             self.instance_name,
                             self.save_state_func,
                         )
-                except Exception:
-                    logger.error(traceback.format_exc())
-                    exception_str = str(traceback.format_exc())
-                finally:
-                    logger.info("Releasing lock.")
-                    lock.release()
-            else:
-                logger.error("Lock not acquired; item lost.")
+            except Exception:
+                logger.error(traceback.format_exc())
+                exception_str = str(traceback.format_exc())
 
             redis_con.publish(
                 self.channel_identifiers[queue_name],
