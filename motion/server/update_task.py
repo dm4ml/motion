@@ -114,7 +114,7 @@ class UpdateTask(multiprocessing.Process):
                     )
                 else:
                     old_state.update(state_update)
-                    with redis_con.lock(self.instance_name):
+                    with redis_con.lock(self.instance_name, timeout=30):
                         saveState(
                             old_state,
                             redis_con,

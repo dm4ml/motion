@@ -235,7 +235,7 @@ class Executor:
         self._state.update(new_state)
 
         # Save state to redis
-        with self._redis_con.lock(self._instance_name):
+        with self._redis_con.lock(self._instance_name, timeout=30):
             saveState(
                 self._state,
                 self._redis_con,
