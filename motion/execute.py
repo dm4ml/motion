@@ -230,8 +230,8 @@ class Executor:
         if not isinstance(new_state, dict):
             raise TypeError("State should be a dict.")
 
-        with self._redis_con.lock(self._instance_name):
-            # Get latest state
+        # Get latest state
+        with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=30):
             self._state = self._loadState()
             self._state.update(new_state)
 
