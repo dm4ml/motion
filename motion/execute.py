@@ -231,11 +231,11 @@ class Executor:
             raise TypeError("State should be a dict.")
 
         # Get latest state
-        self._state = self._loadState()
-        self._state.update(new_state)
+        with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=30):
+            self._state = self._loadState()
+            self._state.update(new_state)
 
-        # Save state to redis
-        with self._redis_con.lock(self._instance_name, timeout=30):
+            # Save state to redis
             saveState(
                 self._state,
                 self._redis_con,
