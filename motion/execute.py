@@ -230,12 +230,12 @@ class Executor:
         if not isinstance(new_state, dict):
             raise TypeError("State should be a dict.")
 
-        with self._redis_con.lock(self._instance_name):
-            # Get latest state
-            self._state = self._loadState()
-            self._state.update(new_state)
+        # Get latest state
+        self._state = self._loadState()
+        self._state.update(new_state)
 
-            # Save state to redis
+        # Save state to redis
+        with self._redis_con.lock(self._instance_name):
             saveState(
                 self._state,
                 self._redis_con,

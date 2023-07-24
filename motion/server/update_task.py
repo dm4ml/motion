@@ -95,26 +95,26 @@ class UpdateTask(multiprocessing.Process):
 
             # Run update op
             try:
-                with redis_con.lock(self.instance_name):
-                    old_state = loadState(
-                        redis_con,
-                        self.instance_name,
-                        self.load_state_func,
-                    )
-                    state_update = self.routes[queue_name].run(
-                        state=old_state,
-                        props=item["props"],
-                    )
-                    # Await if state_update is a coroutine
-                    if asyncio.iscoroutine(state_update):
-                        state_update = asyncio.run(state_update)
+                old_state = loadState(
+                    redis_con,
+                    self.instance_name,
+                    self.load_state_func,
+                )
+                state_update = self.routes[queue_name].run(
+                    state=old_state,
+                    props=item["props"],
+                )
+                # Await if state_update is a coroutine
+                if asyncio.iscoroutine(state_update):
+                    state_update = asyncio.run(state_update)
 
-                    if not isinstance(state_update, dict):
-                        logger.error(
-                            "Update methods should return a dict of state updates."
-                        )
-                    else:
-                        old_state.update(state_update)
+                if not isinstance(state_update, dict):
+                    logger.error(
+                        "Update methods should return a dict of state updates."
+                    )
+                else:
+                    old_state.update(state_update)
+                    with redis_con.lock(self.instance_name):
                         saveState(
                             old_state,
                             redis_con,
