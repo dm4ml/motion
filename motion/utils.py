@@ -84,7 +84,7 @@ def get_redis_params(
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
     else:
-        logger.info("No mconfig file found, using environment variables.")
+        logger.debug("No mconfig file found, using environment variables.")
 
     rp = RedisParams(config=config)
     return rp
