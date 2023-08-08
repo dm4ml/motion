@@ -1,6 +1,5 @@
 import atexit
 import logging
-
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from motion.execute import Executor
@@ -123,7 +122,7 @@ class ComponentInstance:
         is_open = is_logger_open(logger)
 
         if is_open:
-            logger.info(f"Shutting down {self._instance_name}...")
+            logger.debug(f"Shutting down {self._instance_name}...")
 
         self._executor.shutdown(is_open=is_open)
 
