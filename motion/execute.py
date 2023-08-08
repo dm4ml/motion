@@ -210,7 +210,7 @@ class Executor:
             return
 
         if is_open:
-            logger.info("Running update operations on remaining data...")
+            logger.debug("Running update operations on remaining data...")
 
         # Set shutdown event
         self.stop_event.set()
