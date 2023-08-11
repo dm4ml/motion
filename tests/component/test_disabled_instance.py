@@ -31,9 +31,9 @@ def counter_process():
 
 def test_disabled():
     # Create disabled component
-    c = Counter(disabled=True)
+    c = Counter(disable_update_proc=True)
     with pytest.raises(RuntimeError):
-        c.run("number", props={"value": 1})
+        c.run("number", props={"value": 1}, flush_update=True)
 
     # Make sure this can run successfully
     process = multiprocessing.Process(target=counter_process)

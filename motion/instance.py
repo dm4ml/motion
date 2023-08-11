@@ -30,7 +30,7 @@ class ComponentInstance:
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
-        disabled: bool = False,
+        disable_update_proc: bool = False,
         cache_ttl: int = DEFAULT_KEY_TTL,
     ):
         """Creates a new instance of a Motion component.
@@ -56,7 +56,7 @@ class ComponentInstance:
         self._cache_ttl = cache_ttl
 
         self.running = False
-        self.disabled = disabled
+        self.disable_update_proc = disable_update_proc
         self._executor = Executor(
             self._instance_name,
             cache_ttl=self._cache_ttl,
@@ -66,7 +66,7 @@ class ComponentInstance:
             load_state_func=load_state_func,
             serve_routes=serve_routes,
             update_routes=update_routes,
-            disabled=self.disabled,
+            disable_update_proc=self.disable_update_proc,
         )
         self.running = True
 
@@ -113,7 +113,7 @@ class ComponentInstance:
             c_instance.shutdown()
         ```
         """
-        if self.disabled:
+        if self.disable_update_proc:
             return
 
         if not self.running:
@@ -258,10 +258,11 @@ class ComponentInstance:
             dataflow_key (str): Key of the dataflow.
 
         Raises:
-            RuntimeError: If the component instance was initialized as disabled.
+            RuntimeError:
+                If the component instance was initialized as disable_update_proc.
         """
-        if self.disabled:
-            raise RuntimeError("Cannot run a disabled component instance.")
+        if self.disable_update_proc:
+            raise RuntimeError("Cannot run a disable_update_proc component instance.")
 
         self._executor.flush_update(dataflow_key)
 
@@ -334,15 +335,14 @@ class ComponentInstance:
          Raises:
             ValueError: If more than one dataflow key-value pair is passed.
             RuntimeError:
-                If the component instance was initialized as disabled.
+                If flush_update is called and the component instance update
+                processes are disabled.
 
         Returns:
             Any: Result of the serve call. Might take a long time
             to run if `flush_update = True` and the update operation is
             computationally expensive.
         """
-        if self.disabled:
-            raise RuntimeError("Cannot run a disabled component instance.")
 
         serve_result = self._executor.run(
             key=dataflow_key,
@@ -405,14 +405,12 @@ class ComponentInstance:
 
         Raises:
             ValueError: If more than one dataflow key-value pair is passed.
-            RuntimeError:
-                If the component instance was initialized as disabled.
+            If flush_update is called and the component instance update
+                processes are disabled.
 
         Returns:
             Awaitable[Any]: Awaitable Result of the serve call.
         """
-        if self.disabled:
-            raise RuntimeError("Cannot run a disabled component instance.")
 
         serve_result = await self._executor.arun(
             key=dataflow_key,
