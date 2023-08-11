@@ -34,7 +34,7 @@ class Executor:
         load_state_func: Optional[Callable],
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
-        disabled: bool = False,
+        disable_update_proc: bool = False,
     ):
         self._instance_name = instance_name
         self._cache_ttl = cache_ttl
@@ -92,8 +92,8 @@ class Executor:
         # self._shutdown_event = threading.Event()
 
         # Set up update queues, batch sizes, and threads
-        self.disabled = disabled
-        if not disabled:
+        self.disable_update_proc = disable_update_proc
+        if not disable_update_proc:
             self._build_fit_jobs()
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
@@ -203,7 +203,7 @@ class Executor:
         return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
-        if self.disabled:
+        if self.disable_update_proc:
             return
 
         if not self.running.value:
@@ -256,6 +256,12 @@ class Executor:
         # Enqueue results into update queues
         if key in self._update_routes.keys():
             route_hit = True
+
+            # If flush_update is True and fit jobs are disabled, return error
+            if flush_update and self.disable_update_proc:
+                raise RuntimeError(
+                    f"Cannot flush update for {key} if update processes are disabled."
+                )
 
             update_events = UpdateEventGroup(key)
             for update_udf_name in self._update_routes[key].keys():

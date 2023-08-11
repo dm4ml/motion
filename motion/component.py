@@ -471,7 +471,7 @@ class Component:
         instance_id: str = "",
         init_state_params: Dict[str, Any] = {},
         logging_level: str = "WARNING",
-        disabled: bool = False,
+        disable_update_proc: bool = False,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -516,9 +516,9 @@ class Component:
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
-            disabled (bool, optional):
-                Whether or not to disable the component instance. Useful for
-                printing out state values without running dataflows.
+            disable_update_proc (bool, optional):
+                Whether or not to disable the component instance update ops.
+                Useful for printing out state values without running dataflows.
                 Defaults to False.
         Returns:
             ComponentInstance: Component instance to run dataflows with.
@@ -543,7 +543,7 @@ class Component:
                 serve_routes=self._serve_routes,
                 update_routes=self._update_routes,
                 logging_level=logging_level,
-                disabled=disabled,
+                disable_update_proc=disable_update_proc,
                 cache_ttl=self._cache_ttl,
             )
         except RuntimeError:
