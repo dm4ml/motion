@@ -1,5 +1,6 @@
 from motion import Component
 import time
+import pytest
 
 Spinner = Component("Spinner")
 
@@ -56,3 +57,6 @@ def test_process():
     # assert thread_time > process_time
 
     inst2.shutdown()
+
+    with pytest.raises(ValueError):
+        Spinner(update_task_type="hehehe")
