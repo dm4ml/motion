@@ -165,7 +165,7 @@ class Executor:
                 redis_password=self._redis_params.password,  # type: ignore
                 running=self.running,
             )
-            self.worker_task.start()
+            self.worker_task.start()  # type: ignore
 
         # Set up a monitor thread
         self.stop_event = threading.Event()
@@ -184,11 +184,11 @@ class Executor:
 
         while not self.stop_event.is_set():
             # See if the update task is alive
-            if not self.worker_task.is_alive():
+            if not self.worker_task.is_alive():  # type: ignore
                 logger.debug(
-                    f"Failed to detect heartbeat for {self.worker_task.name}."
+                    f"No heartbeat for {self.worker_task.name}."  # type: ignore
                     + " Restarting the task in the background."
-                )
+                )  # type: ignore
 
                 # Restart
                 self.worker_task = update_cls(
@@ -204,7 +204,7 @@ class Executor:
                     redis_password=self._redis_params.password,  # type: ignore
                     running=self.running,
                 )
-                self.worker_task.start()
+                self.worker_task.start()  # type: ignore
 
             if self.stop_event.is_set():
                 break
@@ -236,12 +236,13 @@ class Executor:
 
         # If process, check if pid exists
         if self.update_task_type == "process":
-            if self.worker_task and psutil.pid_exists(self.worker_task.pid):
-                self.worker_task.join()
+            if self.worker_task:
+                if psutil.pid_exists(self.worker_task.pid):  # type: ignore
+                    self.worker_task.join()  # type: ignore
         # If thread, check if thread is alive
         else:
-            if self.worker_task and self.worker_task.is_alive():
-                self.worker_task.join()
+            if self.worker_task and self.worker_task.is_alive():  # type: ignore
+                self.worker_task.join()  # type: ignore
 
         # Shut down threadpool for writing to Redis
         self.tp.shutdown(wait=False)
