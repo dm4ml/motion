@@ -8,7 +8,7 @@ import click
 import redis
 from rich.console import Console
 
-from motion import clear_instance, inspect_state
+from motion import clear_instance, get_instances, inspect_state
 
 
 @click.group()
@@ -115,13 +115,13 @@ def inspect(instance: str) -> None:
     any loadState() transformations.
 
     Args:
-        instance (str): Instance name of the component to clear.
+        instance (str): Instance name of the component to inspect.
             In the form `componentname__instancename`.
     """
     console = Console()
     red_x = "\u274C"
     checkmark = "\u2705"  # Unicode code point for checkmark emoji
-    with console.status("Clearing instance", spinner="dots"):
+    with console.status("Inspecting instance", spinner="dots"):
         try:
             state = inspect_state(instance)
         except ValueError as e:
@@ -133,6 +133,35 @@ def inspect(instance: str) -> None:
 
     console.print(state)
     click.echo(f"{checkmark} Printed state for instance {instance}.")
+
+
+@motioncli.command("list", epilog="Example usage:\n motion list MyComponent")
+@click.argument("component", type=str, required=True)
+def list(component: str) -> None:
+    """Lists all instances of a component.
+
+    Args:
+        component (str): Name of the component to list instances of.
+    """
+    console = Console()
+    red_x = "\u274C"
+    checkmark = "\u2705"  # Unicode code point for checkmark emoji
+    with console.status("Getting instances for component", spinner="dots"):
+        try:
+            instances = get_instances(component)
+        except ValueError as e:
+            click.echo(f"{red_x} {e}")
+            return
+        except redis.exceptions.ConnectionError as e:
+            click.echo(f"{red_x} {e}")
+            return
+
+    for instance_id in instances:
+        console.print(instance_id)
+
+    click.echo(
+        f"{checkmark} Listed all {len(instances)} instances for component {component}."
+    )
 
 
 if __name__ == "__main__":

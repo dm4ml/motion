@@ -1,4 +1,4 @@
-from motion import Component, clear_instance, inspect_state
+from motion import Component, clear_instance, inspect_state, get_instances
 
 import pytest
 
@@ -55,3 +55,10 @@ def test_instance_inspect():
     state = inspect_state(instance_name)
 
     assert state == {"value": 0}
+
+
+def test_list_instances():
+    c_instance = C()
+    instance_ids = get_instances(C.name)
+
+    assert len(instance_ids) >= 1

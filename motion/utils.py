@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
 import colorlog
@@ -88,6 +88,27 @@ def get_redis_params(
 
     rp = RedisParams(config=config)
     return rp
+
+
+def get_instances(component_name: str) -> List[str]:
+    """Gets all instances of a component.
+
+    Args:
+        component_name (str): Name of the component.
+
+    Returns:
+        List[str]: List of instance ids.
+    """
+    rp = get_redis_params()
+    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+
+    # Scan for all keys with prefix
+    prefix = f"MOTION_VERSION:{component_name}__*"
+    instance_ids = []
+    for key in redis_con.scan_iter(prefix):
+        instance_ids.append(key.decode("utf-8").split("__")[1])
+
+    return instance_ids
 
 
 def clear_instance(instance_name: str) -> bool:
