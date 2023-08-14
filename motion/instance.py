@@ -1,6 +1,6 @@
 import atexit
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
 
 from motion.execute import Executor
 from motion.route import Route
@@ -30,7 +30,8 @@ class ComponentInstance:
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
-        disable_update_proc: bool = False,
+        update_task_type: Literal["thread", "process"] = "thread",
+        disable_update_task: bool = False,
         cache_ttl: int = DEFAULT_KEY_TTL,
     ):
         """Creates a new instance of a Motion component.
@@ -44,6 +45,9 @@ class ComponentInstance:
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
         """
+        if update_task_type not in ["thread", "process"]:
+            raise ValueError("update_task must be either 'thread' or 'process'")
+
         self._component_name = component_name
         configureLogging(logging_level)
         # self._serverless = serverless
@@ -56,7 +60,7 @@ class ComponentInstance:
         self._cache_ttl = cache_ttl
 
         self.running = False
-        self.disable_update_proc = disable_update_proc
+        self.disable_update_task = disable_update_task
         self._executor = Executor(
             self._instance_name,
             cache_ttl=self._cache_ttl,
@@ -66,7 +70,8 @@ class ComponentInstance:
             load_state_func=load_state_func,
             serve_routes=serve_routes,
             update_routes=update_routes,
-            disable_update_proc=self.disable_update_proc,
+            update_task_type=update_task_type,
+            disable_update_task=self.disable_update_task,
         )
         self.running = True
 
@@ -113,7 +118,7 @@ class ComponentInstance:
             c_instance.shutdown()
         ```
         """
-        if self.disable_update_proc:
+        if self.disable_update_task:
             return
 
         if not self.running:
@@ -259,10 +264,10 @@ class ComponentInstance:
 
         Raises:
             RuntimeError:
-                If the component instance was initialized as disable_update_proc.
+                If the component instance was initialized as disable_update_task.
         """
-        if self.disable_update_proc:
-            raise RuntimeError("Cannot run a disable_update_proc component instance.")
+        if self.disable_update_task:
+            raise RuntimeError("Cannot run a disable_update_task component instance.")
 
         self._executor.flush_update(dataflow_key)
 

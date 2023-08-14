@@ -1,7 +1,8 @@
 import asyncio
 import multiprocessing
 import threading
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from uuid import uuid4
 
 import cloudpickle
@@ -10,7 +11,7 @@ import redis
 
 from motion.dicts import Properties, State
 from motion.route import Route
-from motion.server.update_task import UpdateTask
+from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
     RedisParams,
     UpdateEvent,
@@ -34,7 +35,8 @@ class Executor:
         load_state_func: Optional[Callable],
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
-        disable_update_proc: bool = False,
+        update_task_type: Literal["thread", "process"] = "thread",
+        disable_update_task: bool = False,
     ):
         self._instance_name = instance_name
         self._cache_ttl = cache_ttl
@@ -92,9 +94,18 @@ class Executor:
         # self._shutdown_event = threading.Event()
 
         # Set up update queues, batch sizes, and threads
-        self.disable_update_proc = disable_update_proc
-        if not disable_update_proc:
+        self.disable_update_task = disable_update_task
+        if not disable_update_task:
+            self.update_task_type = update_task_type
             self._build_fit_jobs()
+
+        self.tp = ThreadPoolExecutor(max_workers=2)
+
+    def _setRedis(self, cache_result_key: str, props: Any) -> None:
+        """Method to set value in Redis."""
+        self._redis_con.set(
+            cache_result_key, cloudpickle.dumps(props), ex=self._cache_ttl
+        )
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
         rp = get_redis_params()
@@ -121,7 +132,10 @@ class Executor:
 
     def _build_fit_jobs(self) -> None:
         """Builds update job."""
-        # self.worker_states = {}
+
+        update_cls = (
+            UpdateProcess if self.update_task_type == "process" else UpdateThread
+        )
 
         # Set up update task
         self.route_dict_for_fit = {}
@@ -138,8 +152,8 @@ class Executor:
 
         self.worker_task = None
         if self.queue_ids_for_fit:
-            self.worker_task = UpdateTask(
-                self._instance_name,
+            self.worker_task = update_cls(
+                instance_name=self._instance_name,
                 routes=self.route_dict_for_fit,
                 save_state_func=self._save_state_func,
                 load_state_func=self._load_state_func,
@@ -151,7 +165,7 @@ class Executor:
                 redis_password=self._redis_params.password,  # type: ignore
                 running=self.running,
             )
-            self.worker_task.start()
+            self.worker_task.start()  # type: ignore
 
         # Set up a monitor thread
         self.stop_event = threading.Event()
@@ -164,17 +178,21 @@ class Executor:
         if not self.worker_task:
             return
 
+        update_cls = (
+            UpdateProcess if self.update_task_type == "process" else UpdateThread
+        )
+
         while not self.stop_event.is_set():
             # See if the update task is alive
-            if not self.worker_task.is_alive():
+            if not self.worker_task.is_alive():  # type: ignore
                 logger.debug(
-                    f"Failed to detect heartbeat for {self.worker_task.name}."
+                    f"No heartbeat for {self.worker_task.name}."  # type: ignore
                     + " Restarting the task in the background."
-                )
+                )  # type: ignore
 
                 # Restart
-                self.worker_task = UpdateTask(
-                    self._instance_name,
+                self.worker_task = update_cls(
+                    instance_name=self._instance_name,
                     routes=self.route_dict_for_fit,
                     save_state_func=self._save_state_func,
                     load_state_func=self._load_state_func,
@@ -186,7 +204,7 @@ class Executor:
                     redis_password=self._redis_params.password,  # type: ignore
                     running=self.running,
                 )
-                self.worker_task.start()
+                self.worker_task.start()  # type: ignore
 
             if self.stop_event.is_set():
                 break
@@ -203,7 +221,7 @@ class Executor:
         return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
-        if self.disable_update_proc:
+        if self.disable_update_task:
             return
 
         if not self.running.value:
@@ -216,8 +234,18 @@ class Executor:
         self.stop_event.set()
         self.running.value = False
 
-        if self.worker_task and psutil.pid_exists(self.worker_task.pid):
-            self.worker_task.join()
+        # If process, check if pid exists
+        if self.update_task_type == "process":
+            if self.worker_task:
+                if psutil.pid_exists(self.worker_task.pid):  # type: ignore
+                    self.worker_task.join()  # type: ignore
+        # If thread, check if thread is alive
+        else:
+            if self.worker_task and self.worker_task.is_alive():  # type: ignore
+                self.worker_task.join()  # type: ignore
+
+        # Shut down threadpool for writing to Redis
+        self.tp.shutdown(wait=False)
 
         self._redis_con.close()
 
@@ -257,14 +285,16 @@ class Executor:
         if key in self._update_routes.keys():
             route_hit = True
 
-            # If flush_update is True and fit jobs are disabled, return error
-            if flush_update and self.disable_update_proc:
-                raise RuntimeError(
-                    f"Cannot flush update for {key} if update processes are disabled."
-                )
-
             update_events = UpdateEventGroup(key)
             for update_udf_name in self._update_routes[key].keys():
+                if self.disable_update_task:
+                    # TODO: Must run update in this main process
+                    # Refactor
+
+                    raise RuntimeError(
+                        f"Update process is disabled. Cannot run update for {key}."
+                    )
+
                 queue_identifier: str = self._get_queue_identifier(key, update_udf_name)
                 channel_identifier: str = self._get_channel_identifier(
                     key, update_udf_name
@@ -388,11 +418,12 @@ class Executor:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
-                    self._redis_con.set(
-                        cache_result_key,
-                        cloudpickle.dumps(props),
-                        ex=self._cache_ttl,
-                    )
+                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # self._redis_con.set(
+                    #     cache_result_key,
+                    #     cloudpickle.dumps(props),
+                    #     ex=self._cache_ttl,
+                    # )
 
         # Run the update routes
         # Enqueue results into update queues
@@ -447,11 +478,12 @@ class Executor:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
-                    self._redis_con.set(
-                        cache_result_key,
-                        cloudpickle.dumps(props),
-                        ex=self._cache_ttl,
-                    )
+                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # self._redis_con.set(
+                    #     cache_result_key,
+                    #     cloudpickle.dumps(props),
+                    #     ex=self._cache_ttl,
+                    # )
 
         # Run the update routes
         # Enqueue results into update queues

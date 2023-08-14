@@ -1,6 +1,7 @@
 import asyncio
-import multiprocessing
 import traceback
+from multiprocessing import Process
+from threading import Thread
 from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
@@ -10,9 +11,10 @@ from motion.route import Route
 from motion.utils import loadState, logger, saveState
 
 
-class UpdateTask(multiprocessing.Process):
+class BaseUpdateTask:
     def __init__(
         self,
+        task_type: str,
         instance_name: str,
         routes: Dict[str, Route],
         save_state_func: Optional[Callable],
@@ -26,7 +28,8 @@ class UpdateTask(multiprocessing.Process):
         running: Any,
     ):
         super().__init__()
-        self.name = f"UpdateTask-{instance_name}"
+        self.task_type = task_type
+        self.name = f"UpdateTask-{task_type}-{instance_name}"
         self.instance_name = instance_name
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
@@ -42,7 +45,7 @@ class UpdateTask(multiprocessing.Process):
         self.running = running
         self.daemon = True
 
-    def run(self) -> None:
+    def custom_run(self) -> None:
         redis_con = redis.Redis(
             host=self.redis_host,
             port=self.redis_port,
@@ -134,3 +137,31 @@ class UpdateTask(multiprocessing.Process):
                     }
                 ),
             )
+
+
+class UpdateProcess(Process):
+    def __init__(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__()
+        self.name = f"UpdateTask-{kwargs.get('instance_name', '')}"
+        self.daemon = True
+        self.but = BaseUpdateTask(task_type="process", **kwargs)
+
+    def run(self) -> None:
+        self.but.custom_run()
+
+
+class UpdateThread(Thread):
+    def __init__(
+        self,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__()
+        self.name = f"UpdateTask-{kwargs.get('instance_name', '')}"
+        self.daemon = True
+        self.but = BaseUpdateTask(task_type="thread", **kwargs)
+
+    def run(self) -> None:
+        self.but.custom_run()
