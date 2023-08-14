@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from motion.dicts import Params
 from motion.instance import ComponentInstance
@@ -471,7 +471,8 @@ class Component:
         instance_id: str = "",
         init_state_params: Dict[str, Any] = {},
         logging_level: str = "WARNING",
-        disable_update_proc: bool = False,
+        update_task_type: Literal["thread", "process"] = "thread",
+        disable_update_task: bool = False,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -516,7 +517,13 @@ class Component:
             logging_level (str, optional):
                 Logging level for the Motion logger. Uses the logging library.
                 Defaults to "WARNING".
-            disable_update_proc (bool, optional):
+            update_task_type (str, optional):
+                Type of update task to use. Can be "thread" or "process".
+                "thread" has lower overhead but is not recommended for
+                CPU-intensive update operations. "process" is recommended
+                for CPU-intensive operations (e.g., fine-tuning a model)
+                but has higher startup overhead. Defaults to "thread".
+            disable_update_task (bool, optional):
                 Whether or not to disable the component instance update ops.
                 Useful for printing out state values without running dataflows.
                 Defaults to False.
@@ -543,7 +550,8 @@ class Component:
                 serve_routes=self._serve_routes,
                 update_routes=self._update_routes,
                 logging_level=logging_level,
-                disable_update_proc=disable_update_proc,
+                update_task_type=update_task_type,
+                disable_update_task=disable_update_task,
                 cache_ttl=self._cache_ttl,
             )
         except RuntimeError:
