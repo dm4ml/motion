@@ -259,7 +259,7 @@ class Executor:
             raise TypeError("State should be a dict.")
 
         # Get latest state
-        with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=60):
+        with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=120):
             self._state = self._loadState()
             self._state.update(new_state)
 
