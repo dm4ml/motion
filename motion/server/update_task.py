@@ -98,7 +98,7 @@ class BaseUpdateTask:
 
             # Run update op
             try:
-                with redis_con.lock(f"MOTION_LOCK:{self.instance_name}", timeout=30):
+                with redis_con.lock(f"MOTION_LOCK:{self.instance_name}", timeout=60):
                     old_state = loadState(
                         redis_con,
                         self.instance_name,
