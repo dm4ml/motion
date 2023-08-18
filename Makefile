@@ -1,4 +1,4 @@
-.PHONY: tests lint install mypy update docs
+.PHONY: tests lint install mypy update docs statebuild
 
 tests:
 	poetry run pytest
@@ -18,3 +18,15 @@ update:
 
 docs:
 	poetry run mkdocs serve
+
+statebuild:
+	cd motionstate && \
+	echo "Building motionstate" && \
+	maturin build --release && \
+	python -m venv ../.motionenv && \
+	source ../.motionenv/bin/activate && pip install target/wheels/motionstate*.whl && deactivate && \
+	echo "Copying .so file to motion" && \
+	cp $$(find ../.motionenv -name "motionstate*.so") ../motion/ && \
+	echo "Cleanup virtual environment..." && \
+	rm -rf ../.motionenv && \
+	echo "Done"

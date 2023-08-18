@@ -1,3 +1,6 @@
+pub mod state_value;
+use state_value::StateValue;
+
 use pyo3::exceptions;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -7,7 +10,8 @@ use std::collections::HashMap;
 /*
 TODO:
 * Increment version when calling set_bulk
-* Remove set method (unnecessary)
+* Use proper keys with component and instance names
+* Construct redis_url out of redis params
  */
 
 #[pyclass]
@@ -36,13 +40,17 @@ impl State {
         })
     }
 
-    pub fn set(&mut self, py: Python, key: String, value: &PyAny) -> PyResult<()> {
+    pub fn set(&mut self, py: Python, key: &str, value: &PyAny) -> PyResult<()> {
         let mut con = self.client.get_connection().unwrap();
-
         let serialized_data = serialize_value(py, value)?;
 
-        self.cache.insert(key.clone(), serialized_data.clone());
-        con.set::<_, _, ()>(key, serialized_data).unwrap();
+        // Insert the key and value into the cache
+        self.cache.insert(key.to_string(), serialized_data.clone());
+        // Insert the key and value into Redis
+        con.set(key, serialized_data).map_err(|err| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Redis set error: {}", err))
+        })?;
+
         Ok(())
     }
 
@@ -97,11 +105,16 @@ impl State {
             ))),
         }
     }
+
+    pub fn clear_cache(&mut self) {
+        self.cache.clear();
+    }
 }
 
 // Serialization Helpers
 const MARKER_LIST: u8 = 0x01;
 const MARKER_DICT: u8 = 0x02;
+const MARKER_STATE_VALUE: u8 = 0x03;
 
 fn cloudpickle_serialize(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
     let cloudpickle = py.import("cloudpickle")?;
@@ -120,16 +133,16 @@ fn cloudpickle_deserialize(py: Python, value: &[u8]) -> PyResult<PyObject> {
 }
 
 fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
-    if value.is_instance::<PyInt>()?
-        || value.is_instance::<PyFloat>()?
-        || value.is_instance::<PyString>()?
+    if value.is_instance_of::<PyInt>()
+        || value.is_instance_of::<PyFloat>()
+        || value.is_instance_of::<PyString>()
     {
         Ok(value.str()?.to_string().into_bytes())
-    } else if value.is_instance::<PyDict>()? {
+    } else if value.is_instance_of::<PyDict>() {
         let mut serialized = vec![MARKER_DICT];
         serialized.extend(serialize_dict(py, value)?);
         Ok(serialized)
-    } else if value.is_instance::<PyList>()? {
+    } else if value.is_instance_of::<PyList>() {
         let list = value.downcast::<PyList>()?;
         let mut serialized = vec![MARKER_LIST];
         for item in list.iter() {
@@ -137,6 +150,20 @@ fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
             serialized.extend((serialized_item.len() as u64).to_le_bytes().iter());
             serialized.extend(serialized_item);
         }
+        Ok(serialized)
+    } else if value.is_instance_of::<StateValue>() {
+        let mut serialized = vec![MARKER_STATE_VALUE];
+
+        let saved_data = value.call_method0("save")?;
+
+        // Check if the saved_data is bytes
+        let bytes_data = saved_data.downcast::<PyBytes>().map_err(|_| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                "'save' method must return a bytes object",
+            )
+        })?;
+
+        serialized.extend(bytes_data.as_bytes());
         Ok(serialized)
     } else {
         cloudpickle_serialize(py, value)
@@ -181,6 +208,13 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
 
     let mut cursor = 0;
     match value[cursor] {
+        MARKER_STATE_VALUE => {
+            cursor += 1;
+            let state_value_data = &value[cursor..];
+            let state_value_type = py.get_type::<StateValue>();
+            let result = state_value_type.call_method1("load", (state_value_data,))?;
+            Ok(result.into())
+        }
         MARKER_LIST => {
             cursor += 1;
             let list = pyo3::types::PyList::empty(py);
@@ -218,99 +252,62 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
     }
 }
 
-// fn serialize_list(py: Python, value: &PyAny) -> PyResult<Option<Vec<u8>>> {
-//     let list = value.downcast::<PyList>()?;
-//     let mut serialized_items = Vec::new();
-
-//     for item in list.iter() {
-//         if item.is_instance::<PyInt>()? {
-//             serialized_items.push(item.str()?.to_string());
-//         } else if item.is_instance::<PyFloat>()? {
-//             serialized_items.push(item.str()?.to_string());
-//         } else if item.is_instance::<PyString>()? {
-//             serialized_items.push(item.str()?.to_string());
-//         } else {
-//             // If the list contains non-primitive types, return None
-//             return Ok(None);
-//         }
-//     }
-
-//     // Joining the serialized items with a delimiter (e.g., `|`), you can choose another delimiter if you wish.
-//     Ok(Some(serialized_items.join("|").into_bytes()))
-// }
-
-// fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
-//     if value.is_instance::<PyInt>()?
-//         || value.is_instance::<PyFloat>()?
-//         || value.is_instance::<PyString>()?
-//     {
-//         Ok(value.str()?.to_string().into_bytes())
-//     } else if value.is_instance::<PyList>()? {
-//         if let Some(serialized) = serialize_list(py, value)? {
-//             Ok(serialized)
-//         } else {
-//             // If couldn't serialize as a list of primitives, use cloudpickle
-//             let cloudpickle = py.import("cloudpickle")?;
-//             let bytes = cloudpickle
-//                 .getattr("dumps")?
-//                 .call1((value,))?
-//                 .extract::<&PyBytes>()?;
-//             Ok(bytes.as_bytes().to_vec())
-//         }
-//     } else {
-//         // Use cloudpickle for other types
-//         let cloudpickle = py.import("cloudpickle")?;
-//         let bytes = cloudpickle
-//             .getattr("dumps")?
-//             .call1((value,))?
-//             .extract::<&PyBytes>()?;
-//         Ok(bytes.as_bytes().to_vec())
-//     }
-// }
-
-// fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
-//     if let Ok(decoded) = std::str::from_utf8(value) {
-//         if let Ok(int_value) = decoded.parse::<i64>() {
-//             Ok(int_value.into_py(py))
-//         } else if let Ok(float_value) = decoded.parse::<f64>() {
-//             Ok(float_value.into_py(py))
-//         } else if decoded.contains("|") {
-//             // Detecting our delimiter to identify lists
-//             let items: Vec<_> = decoded
-//                 .split('|')
-//                 .map(|item| {
-//                     if let Ok(int_value) = item.parse::<i64>() {
-//                         int_value.into_py(py)
-//                     } else if let Ok(float_value) = item.parse::<f64>() {
-//                         float_value.into_py(py)
-//                     } else {
-//                         item.to_string().into_py(py)
-//                     }
-//                 })
-//                 .collect();
-//             Ok(PyList::new(py, &items).into())
-//         } else {
-//             Ok(decoded.to_string().into_py(py))
-//         }
-//     } else {
-//         let cloudpickle = py.import("cloudpickle")?;
-//         let bytes_value = PyBytes::new(py, value);
-//         let obj = cloudpickle.getattr("loads")?.call1((bytes_value,))?;
-//         Ok(obj.into())
-//     }
-// }
-
 #[pymodule]
-fn rustystate(_py: Python, m: &PyModule) -> PyResult<()> {
+fn motionstate(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<State>()?;
+    m.add_class::<StateValue>()?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pyo3::Python;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn state_init_with_valid_url() {
+        let _state = State::new(
+            "component".to_string(),
+            "instance".to_string(),
+            "redis://127.0.0.1:6381",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn state_init_with_invalid_url() {
+        let result = State::new(
+            "component".to_string(),
+            "instance".to_string(),
+            "invalid_url",
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cache_test() {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+
+        let mut state = State::new(
+            "component".to_string(),
+            "instance".to_string(),
+            "redis://127.0.0.1:6381",
+        )
+        .unwrap();
+
+        // Set a value to Redis
+        let _ = state
+            .bulk_set(py, [("test_key", 42)].into_py_dict(py))
+            .unwrap();
+
+        // Clear cache to simulate fetching from Redis
+        state.clear_cache();
+        let first_fetch = state.get(py, "test_key").unwrap();
+        assert_eq!(first_fetch.extract::<i64>(py).unwrap(), 42);
+
+        // This should be fetched from cache
+        let second_fetch = state.get(py, "test_key").unwrap();
+        assert_eq!(second_fetch.extract::<i64>(py).unwrap(), 42);
     }
 }

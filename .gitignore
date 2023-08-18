@@ -16,6 +16,15 @@ dist*
 site*
 *package-lock.json
 projects
+<<<<<<< HEAD
 unnecessary.py
 motionstate*
 *.whl
+=======
+
+motionstate/debug*
+motionstate/target*
+motionstate/Cargo.lock
+*rustc*
+motionstate*.so
+>>>>>>> e4aede0 (Successfully imported bare bones library version)
