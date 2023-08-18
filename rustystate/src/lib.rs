@@ -159,6 +159,19 @@ fn serialize_dict(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
     Ok(serialized)
 }
 
+fn extract_next_slice<'a>(value: &'a [u8], cursor: &mut usize) -> Option<&'a [u8]> {
+    if *cursor + 8 <= value.len() {
+        let len = u64::from_le_bytes(value[*cursor..*cursor + 8].try_into().unwrap()) as usize;
+        *cursor += 8;
+        if *cursor + len <= value.len() {
+            let result = &value[*cursor..*cursor + len];
+            *cursor += len;
+            return Some(result);
+        }
+    }
+    None
+}
+
 fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
     if value.is_empty() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -166,54 +179,41 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
         ));
     }
 
-    // Check the marker first
-    match value[0] {
+    let mut cursor = 0;
+    match value[cursor] {
         MARKER_LIST => {
+            cursor += 1;
             let list = pyo3::types::PyList::empty(py);
-            let mut cursor = 1;
-            while cursor < value.len() {
-                let item_len =
-                    u64::from_le_bytes(value[cursor..cursor + 8].try_into().unwrap()) as usize;
-                cursor += 8;
-                let item = deserialize_value(py, &value[cursor..cursor + item_len])?;
+            while let Some(item_bytes) = extract_next_slice(value, &mut cursor) {
+                let item = deserialize_value(py, item_bytes)?;
                 list.append(item)?;
-                cursor += item_len;
             }
             Ok(list.into())
         }
         MARKER_DICT => {
+            cursor += 1;
             let dict = PyDict::new(py);
-            let mut cursor = 1;
-            while cursor < value.len() {
-                let key_len =
-                    u64::from_le_bytes(value[cursor..cursor + 8].try_into().unwrap()) as usize;
-                cursor += 8;
-                let key = deserialize_value(py, &value[cursor..cursor + key_len])?;
-                cursor += key_len;
-
-                let val_len =
-                    u64::from_le_bytes(value[cursor..cursor + 8].try_into().unwrap()) as usize;
-                cursor += 8;
-                let val = deserialize_value(py, &value[cursor..cursor + val_len])?;
-                cursor += val_len;
-
+            while let (Some(key_bytes), Some(val_bytes)) = (
+                extract_next_slice(value, &mut cursor),
+                extract_next_slice(value, &mut cursor),
+            ) {
+                let key = deserialize_value(py, key_bytes)?;
+                let val = deserialize_value(py, val_bytes)?;
                 dict.set_item(key, val)?;
             }
             Ok(dict.into())
         }
         _ => {
-            // Only if it's not a marked value, we try to interpret it as a string
             if let Ok(decoded) = std::str::from_utf8(value) {
                 if let Ok(int_value) = decoded.parse::<i64>() {
                     return Ok(int_value.into_py(py));
                 } else if let Ok(float_value) = decoded.parse::<f64>() {
                     return Ok(float_value.into_py(py));
                 }
-                return Ok(decoded.to_string().into_py(py));
+                Ok(decoded.to_string().into_py(py))
+            } else {
+                cloudpickle_deserialize(py, value)
             }
-
-            // Default to cloudpickle deserialization for unrecognized patterns
-            cloudpickle_deserialize(py, value)
         }
     }
 }
