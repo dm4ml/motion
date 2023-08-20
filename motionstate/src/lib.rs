@@ -12,6 +12,18 @@ use redlock::RedLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+enum PyValue {
+    Int(i64),
+    Float(f64),
+    String(String),
+    List(Vec<PyValue>),
+    Dict(HashMap<String, PyValue>),
+    // ... Add other types as needed.
+}
+
 #[pyclass]
 pub struct StateAccessor {
     component_name: String,
@@ -403,9 +415,6 @@ impl StateAccessor {
 }
 
 // Serialization Helpers
-const MARKER_LIST: u8 = 0x01;
-const MARKER_DICT: u8 = 0x02;
-// const MARKER_STATE_VALUE: u8 = 0x03;
 
 fn cloudpickle_serialize(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
     let cloudpickle = py.import("cloudpickle")?;
@@ -423,166 +432,79 @@ fn cloudpickle_deserialize(py: Python, value: &[u8]) -> PyResult<PyObject> {
     Ok(obj.into())
 }
 
-fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
-    if value.is_instance_of::<PyInt>()
-        || value.is_instance_of::<PyFloat>()
-        || value.is_instance_of::<PyString>()
-    {
-        Ok(value.str()?.to_string().into_bytes())
-    } else if value.is_instance_of::<PyDict>() {
-        let mut serialized = vec![MARKER_DICT];
-        serialized.extend(serialize_dict(py, value)?);
-        Ok(serialized)
-    } else if value.is_instance_of::<PyList>() {
-        let list = value.downcast::<PyList>()?;
-        let mut serialized = vec![MARKER_LIST];
-        for item in list.iter() {
-            let serialized_item = serialize_value(py, item)?;
-            serialized.extend((serialized_item.len() as u64).to_le_bytes().iter());
-            serialized.extend(serialized_item);
+fn py_to_rust(value: &PyAny) -> PyResult<PyValue> {
+    if let Ok(val) = value.extract::<i64>() {
+        Ok(PyValue::Int(val))
+    } else if let Ok(val) = value.extract::<f64>() {
+        Ok(PyValue::Float(val))
+    } else if let Ok(val) = value.extract::<String>() {
+        Ok(PyValue::String(val))
+    } else if let Ok(val) = value.downcast::<PyList>() {
+        let list: Vec<_> = val
+            .iter()
+            .map(|item| py_to_rust(item))
+            .collect::<Result<_, _>>()?;
+        Ok(PyValue::List(list))
+    } else if let Ok(val) = value.downcast::<PyDict>() {
+        let mut dict = HashMap::new();
+        for (key, val) in val.iter() {
+            let key_str = key.extract::<String>()?;
+            let val_rust = py_to_rust(val)?;
+            dict.insert(key_str, val_rust);
         }
-        Ok(serialized)
-    }
-    // else if value.is_instance_of::<StateValue>() {
-    //     let mut serialized = vec![MARKER_STATE_VALUE];
-
-    //     // Serialize the Python class's full name for deserialization purposes
-    //     let class = value.getattr("__class__")?;
-    //     let module_name = class.getattr("__module__")?.extract::<String>()?;
-    //     let class_name = class.getattr("__name__")?.extract::<String>()?;
-    //     let full_name = format!("{}.{}", module_name, class_name);
-    //     serialized.extend((full_name.len() as u64).to_le_bytes().iter());
-    //     serialized.extend(full_name.as_bytes());
-
-    //     let saved_data = value.call_method0("save")?;
-
-    //     // Check if the saved_data is bytes
-    //     let bytes_data = saved_data.downcast::<PyBytes>().map_err(|_| {
-    //         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-    //             "'save' method must return a bytes object",
-    //         )
-    //     })?;
-
-    //     serialized.extend(bytes_data.as_bytes());
-    //     Ok(serialized)
-    // }
-    else {
-        cloudpickle_serialize(py, value)
+        Ok(PyValue::Dict(dict))
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+            "Unsupported type for bincode serialization",
+        ))
     }
 }
 
-fn serialize_dict(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
-    let dict = value.downcast::<PyDict>()?;
-    let mut serialized = Vec::new();
-
-    for (key, val) in dict {
-        let key_bytes = serialize_value(py, key)?;
-        let val_bytes = serialize_value(py, val)?;
-        serialized.extend((key_bytes.len() as u64).to_le_bytes().iter());
-        serialized.extend(key_bytes);
-        serialized.extend((val_bytes.len() as u64).to_le_bytes().iter());
-        serialized.extend(val_bytes);
-    }
-
-    Ok(serialized)
-}
-
-fn extract_next_slice<'a>(value: &'a [u8], cursor: &mut usize) -> Option<&'a [u8]> {
-    if *cursor + 8 <= value.len() {
-        let len = u64::from_le_bytes(value[*cursor..*cursor + 8].try_into().unwrap()) as usize;
-        *cursor += 8;
-        if *cursor + len <= value.len() {
-            let result = &value[*cursor..*cursor + len];
-            *cursor += len;
-            return Some(result);
-        }
-    }
-    None
-}
-
-fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
-    if value.is_empty() {
-        // Return empty string for empty data
-        return Ok("".to_object(py));
-    }
-
-    let mut cursor = 0;
-    match value[cursor] {
-        // MARKER_STATE_VALUE => {
-        //     cursor += 1;
-
-        //     // Deserialize the Python class's full name for deserialization purposes
-        //     if let Some(class_name_bytes) = extract_next_slice(value, &mut cursor) {
-        //         let full_name = std::str::from_utf8(class_name_bytes)?;
-        //         let parts: Vec<&str> = full_name.split('.').collect();
-        //         if parts.len() != 2 {
-        //             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-        //                 "Invalid StateValue subclass name: {}",
-        //                 full_name
-        //             )));
-        //         }
-        //         let module_name = parts[0];
-        //         let class_name = parts[1];
-        //         let module = py.import(module_name).map_err(|e| {
-        //             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-        //                 "Failed to import module {}: {}",
-        //                 module_name, e
-        //             ))
-        //         })?;
-        //         let class = module.getattr(class_name).map_err(|e| {
-        //             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-        //                 "Failed to get class {} from module {}: {}",
-        //                 class_name, module_name, e
-        //             ))
-        //         })?;
-
-        //         let state_value_data = &value[cursor..];
-        //         let result = class.call_method1("load", (state_value_data,))?;
-        //         Ok(result.into())
-        //     } else {
-        //         Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-        //             "Failed to deserialize StateValue",
-        //         ))
-        //     }
-
-        //     // let state_value_data = &value[cursor..];
-        //     // let state_value_type = py.get_type::<StateValue>();
-        //     // let result = state_value_type.call_method1("load", (state_value_data,))?;
-        //     // Ok(result.into())
-        // }
-        MARKER_LIST => {
-            cursor += 1;
-            let list = pyo3::types::PyList::empty(py);
-            while let Some(item_bytes) = extract_next_slice(value, &mut cursor) {
-                let item = deserialize_value(py, item_bytes)?;
-                list.append(item)?;
+fn rust_to_py(py: Python, value: &PyValue) -> PyResult<PyObject> {
+    match value {
+        PyValue::Int(val) => Ok(val.into_py(py)),
+        PyValue::Float(val) => Ok(val.into_py(py)),
+        PyValue::String(val) => Ok(val.into_py(py)),
+        PyValue::List(val) => {
+            let list = PyList::empty(py);
+            for item in val {
+                let py_item = rust_to_py(py, item)?;
+                list.append(py_item)?;
             }
             Ok(list.into())
         }
-        MARKER_DICT => {
-            cursor += 1;
+        PyValue::Dict(val) => {
             let dict = PyDict::new(py);
-            while let (Some(key_bytes), Some(val_bytes)) = (
-                extract_next_slice(value, &mut cursor),
-                extract_next_slice(value, &mut cursor),
-            ) {
-                let key = deserialize_value(py, key_bytes)?;
-                let val = deserialize_value(py, val_bytes)?;
-                dict.set_item(key, val)?;
+            for (key, value) in val {
+                let py_val = rust_to_py(py, value)?;
+                dict.set_item(key, py_val)?;
             }
             Ok(dict.into())
-        }
-        _ => {
-            if let Ok(decoded) = std::str::from_utf8(value) {
-                if let Ok(int_value) = decoded.parse::<i64>() {
-                    return Ok(int_value.into_py(py));
-                } else if let Ok(float_value) = decoded.parse::<f64>() {
-                    return Ok(float_value.into_py(py));
-                }
-                Ok(decoded.to_string().into_py(py))
-            } else {
-                cloudpickle_deserialize(py, value)
-            }
+        } // ... Handle other cases.
+    }
+}
+
+fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
+    if let Ok(rust_value) = py_to_rust(value) {
+        let serialized = bincode::serialize(&rust_value)
+            .map_err(|e| PyErr::new::<exceptions::PyException, _>(format!("{}", e)))?;
+
+        Ok(serialized)
+    } else {
+        // Fall back to cloudpickle if not any of the defined types
+        let serialized = cloudpickle_serialize(py, value)?;
+
+        Ok(serialized)
+    }
+}
+
+fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
+    match bincode::deserialize::<PyValue>(value) {
+        Ok(rust_value) => rust_to_py(py, &rust_value),
+        Err(_) => {
+            // Fall back to pickle if bincode deserialization fails
+            let deserialized = cloudpickle_deserialize(py, value)?;
+            Ok(deserialized.into())
         }
     }
 }
