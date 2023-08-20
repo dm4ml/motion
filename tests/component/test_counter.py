@@ -20,11 +20,11 @@ def increment(state, props):
 
 
 def test_create():
-    c = Counter()
+    c = Counter(disable_update_task=True)
 
     assert c.read_state("value") == 0
 
-    assert c.run("number", props={"value": 1})[1] == 1
+    assert c.run("number", props={"value": 1}, flush_update=True)[1] == 1
     c.run("number", props={"value": 2}, flush_update=True)
     assert c.run("number", props={"value": 3}, flush_update=True)[1] == 3
     assert c.run("number", props={"value": 4}, flush_update=True)[0] == 6

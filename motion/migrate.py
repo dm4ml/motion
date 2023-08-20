@@ -1,4 +1,5 @@
 import inspect
+import logging
 from multiprocessing import Pool
 from typing import Callable, List, Optional, Tuple
 
@@ -7,7 +8,9 @@ from pydantic import BaseConfig, BaseModel, Field
 
 from motion.component import Component
 from motion.dicts import State
-from motion.utils import get_redis_params, loadState, logger, saveState
+from motion.utils import get_redis_params, loadState, saveState
+
+logger = logging.getLogger(__name__)
 
 
 def process_migration(

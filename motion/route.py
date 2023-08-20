@@ -1,9 +1,10 @@
 import inspect
+import logging
 from typing import Any, Callable, Dict
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from motion.utils import logger
+logger = logging.getLogger(__name__)
 
 
 class Route(BaseModel):
