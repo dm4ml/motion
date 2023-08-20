@@ -212,10 +212,9 @@ def validate_args(parameters: Any, op: str) -> bool:
 
 
 def configureLogging(level: str) -> None:
-    handler = logging.StreamHandler()
-
     formatter = colorlog.ColoredFormatter(
         "%(log_color)s%(asctime)s %(levelname)-8s%(reset)s %(blue)s%(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
         log_colors={
             "DEBUG": "cyan",
             "INFO": "green",
@@ -224,9 +223,15 @@ def configureLogging(level: str) -> None:
             "CRITICAL": "bold_red",
         },
     )
-    handler.setFormatter(formatter)
+
     logger = logging.getLogger("motion")
-    logger.addHandler(handler)
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+
+    logger.addHandler(stream_handler)
     logger.setLevel(level)
 
 

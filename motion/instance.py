@@ -4,7 +4,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
 
 from motion.execute import Executor
 from motion.route import Route
-from motion.utils import DEFAULT_KEY_TTL, configureLogging, logger
+from motion.utils import DEFAULT_KEY_TTL, configureLogging
+
+logger = logging.getLogger(__name__)
 
 
 def is_logger_open(logger: logging.Logger) -> bool:
@@ -157,7 +159,7 @@ class ComponentInstance:
         """
         return self._executor.version  # type: ignore
 
-    def write_state(self, state_update: Dict[str, Any]) -> None:
+    def write_state(self, state_update: Dict[str, Any], latest: bool = False) -> None:
         """Writes the state update to the component instance's state.
         If a update op is currently running, the state update will be
         applied after the update op is finished. Warning: this could
@@ -187,8 +189,15 @@ class ComponentInstance:
         Args:
             state_update (Dict[str, Any]): Dictionary of key-value pairs
                 to update the state with.
+            latest (bool, optional): Whether or not to apply the update
+                to the latest version of the state.
+                If true, Motion will redownload the latest version
+                of the state and apply the update to that version. You
+                only need to set this to true if you are updating an
+                instance you connected to a while ago and might be
+                outdated. Defaults to False.
         """
-        self._executor._updateState(state_update)
+        self._executor._updateState(state_update, force_update=latest)
 
     def read_state(self, key: str) -> Any:
         """Gets the current value for the key in the component instance's state.
@@ -368,8 +377,9 @@ class ComponentInstance:
         force_refresh: bool = False,
         flush_update: bool = False,
     ) -> Awaitable[Any]:
-        """Async version of run. Runs the dataflow (serve and update ops) for the
-        specified key.
+        """Async version of run. Runs the dataflow (serve and update ops) for
+        the specified key. You should use arun if either the serve or update op
+        is an async function.
 
         Example Usage:
         ```python

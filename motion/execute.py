@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import multiprocessing
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -19,9 +20,10 @@ from motion.utils import (
     get_redis_params,
     hash_object,
     loadState,
-    logger,
     saveState,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Executor:
@@ -251,7 +253,9 @@ class Executor:
 
         self.monitor_thread.join()
 
-    def _updateState(self, new_state: Dict[str, Any]) -> None:
+    def _updateState(
+        self, new_state: Dict[str, Any], force_update: bool = True
+    ) -> None:
         if not new_state:
             return
 
@@ -260,7 +264,8 @@ class Executor:
 
         # Get latest state
         with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=120):
-            self._state = self._loadState()
+            if force_update:
+                self._state = self._loadState()
             self._state.update(new_state)
 
             # Save state to redis
@@ -271,7 +276,8 @@ class Executor:
                 self._save_state_func,
             )
 
-            self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+            version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+            self.version = int(version)
 
     def _enqueue_and_trigger_update(
         self,
@@ -285,53 +291,116 @@ class Executor:
         if key in self._update_routes.keys():
             route_hit = True
 
-            update_events = UpdateEventGroup(key)
+            # update_events = UpdateEventGroup(key)
             for update_udf_name in self._update_routes[key].keys():
-                if self.disable_update_task:
-                    # TODO: Must run update in this main process
-                    # Refactor
-
-                    raise RuntimeError(
-                        f"Update process is disabled. Cannot run update for {key}."
-                    )
-
-                queue_identifier: str = self._get_queue_identifier(key, update_udf_name)
-                channel_identifier: str = self._get_channel_identifier(
-                    key, update_udf_name
-                )
-
-                identifier = str(uuid4())
-
+                # If flushing update, just run the route
                 if flush_update:
-                    # Add pubsub channel to listen to
-                    update_event = UpdateEvent(
-                        self._redis_con, channel_identifier, identifier
-                    )
-                    update_events.add(update_udf_name, update_event)
+                    route = self._update_routes[key][update_udf_name]
 
-                # Add to update queue
-                self._redis_con.rpush(
-                    queue_identifier,
-                    cloudpickle.dumps(
-                        {
-                            "props": props,
-                            "identifier": identifier,
-                        }
-                    ),
-                )
+                    try:
+                        state_update = route.run(
+                            state=self._state,
+                            props=props,
+                        )
 
-            if flush_update:
-                # Wait for update result to finish
-                update_events.wait()
-                # Update state
-                self._state = self._loadState()
-                v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                if not v:
-                    raise ValueError(
-                        f"Error loading state for {self._instance_name}."
-                        + " No version found."
+                        if not isinstance(state_update, dict):
+                            raise ValueError("State update must be a dict.")
+                        else:
+                            # Update state
+                            self._updateState(state_update, force_update=False)
+                    except Exception as e:
+                        raise RuntimeError(
+                            "Error running update route in main process: " + str(e)
+                        )
+
+                else:
+                    # Enqueue update
+
+                    if self.disable_update_task:
+                        raise RuntimeError(
+                            f"Update process is disabled. Cannot run update for {key}."
+                        )
+
+                    queue_identifier: str = self._get_queue_identifier(
+                        key, update_udf_name
                     )
-                self.version = int(v)
+
+                    identifier = str(uuid4())
+
+                    # Add to update queue
+                    self._redis_con.rpush(
+                        queue_identifier,
+                        cloudpickle.dumps(
+                            {
+                                "props": props,
+                                "identifier": identifier,
+                            }
+                        ),
+                    )
+
+        return route_hit
+
+    async def _async_enqueue_and_trigger_update(
+        self,
+        key: str,
+        props: Properties,
+        flush_update: bool,
+        route_hit: bool,
+    ) -> bool:
+        # Run the update routes
+        # Enqueue results into update queues
+        if key in self._update_routes.keys():
+            route_hit = True
+
+            # update_events = UpdateEventGroup(key)
+            for update_udf_name in self._update_routes[key].keys():
+                # If flushing update, just run the route
+                if flush_update:
+                    route = self._update_routes[key][update_udf_name]
+
+                    try:
+                        state_update = route.run(
+                            state=self._state,
+                            props=props,
+                        )
+
+                        if asyncio.iscoroutine(state_update):
+                            state_update = await state_update
+
+                        if not isinstance(state_update, dict):
+                            raise ValueError("State update must be a dict.")
+                        else:
+                            # Update state
+                            self._updateState(state_update, force_update=False)
+                    except Exception as e:
+                        raise RuntimeError(
+                            "Error running update route in main process: " + str(e)
+                        )
+
+                else:
+                    # Enqueue update
+
+                    if self.disable_update_task:
+                        raise RuntimeError(
+                            f"Update process is disabled. Cannot run update for {key}."
+                        )
+
+                    queue_identifier: str = self._get_queue_identifier(
+                        key, update_udf_name
+                    )
+
+                    identifier = str(uuid4())
+
+                    # Add to update queue
+                    self._redis_con.rpush(
+                        queue_identifier,
+                        cloudpickle.dumps(
+                            {
+                                "props": props,
+                                "identifier": identifier,
+                            }
+                        ),
+                    )
 
         return route_hit
 
@@ -419,11 +488,6 @@ class Executor:
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
                     self.tp.submit(self._setRedis, cache_result_key, props)
-                    # self._redis_con.set(
-                    #     cache_result_key,
-                    #     cloudpickle.dumps(props),
-                    #     ex=self._cache_ttl,
-                    # )
 
         # Run the update routes
         # Enqueue results into update queues
@@ -461,16 +525,12 @@ class Executor:
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
-                serve_result_awaitable = self._serve_routes[key].run(
+                serve_result = self._serve_routes[key].run(
                     state=self._state, props=props
                 )
-                if not asyncio.iscoroutine(serve_result_awaitable):
-                    raise TypeError(
-                        f"Route {key} returned a non-awaitable. "
-                        + "Call `instance.run(...)` instead."
-                    )
+                if asyncio.iscoroutine(serve_result):
+                    serve_result = await serve_result
 
-                serve_result = await serve_result_awaitable
                 props._serve_result = serve_result
 
                 # Cache result
@@ -479,15 +539,10 @@ class Executor:
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
                     self.tp.submit(self._setRedis, cache_result_key, props)
-                    # self._redis_con.set(
-                    #     cache_result_key,
-                    #     cloudpickle.dumps(props),
-                    #     ex=self._cache_ttl,
-                    # )
 
         # Run the update routes
         # Enqueue results into update queues
-        route_hit = self._enqueue_and_trigger_update(
+        route_hit = await self._async_enqueue_and_trigger_update(
             key, props, flush_update, route_hit
         )
 
