@@ -277,6 +277,8 @@ class Executor:
             )
 
             version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+            if version is None:
+                raise ValueError("Version not found in Redis.")
             self.version = int(version)
 
     def _enqueue_and_trigger_update(
@@ -371,7 +373,7 @@ class Executor:
                             raise ValueError("State update must be a dict.")
                         else:
                             # Update state
-                            self._updateState(state_update, force_update=False)
+                            self._updateState(state_update, force_update=True)
                     except Exception as e:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)
