@@ -6,7 +6,7 @@ use temp_value::TempValue;
 
 use pyo3::exceptions;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::types::{PyAny, PyBytes, PyDict, PyList};
 use redis::Commands;
 use redlock::RedLock;
 use std::collections::HashMap;
