@@ -277,6 +277,8 @@ class Executor:
             )
 
             version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+            if version is None:
+                raise ValueError("Version not found in Redis.")
             self.version = int(version)
 
     def _enqueue_and_trigger_update(
