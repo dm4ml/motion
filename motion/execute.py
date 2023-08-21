@@ -309,7 +309,7 @@ class Executor:
                             raise ValueError("State update must be a dict.")
                         else:
                             # Update state
-                            self._updateState(state_update, force_update=False)
+                            self._updateState(state_update, force_update=True)
                     except Exception as e:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)
