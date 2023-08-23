@@ -254,7 +254,10 @@ class Executor:
         self.monitor_thread.join()
 
     def _updateState(
-        self, new_state: Dict[str, Any], force_update: bool = True
+        self,
+        new_state: Dict[str, Any],
+        force_update: bool = True,
+        use_lock: bool = True,
     ) -> None:
         if not new_state:
             return
@@ -263,7 +266,28 @@ class Executor:
             raise TypeError("State should be a dict.")
 
         # Get latest state
-        with self._redis_con.lock(f"MOTION_LOCK:{self._instance_name}", timeout=120):
+        if use_lock:
+            with self._redis_con.lock(
+                f"MOTION_LOCK:{self._instance_name}", timeout=120
+            ):
+                if force_update:
+                    self._state = self._loadState()
+                self._state.update(new_state)
+
+                # Save state to redis
+                saveState(
+                    self._state,
+                    self._redis_con,
+                    self._instance_name,
+                    self._save_state_func,
+                )
+
+                version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+                if version is None:
+                    raise ValueError("Version not found in Redis.")
+                self.version = int(version)
+
+        else:
             if force_update:
                 self._state = self._loadState()
             self._state.update(new_state)
@@ -299,21 +323,32 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    try:
-                        state_update = route.run(
-                            state=self._state,
-                            props=props,
-                        )
+                    # Hold lock
 
-                        if not isinstance(state_update, dict):
-                            raise ValueError("State update must be a dict.")
-                        else:
-                            # Update state
-                            self._updateState(state_update, force_update=True)
-                    except Exception as e:
-                        raise RuntimeError(
-                            "Error running update route in main process: " + str(e)
-                        )
+                    with self._redis_con.lock(
+                        f"MOTION_LOCK:{self._instance_name}", timeout=120
+                    ):
+                        try:
+                            self._state = self._loadState()
+
+                            state_update = route.run(
+                                state=self._state,
+                                props=props,
+                            )
+
+                            if not isinstance(state_update, dict):
+                                raise ValueError("State update must be a dict.")
+                            else:
+                                # Update state
+                                self._updateState(
+                                    state_update,
+                                    force_update=False,
+                                    use_lock=False,
+                                )
+                        except Exception as e:
+                            raise RuntimeError(
+                                "Error running update route in main process: " + str(e)
+                            )
 
                 else:
                     # Enqueue update
@@ -360,24 +395,33 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    try:
-                        state_update = route.run(
-                            state=self._state,
-                            props=props,
-                        )
+                    with self._redis_con.lock(
+                        f"MOTION_LOCK:{self._instance_name}", timeout=120
+                    ):
+                        try:
+                            self._state = self._loadState()
 
-                        if asyncio.iscoroutine(state_update):
-                            state_update = await state_update
+                            state_update = route.run(
+                                state=self._state,
+                                props=props,
+                            )
 
-                        if not isinstance(state_update, dict):
-                            raise ValueError("State update must be a dict.")
-                        else:
-                            # Update state
-                            self._updateState(state_update, force_update=True)
-                    except Exception as e:
-                        raise RuntimeError(
-                            "Error running update route in main process: " + str(e)
-                        )
+                            if asyncio.iscoroutine(state_update):
+                                state_update = await state_update
+
+                            if not isinstance(state_update, dict):
+                                raise ValueError("State update must be a dict.")
+                            else:
+                                # Update state
+                                self._updateState(
+                                    state_update,
+                                    force_update=False,
+                                    use_lock=False,
+                                )
+                        except Exception as e:
+                            raise RuntimeError(
+                                "Error running update route in main process: " + str(e)
+                            )
 
                 else:
                     # Enqueue update
