@@ -7,8 +7,6 @@
             - update
             - init_state
             - __call__
-            - save_state
-            - load_state
             - name
             - params
         show_root_full_path: false

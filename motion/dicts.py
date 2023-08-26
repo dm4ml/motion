@@ -93,8 +93,8 @@ class Properties(dict):
 STATE_ERROR_MSG = "Cannot edit state directly. Use component update operations instead."
 
 
-class State(dict):
-    """Dictionary that stores state for a component instance.
+class State:
+    """Python class that stores state for a component instance.
     The instance id is stored in the `instance_id` attribute.
 
     Example usage:
@@ -138,6 +138,7 @@ class State(dict):
         self._state_accessor = StateAccessor(
             component_name,
             instance_id,
+            1000 * 60 * 2,  # 2 minutes lock duration TODO: make this configurable
             redis_host,
             redis_port,
             redis_db,
@@ -171,27 +172,33 @@ class State(dict):
                 + f"instance {self.component_name}__{self._instance_id}."
             )
 
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
     def __setitem__(self, key: str, value: Any) -> None:
         # Disable this functionality
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def flushUpdateDict(self, update_dict: dict) -> None:
         self._state_accessor.bulk_set(update_dict)
 
     def __delitem__(self, key: str) -> None:
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def update(self, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def clear(self) -> None:
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def pop(self, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def popitem(self, *args: Any, **kwargs: Any) -> None:
-        raise NotImplementedError(STATE_ERROR_MSG)
+        raise RuntimeError(STATE_ERROR_MSG)
 
     def keys(self) -> List[str]:
         return self._state_accessor.keys()

@@ -11,3 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 redis = "0.23"
 pyo3 = { version = "0.19", features = ["extension-module"] }
+redlock = "2.0.0"

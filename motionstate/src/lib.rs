@@ -5,6 +5,7 @@ use pyo3::exceptions;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use redis::Commands;
+use redlock::RedLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -17,9 +18,12 @@ TODO:
 pub struct StateAccessor {
     component_name: String,
     instance_id: String,
+    lock_duration: usize,
     version: u64,
     client: redis::Client,
     cache: HashMap<String, Arc<Vec<u8>>>,
+    lock_manager: RedLock,
+    max_lock_attempts: u32,
 }
 
 #[pymethods]
@@ -28,6 +32,7 @@ impl StateAccessor {
     pub fn new(
         component_name: String,
         instance_id: String,
+        lock_duration: u64,
         redis_host: &str,
         redis_port: u16,
         redis_db: i64,
@@ -42,24 +47,31 @@ impl StateAccessor {
             None => format!("redis://{}:{}/{}", redis_host, redis_port, redis_db),
         };
 
-        let client = redis::Client::open(redis_url).map_err(|err| {
+        let client = redis::Client::open(redis_url.clone()).map_err(|err| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Redis connection error: {}",
                 err
             ))
         })?;
 
-        // Read the version from Redis. If it doesn't exist, set it to 1.
+        // Read the version from Redis. If it doesn't exist, set it to 0.
         let mut con = client.get_connection().unwrap();
         let instancename = format!("MOTION_VERSION:{}__{}", component_name, instance_id);
-        let version: u64 = con.get(&instancename).unwrap_or(1);
+        let version: u64 = con.get(&instancename).unwrap_or(0);
+
+        // Create a lock manager
+        let lock_manager = RedLock::new(vec![redis_url]);
+        let max_lock_attempts = 3;
 
         Ok(StateAccessor {
             component_name,
             instance_id,
+            lock_duration: lock_duration.try_into().unwrap(),
             version,
             client,
             cache: HashMap::new(),
+            lock_manager,
+            max_lock_attempts,
         })
     }
 
@@ -78,6 +90,42 @@ impl StateAccessor {
             self.component_name, self.instance_id, key
         );
 
+        // Acquire the lock using rslock
+        // Lockname will be MOTION_LOCK:<component_name>__<instance_id>
+        let lock_name = format!("MOTION_LOCK:{}__{}", self.component_name, self.instance_id);
+        let mut lock = None;
+
+        // Loop until we get the lock
+        for _ in 0..self.max_lock_attempts {
+            match self
+                .lock_manager
+                .lock(lock_name.as_bytes(), self.lock_duration)
+            {
+                Ok(Some(l)) => {
+                    lock = Some(l);
+                    break;
+                }
+                Ok(None) => {
+                    // Lock was not acquired. Sleep for 100ms and try again.
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(e) => {
+                    // Handle the Redis error, maybe return an error or log it.
+                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "Failed to acquire lock due to Redis error: {}",
+                        e
+                    )));
+                }
+            }
+        }
+        if lock.is_none() {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to acquire lock after {} attempts",
+                self.max_lock_attempts
+            )));
+        }
+
+        // Critical section
         // Insert the key and value into the cache
         self.cache.insert(keyname.clone(), serialized_data.clone());
 
@@ -103,35 +151,78 @@ impl StateAccessor {
                 self.cache.remove(&keyname);
                 self.version -= 1;
 
+                // Drop the lock
+                self.lock_manager.unlock(lock.as_ref().unwrap());
+
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                     "Redis set data error: {}",
                     err
                 ))
             })?;
 
+        // Drop the lock
+        self.lock_manager.unlock(lock.as_ref().unwrap());
+
         Ok(())
     }
 
     pub fn bulk_set(&mut self, py: Python, items: &PyDict) -> PyResult<()> {
         let mut con = self.client.get_connection().unwrap();
-        let mut pipeline = redis::pipe();
-        pipeline.atomic();
 
-        // Iterate over the items in the dictionary
-        for (key, value) in items {
-            // Create key name as MOTION_STATE:<component_name>__<instance_id>/<key>
+        // Preserialize all the data
+        let mut serialized_items = Vec::with_capacity(items.len());
+        for (key, value) in items.iter() {
             let keyname = format!(
                 "MOTION_STATE:{}__{}/{}",
                 self.component_name, self.instance_id, key
             );
             let serialized_data = Arc::new(serialize_value(py, value)?);
+            serialized_items.push((keyname, serialized_data));
+        }
 
+        let mut pipeline = redis::pipe();
+        pipeline.atomic();
+
+        // Acquire the lock using rslock
+        // Lockname will be MOTION_LOCK:<component_name>__<instance_id>
+        let lock_name = format!("MOTION_LOCK:{}__{}", self.component_name, self.instance_id);
+        let mut lock = None;
+
+        // Loop until we get the lock
+        for _ in 0..self.max_lock_attempts {
+            match self
+                .lock_manager
+                .lock(lock_name.as_bytes(), self.lock_duration)
+            {
+                Ok(Some(l)) => {
+                    lock = Some(l);
+                    break;
+                }
+                Ok(None) => {
+                    // Lock was not acquired. Sleep for 100ms and try again.
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(e) => {
+                    // Handle the Redis error, maybe return an error or log it.
+                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "Failed to acquire lock due to Redis error: {}",
+                        e
+                    )));
+                }
+            }
+        }
+        if lock.is_none() {
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to acquire lock after {} attempts",
+                self.max_lock_attempts
+            )));
+        }
+
+        // Critical section
+        for (keyname, serialized_data) in serialized_items.iter() {
             // Insert the key and value into the cache
             self.cache.insert(keyname.clone(), serialized_data.clone());
-            // Insert the key and value into the pipeline
-            //pipeline.set::<_, _, ()>(keyname, serialized_data);
-
-            pipeline.cmd("SET").arg(keyname).arg(&*serialized_data);
+            pipeline.cmd("SET").arg(keyname).arg(&**serialized_data);
         }
 
         // Increment the version and write it to Redis
@@ -158,11 +249,17 @@ impl StateAccessor {
             }
             self.version -= 1;
 
+            // Drop the lock
+            self.lock_manager.unlock(lock.as_ref().unwrap());
+
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Redis bulk set error: {}",
                 err
             ))
         })?;
+
+        // Drop the lock
+        self.lock_manager.unlock(lock.as_ref().unwrap());
 
         Ok(())
     }
@@ -264,6 +361,15 @@ impl StateAccessor {
 
     pub fn clear_cache(&mut self) {
         self.cache.clear();
+
+        // Reset version to whatever is in Redis
+        let mut con = self.client.get_connection().unwrap();
+        let version_key = format!(
+            "MOTION_VERSION:{}__{}",
+            self.component_name, self.instance_id
+        );
+        let version: u64 = con.get(version_key).unwrap_or(0);
+        self.version = version;
     }
 }
 
@@ -357,9 +463,8 @@ fn extract_next_slice<'a>(value: &'a [u8], cursor: &mut usize) -> Option<&'a [u8
 
 fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
     if value.is_empty() {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Empty data",
-        ));
+        // Return empty string for empty data
+        return Ok("".to_object(py));
     }
 
     let mut cursor = 0;

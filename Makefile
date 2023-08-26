@@ -22,6 +22,7 @@ docs:
 build:
 	cd motionstate && \
 	echo "Building motionstate" && \
+	maturin develop && \
 	maturin build --release && \
 	python -m venv ../.motionenv && \
 	source ../.motionenv/bin/activate && pip install target/wheels/motionstate*.whl && deactivate && \
