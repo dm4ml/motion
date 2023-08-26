@@ -1,12 +1,19 @@
+// This file is not used yet. It is a placeholder for a future feature.
+
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyType};
 
-#[pyclass]
+#[pyclass(subclass)]
 pub struct StateValue;
 
 #[pymethods]
 impl StateValue {
+    #[new]
+    pub fn new() -> Self {
+        StateValue {}
+    }
+
     #[classmethod]
     pub fn load(_cls: &PyType, _data: &PyBytes) -> PyResult<()> {
         Err(PyNotImplementedError::new_err(

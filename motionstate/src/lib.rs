@@ -1,5 +1,8 @@
-pub mod state_value;
-use state_value::StateValue;
+// pub mod state_value;
+// use state_value::StateValue;
+
+pub mod temp_value;
+use temp_value::TempValue;
 
 use pyo3::exceptions;
 use pyo3::prelude::*;
@@ -8,11 +11,6 @@ use redis::Commands;
 use redlock::RedLock;
 use std::collections::HashMap;
 use std::sync::Arc;
-
-/*
-TODO:
-* Use a redis lock
- */
 
 #[pyclass]
 pub struct StateAccessor {
@@ -81,6 +79,8 @@ impl StateAccessor {
     }
 
     pub fn set(&mut self, py: Python, key: &str, value: &PyAny) -> PyResult<()> {
+        // Warning: This function does not check if the value is a TempValue.
+        // But it is also never called from the Python side, so it's fine.
         let mut con = self.client.get_connection().unwrap();
         let serialized_data = Arc::new(serialize_value(py, value)?);
 
@@ -166,7 +166,7 @@ impl StateAccessor {
         Ok(())
     }
 
-    pub fn bulk_set(&mut self, py: Python, items: &PyDict) -> PyResult<()> {
+    pub fn bulk_set(&mut self, py: Python, items: &PyDict, from_migration: bool) -> PyResult<()> {
         let mut con = self.client.get_connection().unwrap();
 
         // Preserialize all the data
@@ -176,53 +176,84 @@ impl StateAccessor {
                 "MOTION_STATE:{}__{}/{}",
                 self.component_name, self.instance_id, key
             );
-            let serialized_data = Arc::new(serialize_value(py, value)?);
-            serialized_items.push((keyname, serialized_data));
+
+            // If value is of type TempValue, we should serialize
+            // the value inside it instead of the TempValue itself
+            // and extract the TTL from the TempValue. On default,
+            // the TTL will be None.
+            // let (value_to_serialize, ttl): (PyObject, Option<u64>);
+            if value.is_instance_of::<TempValue>() {
+                let temp_value: PyRef<TempValue> = value.extract()?;
+                // let value_to_serialize = &temp_value.value;
+                let value_ref: &PyAny = temp_value.value.as_ref(py);
+                let ttl = Some(temp_value.ttl);
+
+                let serialized_data = Arc::new(serialize_value(py, value_ref)?);
+                serialized_items.push((keyname, serialized_data, ttl));
+            } else {
+                let serialized_data = Arc::new(serialize_value(py, value)?);
+                serialized_items.push((keyname, serialized_data, None));
+            }
+
+            // let serialized_data = Arc::new(serialize_value(py, value_to_serialize)?);
+            // serialized_items.push((keyname, serialized_data, ttl));
         }
 
         let mut pipeline = redis::pipe();
         pipeline.atomic();
 
-        // Acquire the lock using rslock
+        // If not from_migration, acquire the lock using rslock
         // Lockname will be MOTION_LOCK:<component_name>__<instance_id>
-        let lock_name = format!("MOTION_LOCK:{}__{}", self.component_name, self.instance_id);
         let mut lock = None;
+        if !from_migration {
+            let lock_name = format!("MOTION_LOCK:{}__{}", self.component_name, self.instance_id);
 
-        // Loop until we get the lock
-        for _ in 0..self.max_lock_attempts {
-            match self
-                .lock_manager
-                .lock(lock_name.as_bytes(), self.lock_duration)
-            {
-                Ok(Some(l)) => {
-                    lock = Some(l);
-                    break;
-                }
-                Ok(None) => {
-                    // Lock was not acquired. Sleep for 100ms and try again.
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
-                Err(e) => {
-                    // Handle the Redis error, maybe return an error or log it.
-                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to acquire lock due to Redis error: {}",
-                        e
-                    )));
+            // Loop until we get the lock
+            for _ in 0..self.max_lock_attempts {
+                match self
+                    .lock_manager
+                    .lock(lock_name.as_bytes(), self.lock_duration)
+                {
+                    Ok(Some(l)) => {
+                        lock = Some(l);
+                        break;
+                    }
+                    Ok(None) => {
+                        // Lock was not acquired. Sleep for 100ms and try again.
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    Err(e) => {
+                        // Handle the Redis error, maybe return an error or log it.
+                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                            "Failed to acquire lock due to Redis error: {}",
+                            e
+                        )));
+                    }
                 }
             }
-        }
-        if lock.is_none() {
-            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to acquire lock after {} attempts",
-                self.max_lock_attempts
-            )));
+            if lock.is_none() {
+                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to acquire lock after {} attempts",
+                    self.max_lock_attempts
+                )));
+            }
         }
 
         // Critical section
-        for (keyname, serialized_data) in serialized_items.iter() {
+        for (keyname, serialized_data, ttl) in serialized_items.iter() {
             // Insert the key and value into the cache
             self.cache.insert(keyname.clone(), serialized_data.clone());
-            pipeline.cmd("SET").arg(keyname).arg(&**serialized_data);
+
+            // If ttl is not None, set the TTL
+            if let Some(ttl) = ttl {
+                pipeline
+                    .cmd("SETEX")
+                    .arg(keyname)
+                    .arg(ttl)
+                    .arg(&**serialized_data);
+            } else {
+                pipeline.cmd("SET").arg(keyname).arg(&**serialized_data);
+            }
         }
 
         // Increment the version and write it to Redis
@@ -249,8 +280,10 @@ impl StateAccessor {
             }
             self.version -= 1;
 
-            // Drop the lock
-            self.lock_manager.unlock(lock.as_ref().unwrap());
+            // Drop the lock if from_migration is false
+            if !from_migration {
+                self.lock_manager.unlock(lock.as_ref().unwrap());
+            }
 
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Redis bulk set error: {}",
@@ -258,8 +291,10 @@ impl StateAccessor {
             ))
         })?;
 
-        // Drop the lock
-        self.lock_manager.unlock(lock.as_ref().unwrap());
+        // Drop the lock if from_migration is false
+        if !from_migration {
+            self.lock_manager.unlock(lock.as_ref().unwrap());
+        }
 
         Ok(())
     }
@@ -295,12 +330,6 @@ impl StateAccessor {
                 err
             ))),
         }
-    }
-
-    pub fn __iter__(&self, py: Python) -> PyResult<PyObject> {
-        let keys = self.keys(py)?;
-        let list = pyo3::types::PyList::new(py, &keys);
-        Ok(list.into())
     }
 
     pub fn items(&mut self, py: Python) -> PyResult<PyObject> {
@@ -376,7 +405,7 @@ impl StateAccessor {
 // Serialization Helpers
 const MARKER_LIST: u8 = 0x01;
 const MARKER_DICT: u8 = 0x02;
-const MARKER_STATE_VALUE: u8 = 0x03;
+// const MARKER_STATE_VALUE: u8 = 0x03;
 
 fn cloudpickle_serialize(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
     let cloudpickle = py.import("cloudpickle")?;
@@ -413,21 +442,31 @@ fn serialize_value(py: Python, value: &PyAny) -> PyResult<Vec<u8>> {
             serialized.extend(serialized_item);
         }
         Ok(serialized)
-    } else if value.is_instance_of::<StateValue>() {
-        let mut serialized = vec![MARKER_STATE_VALUE];
+    }
+    // else if value.is_instance_of::<StateValue>() {
+    //     let mut serialized = vec![MARKER_STATE_VALUE];
 
-        let saved_data = value.call_method0("save")?;
+    //     // Serialize the Python class's full name for deserialization purposes
+    //     let class = value.getattr("__class__")?;
+    //     let module_name = class.getattr("__module__")?.extract::<String>()?;
+    //     let class_name = class.getattr("__name__")?.extract::<String>()?;
+    //     let full_name = format!("{}.{}", module_name, class_name);
+    //     serialized.extend((full_name.len() as u64).to_le_bytes().iter());
+    //     serialized.extend(full_name.as_bytes());
 
-        // Check if the saved_data is bytes
-        let bytes_data = saved_data.downcast::<PyBytes>().map_err(|_| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                "'save' method must return a bytes object",
-            )
-        })?;
+    //     let saved_data = value.call_method0("save")?;
 
-        serialized.extend(bytes_data.as_bytes());
-        Ok(serialized)
-    } else {
+    //     // Check if the saved_data is bytes
+    //     let bytes_data = saved_data.downcast::<PyBytes>().map_err(|_| {
+    //         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+    //             "'save' method must return a bytes object",
+    //         )
+    //     })?;
+
+    //     serialized.extend(bytes_data.as_bytes());
+    //     Ok(serialized)
+    // }
+    else {
         cloudpickle_serialize(py, value)
     }
 }
@@ -469,13 +508,48 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
 
     let mut cursor = 0;
     match value[cursor] {
-        MARKER_STATE_VALUE => {
-            cursor += 1;
-            let state_value_data = &value[cursor..];
-            let state_value_type = py.get_type::<StateValue>();
-            let result = state_value_type.call_method1("load", (state_value_data,))?;
-            Ok(result.into())
-        }
+        // MARKER_STATE_VALUE => {
+        //     cursor += 1;
+
+        //     // Deserialize the Python class's full name for deserialization purposes
+        //     if let Some(class_name_bytes) = extract_next_slice(value, &mut cursor) {
+        //         let full_name = std::str::from_utf8(class_name_bytes)?;
+        //         let parts: Vec<&str> = full_name.split('.').collect();
+        //         if parts.len() != 2 {
+        //             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+        //                 "Invalid StateValue subclass name: {}",
+        //                 full_name
+        //             )));
+        //         }
+        //         let module_name = parts[0];
+        //         let class_name = parts[1];
+        //         let module = py.import(module_name).map_err(|e| {
+        //             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+        //                 "Failed to import module {}: {}",
+        //                 module_name, e
+        //             ))
+        //         })?;
+        //         let class = module.getattr(class_name).map_err(|e| {
+        //             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+        //                 "Failed to get class {} from module {}: {}",
+        //                 class_name, module_name, e
+        //             ))
+        //         })?;
+
+        //         let state_value_data = &value[cursor..];
+        //         let result = class.call_method1("load", (state_value_data,))?;
+        //         Ok(result.into())
+        //     } else {
+        //         Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+        //             "Failed to deserialize StateValue",
+        //         ))
+        //     }
+
+        //     // let state_value_data = &value[cursor..];
+        //     // let state_value_type = py.get_type::<StateValue>();
+        //     // let result = state_value_type.call_method1("load", (state_value_data,))?;
+        //     // Ok(result.into())
+        // }
         MARKER_LIST => {
             cursor += 1;
             let list = pyo3::types::PyList::empty(py);
@@ -516,7 +590,8 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
 #[pymodule]
 fn motionstate(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<StateAccessor>()?;
-    m.add_class::<StateValue>()?;
+    // m.add_class::<StateValue>()?;
+    m.add_class::<TempValue>()?;
     Ok(())
 }
 
