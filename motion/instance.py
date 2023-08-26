@@ -1,6 +1,7 @@
 import atexit
-import logging
 from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
+
+import picologging as logging
 
 from motion.execute import Executor
 from motion.route import Route
@@ -27,8 +28,8 @@ class ComponentInstance:
         instance_id: str,
         init_state_func: Optional[Callable],
         init_state_params: Optional[Dict[str, Any]],
-        save_state_func: Optional[Callable],
-        load_state_func: Optional[Callable],
+        # save_state_func: Optional[Callable],
+        # load_state_func: Optional[Callable],
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
         logging_level: str = "WARNING",
@@ -55,7 +56,7 @@ class ComponentInstance:
         configureLogging(logging_level)
         # self._serverless = serverless
         # indicator = "serverless" if serverless else "local"
-        logger.info(f"Creating local instance of {self._component_name}...")
+        logger.debug(f"Creating local instance of {self._component_name}...")
         atexit.register(self.shutdown)
 
         # Create instance name
@@ -69,8 +70,8 @@ class ComponentInstance:
             cache_ttl=self._cache_ttl,
             init_state_func=init_state_func,
             init_state_params=init_state_params if init_state_params else {},
-            save_state_func=save_state_func,
-            load_state_func=load_state_func,
+            # save_state_func=save_state_func,
+            # load_state_func=load_state_func,
             serve_routes=serve_routes,
             update_routes=update_routes,
             update_task_type=update_task_type,
@@ -162,7 +163,7 @@ class ComponentInstance:
             c_instance.get_version() # Returns 1 (first version)
         ```
         """
-        return self._executor.version  # type: ignore
+        return self._executor._state.get_version()  # type: ignore
 
     def write_state(self, state_update: Dict[str, Any], latest: bool = False) -> None:
         """Writes the state update to the component instance's state.

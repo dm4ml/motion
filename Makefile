@@ -1,4 +1,4 @@
-.PHONY: tests lint install mypy update docs statebuild
+.PHONY: tests lint install mypy update docs build
 
 tests:
 	poetry run pytest
@@ -19,7 +19,7 @@ update:
 docs:
 	poetry run mkdocs serve
 
-statebuild:
+build:
 	cd motionstate && \
 	echo "Building motionstate" && \
 	maturin build --release && \

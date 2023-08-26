@@ -6,50 +6,108 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyDict, PyFloat, PyInt, PyList, PyString};
 use redis::Commands;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /*
 TODO:
-* Increment version when calling set_bulk
-* Use proper keys with component and instance names
-* Construct redis_url out of redis params
+* Use a redis lock
  */
 
 #[pyclass]
-pub struct State {
+pub struct StateAccessor {
     component_name: String,
     instance_id: String,
+    version: u64,
     client: redis::Client,
-    cache: HashMap<String, Vec<u8>>,
+    cache: HashMap<String, Arc<Vec<u8>>>,
 }
 
 #[pymethods]
-impl State {
+impl StateAccessor {
     #[new]
-    pub fn new(component_name: String, instance_id: String, redis_url: &str) -> PyResult<Self> {
+    pub fn new(
+        component_name: String,
+        instance_id: String,
+        redis_host: &str,
+        redis_port: u16,
+        redis_db: i64,
+        redis_password: Option<&str>,
+    ) -> PyResult<Self> {
+        // Constructing the Redis URL
+        let redis_url = match redis_password {
+            Some(password) => format!(
+                "redis://:{}@{}:{}/{}",
+                password, redis_host, redis_port, redis_db
+            ),
+            None => format!("redis://{}:{}/{}", redis_host, redis_port, redis_db),
+        };
+
         let client = redis::Client::open(redis_url).map_err(|err| {
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Redis connection error: {}",
                 err
             ))
         })?;
-        Ok(State {
+
+        // Read the version from Redis. If it doesn't exist, set it to 1.
+        let mut con = client.get_connection().unwrap();
+        let instancename = format!("MOTION_VERSION:{}__{}", component_name, instance_id);
+        let version: u64 = con.get(&instancename).unwrap_or(1);
+
+        Ok(StateAccessor {
             component_name,
             instance_id,
+            version,
             client,
             cache: HashMap::new(),
         })
     }
 
+    #[getter]
+    pub fn version(&self) -> PyResult<u64> {
+        Ok(self.version)
+    }
+
     pub fn set(&mut self, py: Python, key: &str, value: &PyAny) -> PyResult<()> {
         let mut con = self.client.get_connection().unwrap();
-        let serialized_data = serialize_value(py, value)?;
+        let serialized_data = Arc::new(serialize_value(py, value)?);
+
+        // Create key name as MOTION_STATE:<component_name>__<instance_id>/<key>
+        let keyname = format!(
+            "MOTION_STATE:{}__{}/{}",
+            self.component_name, self.instance_id, key
+        );
 
         // Insert the key and value into the cache
-        self.cache.insert(key.to_string(), serialized_data.clone());
-        // Insert the key and value into Redis
-        con.set(key, serialized_data).map_err(|err| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Redis set error: {}", err))
-        })?;
+        self.cache.insert(keyname.clone(), serialized_data.clone());
+
+        // Increment the version and write it to Redis
+        self.version += 1;
+
+        // Insert the key and value into Redis through an atomic pipeline
+        redis::pipe()
+            .atomic()
+            .set(keyname.clone(), &*serialized_data)
+            .ignore()
+            .set(
+                format!(
+                    "MOTION_VERSION:{}__{}",
+                    self.component_name, self.instance_id
+                ),
+                self.version,
+            )
+            .ignore()
+            .query(&mut con)
+            .map_err(|err| {
+                // Undo the cache insert and version increment
+                self.cache.remove(&keyname);
+                self.version -= 1;
+
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Redis set data error: {}",
+                    err
+                ))
+            })?;
 
         Ok(())
     }
@@ -57,21 +115,49 @@ impl State {
     pub fn bulk_set(&mut self, py: Python, items: &PyDict) -> PyResult<()> {
         let mut con = self.client.get_connection().unwrap();
         let mut pipeline = redis::pipe();
+        pipeline.atomic();
 
         // Iterate over the items in the dictionary
         for (key, value) in items {
-            let key_str = key.extract::<String>()?;
-            let serialized_data = serialize_value(py, value)?;
+            // Create key name as MOTION_STATE:<component_name>__<instance_id>/<key>
+            let keyname = format!(
+                "MOTION_STATE:{}__{}/{}",
+                self.component_name, self.instance_id, key
+            );
+            let serialized_data = Arc::new(serialize_value(py, value)?);
 
             // Insert the key and value into the cache
-            self.cache.insert(key_str.clone(), serialized_data.clone());
+            self.cache.insert(keyname.clone(), serialized_data.clone());
             // Insert the key and value into the pipeline
-            //pipeline.set::<_, _, ()>(key_str, serialized_data);
-            pipeline.cmd("SET").arg(key_str).arg(serialized_data);
+            //pipeline.set::<_, _, ()>(keyname, serialized_data);
+
+            pipeline.cmd("SET").arg(keyname).arg(&*serialized_data);
         }
 
+        // Increment the version and write it to Redis
+        self.version += 1;
+        pipeline
+            .set(
+                format!(
+                    "MOTION_VERSION:{}__{}",
+                    self.component_name, self.instance_id
+                ),
+                self.version,
+            )
+            .ignore();
+
         // Execute the pipeline, throwing a Python error if it fails
-        pipeline.query::<()>(&mut con).map_err(|err| {
+        pipeline.query(&mut con).map_err(|err| {
+            // Undo the cache insert and version increment
+            for (key, _) in items {
+                let keyname = format!(
+                    "MOTION_STATE:{}__{}/{}",
+                    self.component_name, self.instance_id, key
+                );
+                self.cache.remove(&keyname);
+            }
+            self.version -= 1;
+
             PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
                 "Redis bulk set error: {}",
                 err
@@ -82,21 +168,29 @@ impl State {
     }
 
     pub fn get(&mut self, py: Python, key: &str) -> PyResult<PyObject> {
+        // Create key name as MOTION_STATE:<component_name>__<instance_id>/<key>
+        let keyname = format!(
+            "MOTION_STATE:{}__{}/{}",
+            self.component_name, self.instance_id, key
+        );
+
         // If the key is in the cache, return it
-        if let Some(value) = self.cache.get(key) {
-            return deserialize_value(py, value);
+        if let Some(value) = self.cache.get(&keyname) {
+            return deserialize_value(py, &*value);
         }
 
         // Otherwise, fetch it from Redis
         let mut con = self.client.get_connection().unwrap();
-        let result_data: redis::RedisResult<Option<Vec<u8>>> = con.get(key);
+        let result_data: redis::RedisResult<Option<Vec<u8>>> = con.get(&keyname);
 
         match result_data {
             Ok(Some(data)) => {
+                let data_arc = Arc::new(data);
+
                 // Insert the key and value into the cache
-                self.cache.insert(key.to_string(), data.clone());
+                self.cache.insert(keyname.clone(), data_arc.clone());
                 // Deserialize the value
-                deserialize_value(py, &data)
+                deserialize_value(py, &*data_arc)
             }
             Ok(None) => Err(PyErr::new::<exceptions::PyKeyError, _>("Key not found")),
             Err(err) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
@@ -104,6 +198,68 @@ impl State {
                 err
             ))),
         }
+    }
+
+    pub fn __iter__(&self, py: Python) -> PyResult<PyObject> {
+        let keys = self.keys(py)?;
+        let list = pyo3::types::PyList::new(py, &keys);
+        Ok(list.into())
+    }
+
+    pub fn items(&mut self, py: Python) -> PyResult<PyObject> {
+        let items_list = pyo3::types::PyList::empty(py);
+        let pattern = format!(
+            "MOTION_STATE:{}__{}/{}",
+            self.component_name, self.instance_id, "*"
+        );
+
+        let replaced_pattern = pattern.replace("*", "");
+        let mut con = self.client.get_connection().unwrap();
+
+        // Minimized Redis calls by fetching everything in one go.
+        let keys: Vec<String> = con.keys(pattern).map_err(|err| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Redis keys error: {}", err))
+        })?;
+
+        for key in keys {
+            let key_without_prefix = key.replace(&replaced_pattern, "");
+
+            // Avoid cloning the key for Python conversion.
+            let py_key = key_without_prefix.as_str().into_py(py);
+            let value = self.get(py, &key_without_prefix)?;
+            let tuple = pyo3::types::PyTuple::new(py, &[py_key, value]);
+            items_list.append(tuple)?;
+        }
+
+        Ok(items_list.into())
+    }
+
+    pub fn keys(&self, _py: Python) -> PyResult<Vec<String>> {
+        let pattern = format!(
+            "MOTION_STATE:{}__{}/{}",
+            self.component_name, self.instance_id, "*"
+        );
+
+        let mut con = self.client.get_connection().unwrap();
+        let keys: Vec<String> = con.keys(pattern.clone()).map_err(|err| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!("Redis keys error: {}", err))
+        })?;
+
+        let replaced_pattern = pattern.replace("*", "");
+        Ok(keys
+            .into_iter()
+            .map(|key| key.replace(&replaced_pattern, ""))
+            .collect())
+    }
+
+    pub fn values(&mut self, py: Python) -> PyResult<PyObject> {
+        let values_list = pyo3::types::PyList::empty(py);
+        let keys = self.keys(py)?;
+        for key in keys.iter() {
+            let value = self.get(py, &key)?;
+            values_list.append(value)?;
+        }
+        Ok(values_list.into())
     }
 
     pub fn clear_cache(&mut self) {
@@ -254,7 +410,7 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
 
 #[pymodule]
 fn motionstate(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<State>()?;
+    m.add_class::<StateAccessor>()?;
     m.add_class::<StateValue>()?;
     Ok(())
 }
@@ -262,52 +418,60 @@ fn motionstate(_py: Python, m: &PyModule) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pyo3::Python;
+    use pyo3::types::IntoPyDict;
 
     #[test]
     fn state_init_with_valid_url() {
-        let _state = State::new(
+        let _state = StateAccessor::new(
             "component".to_string(),
             "instance".to_string(),
-            "redis://127.0.0.1:6381",
+            "127.0.0.1",
+            6381,
+            0,
+            None,
         )
         .unwrap();
     }
 
     #[test]
     fn state_init_with_invalid_url() {
-        let result = State::new(
+        let result = StateAccessor::new(
             "component".to_string(),
             "instance".to_string(),
-            "invalid_url",
+            "invalid",
+            6381,
+            0,
+            None,
         );
         assert!(result.is_err());
     }
 
     #[test]
     fn cache_test() {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-
-        let mut state = State::new(
-            "component".to_string(),
-            "instance".to_string(),
-            "redis://127.0.0.1:6381",
-        )
-        .unwrap();
-
-        // Set a value to Redis
-        let _ = state
-            .bulk_set(py, [("test_key", 42)].into_py_dict(py))
+        pyo3::Python::with_gil(|py| {
+            let mut state = StateAccessor::new(
+                "component".to_string(),
+                "instance".to_string(),
+                "127.0.0.1",
+                6381,
+                0,
+                None,
+            )
             .unwrap();
 
-        // Clear cache to simulate fetching from Redis
-        state.clear_cache();
-        let first_fetch = state.get(py, "test_key").unwrap();
-        assert_eq!(first_fetch.extract::<i64>(py).unwrap(), 42);
+            // Set a value to Redis
+            let _ = state
+                .bulk_set(py, [("test_key", 42)].into_py_dict(py))
+                .unwrap();
 
-        // This should be fetched from cache
-        let second_fetch = state.get(py, "test_key").unwrap();
-        assert_eq!(second_fetch.extract::<i64>(py).unwrap(), 42);
+            // Clear cache to simulate fetching from Redis
+            state.clear_cache();
+            let first_fetch = state.get(py, "test_key").unwrap();
+            assert_eq!(first_fetch.extract::<i64>(py).unwrap(), 42);
+
+            // This should be fetched from cache
+            let second_fetch = state.get(py, "test_key").unwrap();
+            assert_eq!(second_fetch.extract::<i64>(py).unwrap(), 42);
+        });
     }
 }

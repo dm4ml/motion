@@ -1,7 +1,7 @@
 import inspect
-import logging
 from typing import Any, Callable, Dict
 
+import picologging as logging
 from pydantic import BaseModel, Field, PrivateAttr
 
 logger = logging.getLogger(__name__)

@@ -27,15 +27,14 @@ mod tests {
 
     #[test]
     fn test_not_implemented() {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
+        pyo3::Python::with_gil(|py| {
+            let state_object = py.get_type::<StateValue>();
+            let result = state_object.call_method1("load", ("some_data",));
+            assert!(result.is_err());
 
-        let state_object = py.get_type::<StateValue>();
-        let result = state_object.call_method1("load", ("some_data",));
-        assert!(result.is_err());
-
-        let obj = state_object.call0().unwrap();
-        let result = obj.call_method0("save");
-        assert!(result.is_err());
+            let obj = state_object.call0().unwrap();
+            let result = obj.call_method0("save");
+            assert!(result.is_err());
+        });
     }
 }
