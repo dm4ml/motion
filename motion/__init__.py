@@ -7,6 +7,7 @@ from motion.utils import (
 )
 from motion.instance import ComponentInstance
 from motion.migrate import StateMigrator
+from motion.dicts import MDataFrame
 
 __all__ = [
     "Component",
@@ -16,4 +17,5 @@ __all__ = [
     "inspect_state",
     "StateMigrator",
     "get_instances",
+    "MDataFrame",
 ]
