@@ -173,7 +173,7 @@ class MDataFrame(pd.DataFrame):
     ```
     """
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict:
         # Serialize with pyarrow
         table = pa.Table.from_pandas(self)
         # Convert the PyArrow Table to a PyArrow Buffer
@@ -185,7 +185,7 @@ class MDataFrame(pd.DataFrame):
         buffer = sink.getvalue()
         return {"table": buffer}
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict) -> None:
         # Convert the PyArrow Buffer to a PyArrow Table
         buf = state["table"]
         reader = pa.ipc.open_stream(buf)
