@@ -190,7 +190,7 @@ class MDataFrame(pd.DataFrame):
         buf = state["table"]
         reader = pa.ipc.open_stream(buf)
         df = reader.read_pandas()
-        self.__init__(df)
+        self.__init__(df)  # type: ignore
 
 
 class Params(dict):
