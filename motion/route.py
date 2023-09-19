@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 class Route(BaseModel):
     key: str = Field(..., description="The keyword to which this route applies.")
     op: str = Field(
-        ..., description="The operation to perform.", regex="^(serve|update)$"
+        ...,
+        description="The operation to perform.",
+        pattern="^(serve|update)$",
     )
     udf: Callable = Field(
         ...,
