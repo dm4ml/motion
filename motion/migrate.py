@@ -42,6 +42,8 @@ def process_migration(
             raise e
         else:
             return instance_name, e
+
+    redis_con.close()
     return instance_name, None
 
 
@@ -138,6 +140,7 @@ class StateMigrator:
             )
 
         # Strip component name from instance names
+        redis_con.close()
         mresults = [
             MigrationResult(instance_id=instance_name.split("__")[-1], exception=e)
             for instance_name, e in results

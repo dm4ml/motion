@@ -45,13 +45,18 @@ class BaseUpdateTask:
         self.running = running
         self.daemon = True
 
-    def custom_run(self) -> None:
-        redis_con = redis.Redis(
+        self.redis_con = redis.Redis(
             host=self.redis_host,
             port=self.redis_port,
             password=self.redis_password,
             db=self.redis_db,
         )
+
+    def __del__(self) -> None:
+        self.redis_con.close()
+
+    def custom_run(self) -> None:
+        redis_con = self.redis_con
 
         while self.running.value:
             item: Dict[str, Any] = {}
