@@ -224,9 +224,13 @@ class Executor:
 
     def shutdown(self, is_open: bool) -> None:
         if self.disable_update_task:
+            if self._redis_con:
+                self._redis_con.close()
             return
 
         if not self.running.value:
+            if self._redis_con:
+                self._redis_con.close()
             return
 
         if is_open:

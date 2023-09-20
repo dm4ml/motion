@@ -83,6 +83,9 @@ class ComponentInstance:
     def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
         self.shutdown()
 
+    def __del__(self) -> None:
+        self.shutdown()
+
     @property
     def instance_name(self) -> str:
         """Component name with a random phrase to represent

@@ -108,6 +108,8 @@ def get_instances(component_name: str) -> List[str]:
     for key in redis_con.scan_iter(prefix):
         instance_ids.append(key.decode("utf-8").split("__")[1])
 
+    redis_con.close()
+
     return instance_ids
 
 
@@ -157,6 +159,8 @@ def clear_instance(instance_name: str) -> bool:
         pipeline.delete(queue)
     pipeline.execute()
 
+    redis_con.close()
+
     return True
 
 
@@ -195,6 +199,8 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
 
     # Get the state
     state = loadState(redis_con, instance_name, None)
+
+    redis_con.close()
     return state
 
 
