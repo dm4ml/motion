@@ -546,7 +546,9 @@ class Executor:
         )
 
         if not route_hit:
-            raise KeyError(f"Key {key} not in routes.")
+            raise KeyError(
+                f"Key {key} not in routes for component {self._instance_name}."
+            )
 
         return serve_result
 
@@ -597,7 +599,9 @@ class Executor:
         )
 
         if not route_hit:
-            raise KeyError(f"Key {key} not in routes.")
+            raise KeyError(
+                f"Key {key} not in routes for component {self._instance_name}."
+            )
 
         return serve_result
 
