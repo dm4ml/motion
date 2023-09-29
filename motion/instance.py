@@ -35,6 +35,7 @@ class ComponentInstance:
         update_task_type: Literal["thread", "process"] = "thread",
         disable_update_task: bool = False,
         cache_ttl: int = DEFAULT_KEY_TTL,
+        redis_socket_timeout: int = 60,
     ):
         """Creates a new instance of a Motion component.
 
@@ -74,6 +75,7 @@ class ComponentInstance:
             update_routes=update_routes,
             update_task_type=update_task_type,
             disable_update_task=self.disable_update_task,
+            redis_socket_timeout=redis_socket_timeout,
         )
         self.running = True
 
