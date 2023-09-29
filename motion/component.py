@@ -473,6 +473,7 @@ class Component:
         logging_level: str = "WARNING",
         update_task_type: Literal["thread", "process"] = "thread",
         disable_update_task: bool = False,
+        redis_socket_timeout: int = 60,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -527,6 +528,9 @@ class Component:
                 Whether or not to disable the component instance update ops.
                 Useful for printing out state values without running dataflows.
                 Defaults to False.
+            redis_socket_timeout (int, optional):
+                Timeout for redis socket connections (seconds). Defaults to 60.
+                This means the redis connection will close if idle for 60 seconds.
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
@@ -553,6 +557,7 @@ class Component:
                 update_task_type=update_task_type,
                 disable_update_task=disable_update_task,
                 cache_ttl=self._cache_ttl,
+                redis_socket_timeout=redis_socket_timeout,
             )
         except RuntimeError:
             raise RuntimeError(

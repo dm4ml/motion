@@ -39,6 +39,7 @@ class Executor:
         update_routes: Dict[str, List[Route]],
         update_task_type: Literal["thread", "process"] = "thread",
         disable_update_task: bool = False,
+        redis_socket_timeout: int = 60,
     ):
         self._instance_name = instance_name
         self._cache_ttl = cache_ttl
@@ -49,6 +50,8 @@ class Executor:
         self._save_state_func = save_state_func
 
         self.running: Any = multiprocessing.Value("b", False)
+        self._redis_socket_timeout = redis_socket_timeout
+
         self._redis_params, self._redis_con = self._connectToRedis()
         try:
             self._redis_con.ping()
@@ -111,11 +114,14 @@ class Executor:
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
         rp = get_redis_params()
+
+        # Put a timeout on the connection
         r = redis.Redis(
             host=rp.host,
             port=rp.port,
             password=rp.password,
             db=rp.db,
+            socket_timeout=self._redis_socket_timeout,
         )
         return rp, r
 
@@ -546,7 +552,9 @@ class Executor:
         )
 
         if not route_hit:
-            raise KeyError(f"Key {key} not in routes.")
+            raise KeyError(
+                f"Key {key} not in routes for component {self._instance_name}."
+            )
 
         return serve_result
 
@@ -597,7 +605,9 @@ class Executor:
         )
 
         if not route_hit:
-            raise KeyError(f"Key {key} not in routes.")
+            raise KeyError(
+                f"Key {key} not in routes for component {self._instance_name}."
+            )
 
         return serve_result
 
