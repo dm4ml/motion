@@ -230,9 +230,12 @@ class ComponentInstance:
 
         Args:
             key (str): Key in the state to get the value for.
+            default_value (Optional[Any], optional): Default value to return
+                if the key is not found. Defaults to None.
 
         Returns:
-            Any: Current value for the key.
+            Any: Current value for the key, or default_value if the key
+            is not found.
         """
         return self._executor._loadState().get(key, default_value)
 
