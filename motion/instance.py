@@ -204,7 +204,7 @@ class ComponentInstance:
         """
         self._executor._updateState(state_update, force_update=latest)
 
-    def read_state(self, key: str) -> Any:
+    def read_state(self, key: str, default_value: Optional[Any] = None) -> Any:
         """Gets the current value for the key in the component instance's state.
 
         Usage:
@@ -234,7 +234,7 @@ class ComponentInstance:
         Returns:
             Any: Current value for the key.
         """
-        return self._executor._loadState()[key]
+        return self._executor._loadState().get(key, default_value)
 
     def flush_update(self, dataflow_key: str) -> None:
         """Flushes the update queue corresponding to the dataflow
