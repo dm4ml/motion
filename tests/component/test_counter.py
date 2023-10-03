@@ -35,8 +35,7 @@ def test_create():
 
     # Get value
     assert c.read_state("value") == 10
-    with pytest.raises(KeyError):
-        c.read_state("DNE")
+    assert c.read_state("DNE") is None
 
 
 def test_fit_error():
