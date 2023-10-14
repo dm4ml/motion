@@ -495,9 +495,11 @@ class Executor:
         if value_hash and not force_refresh and not ignore_cache:
             cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
-                props = cloudpickle.loads(self._redis_con.get(cache_result_key))
-                serve_result = props.serve_result
-                route_run = True
+                new_props = cloudpickle.loads(self._redis_con.get(cache_result_key))
+                if new_props._serve_result is not None:
+                    props = new_props
+                    serve_result = props.serve_result
+                    route_run = True
 
         return route_run, serve_result, props, value_hash
 
