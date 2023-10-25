@@ -5,6 +5,7 @@ from typing import Callable, List, Optional, Tuple
 
 import redis
 from pydantic import BaseConfig, BaseModel, Field
+from tqdm import tqdm
 
 from motion.component import Component
 from motion.dicts import State
@@ -125,19 +126,33 @@ class StateMigrator:
 
         # Create a process pool with 4 executors
         with Pool(num_workers) as executor:
-            # Process each key in parallel
-            results = executor.starmap(
-                process_migration,
-                [
-                    (
-                        instance_name,
-                        self.migrate_func,
-                        self.component._load_state_func,
-                        self.component._save_state_func,
-                    )
-                    for instance_name in instance_names
-                ],
+            # Create a list of arguments for process_migration
+            args_list = [
+                (
+                    instance_name,
+                    self.migrate_func,
+                    self.component._load_state_func,
+                    self.component._save_state_func,
+                )
+                for instance_name in instance_names
+            ]
+
+            # Initialize the progress bar
+            progress_bar = tqdm(
+                total=len(args_list),
+                desc=f"Migrating state for {self.component.name}",
+                unit="instance",
             )
+
+            # Process each key in parallel and update the progress bar
+            # for each completed task
+            results = []
+            for result in executor.starmap(process_migration, args_list):
+                results.append(result)
+                progress_bar.update(1)
+
+            # Close the progress bar
+            progress_bar.close()
 
         # Strip component name from instance names
         redis_con.close()
