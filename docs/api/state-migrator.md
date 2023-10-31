@@ -10,7 +10,7 @@
         show_source: false
         show_signature_annotations: true
 
-::: motion.copy_motion_db
+::: motion.copy_db
     handler: python
     options:
         show_root_full_path: false

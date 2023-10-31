@@ -12,7 +12,7 @@ from motion.utils import RedisParams
 logger = logging.getLogger(__name__)
 
 
-async def copy_motion_db(src: RedisParams, dest: RedisParams) -> None:
+async def copy_db(src: RedisParams, dest: RedisParams) -> None:
     """
     Copy a component and its state from one Redis instance to another.
 
