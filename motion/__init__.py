@@ -4,6 +4,7 @@ from motion.utils import (
     clear_instance,
     inspect_state,
     get_instances,
+    RedisParams,
 )
 from motion.instance import ComponentInstance
 from motion.migrate import StateMigrator
@@ -20,4 +21,5 @@ __all__ = [
     "get_instances",
     "MDataFrame",
     "copy_motion_db",
+    "RedisParams",
 ]
