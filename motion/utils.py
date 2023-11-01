@@ -40,7 +40,7 @@ class RedisParams(BaseModel, extra="allow"):
     ssl: bool = False
 
     def __init__(self, **kwargs: Any) -> None:
-        config = kwargs.get("config")
+        config = kwargs.get("config", None)
 
         if config is not None:
             kwargs.setdefault(
@@ -81,6 +81,9 @@ class RedisParams(BaseModel, extra="allow"):
             kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
             kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
             kwargs.setdefault("ssl", os.getenv("MOTION_REDIS_SSL", False))
+
+        # Pop the config key
+        kwargs.pop("config", None)
 
         super().__init__(**kwargs)
 

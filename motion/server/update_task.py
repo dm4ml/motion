@@ -21,10 +21,7 @@ class BaseUpdateTask:
         load_state_func: Optional[Callable],
         queue_identifiers: List[str],
         channel_identifiers: Dict[str, str],
-        redis_host: str,
-        redis_port: int,
-        redis_db: int,
-        redis_password: str,
+        redis_params: Dict[str, Any],
         running: Any,
     ):
         super().__init__()
@@ -33,10 +30,6 @@ class BaseUpdateTask:
         self.instance_name = instance_name
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
-        self.redis_host = redis_host
-        self.redis_port = redis_port
-        self.redis_db = redis_db
-        self.redis_password = redis_password
 
         self.routes = routes
         self.queue_identifiers = queue_identifiers
@@ -45,12 +38,7 @@ class BaseUpdateTask:
         self.running = running
         self.daemon = True
 
-        self.redis_con = redis.Redis(
-            host=self.redis_host,
-            port=self.redis_port,
-            password=self.redis_password,
-            db=self.redis_db,
-        )
+        self.redis_con = redis.Redis(**redis_params)
 
     def __del__(self) -> None:
         self.redis_con.close()
