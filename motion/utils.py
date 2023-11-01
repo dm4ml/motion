@@ -37,6 +37,7 @@ class RedisParams(BaseModel, extra="allow"):
     port: int
     db: int
     password: Optional[str] = None
+    ssl: bool = False
 
     def __init__(self, **kwargs: Any) -> None:
         config = kwargs.get("config")
@@ -67,11 +68,19 @@ class RedisParams(BaseModel, extra="allow"):
                     os.getenv("MOTION_REDIS_PASSWORD", None),
                 ),
             )
+            kwargs.setdefault(
+                "ssl",
+                config.get(
+                    "MOTION_REDIS_SSL",
+                    os.getenv("MOTION_REDIS_PASSWORD", False),
+                ),
+            )
         else:
             kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
             kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
             kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
             kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
+            kwargs.setdefault("ssl", os.getenv("MOTION_REDIS_SSL", False))
 
         super().__init__(**kwargs)
 
@@ -100,7 +109,7 @@ def get_instances(component_name: str) -> List[str]:
         List[str]: List of instance ids.
     """
     rp = get_redis_params()
-    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+    redis_con = redis.Redis(**rp.dict())
 
     # Scan for all keys with prefix
     prefix = f"MOTION_VERSION:{component_name}__*"
@@ -139,7 +148,9 @@ def clear_instance(instance_name: str) -> bool:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
     rp = get_redis_params()
-    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+    redis_con = redis.Redis(
+        **rp.dict(),
+    )
 
     # Check if the instance exists
     if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
@@ -191,7 +202,9 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
 
     rp = get_redis_params()
-    redis_con = redis.Redis(host=rp.host, port=rp.port, password=rp.password, db=rp.db)
+    redis_con = redis.Redis(
+        **rp.dict(),
+    )
 
     # Check if the instance exists
     if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):

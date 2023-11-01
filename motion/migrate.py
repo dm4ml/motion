@@ -23,7 +23,7 @@ def process_migration(
     try:
         rp = get_redis_params()
         redis_con = redis.Redis(
-            host=rp.host, port=rp.port, password=rp.password, db=rp.db
+            **rp.dict(),
         )
         state = loadState(redis_con, instance_name, load_state_fn)
         new_state = migrate_func(state)
@@ -109,7 +109,7 @@ class StateMigrator:
 
         rp = get_redis_params()
         redis_con = redis.Redis(
-            host=rp.host, port=rp.port, password=rp.password, db=rp.db
+            **rp.dict(),
         )
         instance_names = [
             self.component.name + "__" + iid if "__" not in iid else iid

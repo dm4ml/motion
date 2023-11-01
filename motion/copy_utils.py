@@ -44,10 +44,12 @@ async def copy_db(src: RedisParams, dest: RedisParams) -> None:
             logger.info(f"Copying keys with prefix {key_prefix}")
 
             cursor = 0
-            while cursor:
-                cursor, keys = await src_con.scan(cursor=cursor, match=f"{key_prefix}*")
+            while True:
+                cursor, keys = await src_con.scan(
+                    cursor=cursor, match=f"{key_prefix}*", count=1000
+                )
                 if not keys:
-                    continue
+                    break
 
                 # Pipeline to fetch all values in a single round trip
                 pipeline = src_con.pipeline()
@@ -65,6 +67,8 @@ async def copy_db(src: RedisParams, dest: RedisParams) -> None:
 
                 # Make sure to convert cursor back to an integer if it's not already
                 cursor = int(cursor) if cursor is not None else None
+                if cursor == 0:
+                    break
 
             logger.info(f"Finished copying keys with prefix {key_prefix}.")
 
