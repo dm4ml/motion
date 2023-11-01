@@ -27,16 +27,12 @@ async def copy_db(src: RedisParams, dest: RedisParams) -> None:
 
     # establish connections
 
-    src_con: redis.Redis = redis.Redis(
-        host=src.host, port=src.port, password=src.password, db=src.db
-    )
+    src_con: redis.Redis = redis.Redis(**src.dict())
 
     if await src_con.ping() is False:
         raise ValueError("Could not connect to source Redis instance.")
 
-    dest_con: redis.Redis = redis.Redis(
-        host=dest.host, port=dest.port, password=dest.password, db=dest.db
-    )
+    dest_con: redis.Redis = redis.Redis(**dest.dict())
 
     if await dest_con.ping() is False:
         raise ValueError("Could not connect to destination Redis instance.")

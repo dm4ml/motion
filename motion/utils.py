@@ -32,7 +32,7 @@ def hash_object(obj: Any) -> str:
     return hex_digest
 
 
-class RedisParams(BaseModel):
+class RedisParams(BaseModel, extra="allow"):
     host: str
     port: int
     db: int
