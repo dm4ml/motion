@@ -117,7 +117,7 @@ class StateMigrator:
         ]
         if not instance_names:
             instance_names = [
-                key.decode("utf-8").replace("MOTION_STATE:", "")
+                key.decode("utf-8").replace("MOTION_STATE:", "")  # type: ignore
                 for key in redis_con.keys(f"MOTION_STATE:{self.component.name}__*")
             ]
 

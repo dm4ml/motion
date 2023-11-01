@@ -118,7 +118,7 @@ def get_instances(component_name: str) -> List[str]:
     prefix = f"MOTION_VERSION:{component_name}__*"
     instance_ids = []
     for key in redis_con.scan_iter(prefix):
-        instance_ids.append(key.decode("utf-8").split("__")[1])
+        instance_ids.append(key.decode("utf-8").split("__")[1])  # type: ignore
 
     redis_con.close()
 
