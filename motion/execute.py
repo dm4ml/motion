@@ -116,13 +116,11 @@ class Executor:
         rp = get_redis_params()
 
         # Put a timeout on the connection
-        r = redis.Redis(
-            host=rp.host,
-            port=rp.port,
-            password=rp.password,
-            db=rp.db,
-            socket_timeout=self._redis_socket_timeout,
-        )
+        param_dict = rp.dict()
+        if "socket_timeout" not in param_dict:
+            param_dict["socket_timeout"] = self._redis_socket_timeout
+
+        r = redis.Redis(**param_dict)
         return rp, r
 
     def _loadState(self) -> State:
@@ -167,10 +165,7 @@ class Executor:
                 load_state_func=self._load_state_func,
                 queue_identifiers=self.queue_ids_for_fit,
                 channel_identifiers=self.channel_dict_for_fit,
-                redis_host=self._redis_params.host,
-                redis_port=self._redis_params.port,
-                redis_db=self._redis_params.db,
-                redis_password=self._redis_params.password,  # type: ignore
+                redis_params=self._redis_params.dict(),
                 running=self.running,
             )
             self.worker_task.start()  # type: ignore
@@ -206,10 +201,7 @@ class Executor:
                     load_state_func=self._load_state_func,
                     queue_identifiers=self.queue_ids_for_fit,
                     channel_identifiers=self.channel_dict_for_fit,
-                    redis_host=self._redis_params.host,
-                    redis_port=self._redis_params.port,
-                    redis_db=self._redis_params.db,
-                    redis_password=self._redis_params.password,  # type: ignore
+                    redis_params=self._redis_params.dict(),
                     running=self.running,
                 )
                 self.worker_task.start()  # type: ignore
