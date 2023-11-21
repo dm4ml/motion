@@ -10,7 +10,6 @@ from motion.instance import ComponentInstance
 from motion.migrate import StateMigrator
 from motion.dicts import MDataFrame
 from motion.copy_utils import copy_db
-from motion.server.application import Application
 
 __all__ = [
     "Component",
@@ -23,5 +22,4 @@ __all__ = [
     "MDataFrame",
     "copy_db",
     "RedisParams",
-    "Application",
 ]

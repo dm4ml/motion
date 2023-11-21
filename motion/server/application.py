@@ -1,9 +1,10 @@
 """This file creates a FastAPI application instance for a group of components."""
 
 import secrets
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
 
 from motion.component import Component
@@ -19,7 +20,7 @@ class RunRequest(BaseModel):
     creation_kwargs: Dict[str, Any] = {}  # kwargs to pass to component creation
 
     @validator("props")
-    def validate_props(cls, v):
+    def validate_props(cls: Any, v: Any) -> Dict[str, Any]:
         if not isinstance(v, dict):
             raise ValueError("Props must be a dictionary")
         return v
@@ -32,8 +33,8 @@ class UpdateStateRequest(BaseModel):
 
 
 # Authentication dependency
-def api_key_auth(secret_token: str):
-    def validate_api_key(request: Request):
+def api_key_auth(secret_token: str) -> Callable:
+    def validate_api_key(request: Request) -> bool:
         if "Authorization" not in request.headers:
             raise HTTPException(
                 status_code=401, detail="No Authorization header provided"
@@ -53,11 +54,7 @@ def api_key_auth(secret_token: str):
 
 # Application class
 class Application:
-    def __init__(
-        self,
-        components: List[Component],
-        secret_token: str = None,
-    ):
+    def __init__(self, components: List[Component], secret_token: str = ""):
         self.app = FastAPI()
         self.components = components
         self.secret_token = (
@@ -65,7 +62,7 @@ class Application:
         )
         self._generate_routes()
 
-    def _generate_routes(self):
+    def _generate_routes(self) -> None:
         for component in self.components:
             component_name = component.name
             endpoint = self.create_component_endpoint(component)
@@ -75,32 +72,32 @@ class Application:
             update_route = f"/{component_name}/update"
             read_route = f"/{component_name}/read"
 
-            self.app.post(update_route)(self.create_update_state_endpoint(component))
+            self.app.post(update_route)(self.create_write_state_endpoint(component))
             self.app.get(read_route)(self.create_read_state_endpoint(component))
 
-    def create_read_state_endpoint(self, component):
+    def create_read_state_endpoint(self, component: Component) -> Callable:
         async def read_state_endpoint(
             instance_id: str,
             key: str,
-            _=Depends(api_key_auth(self.secret_token)),
-        ):
+            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
+        ) -> JSONResponse:
             try:
                 with component(
                     instance_id, disable_update_task=True
                 ) as component_instance:
                     value = component_instance.read_state(key)
                     # Return as JSON
-                    return {key: value}
+                    return JSONResponse(content={key: value})
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
         return read_state_endpoint
 
-    def create_update_state_endpoint(self, component):
-        async def update_state_endpoint(
+    def create_write_state_endpoint(self, component: Component) -> Callable:
+        async def write_state_endpoint(
             request: UpdateStateRequest,
-            _=Depends(api_key_auth(self.secret_token)),
-        ):
+            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
+        ) -> Response:
             instance_id = request.instance_id
             state_update = request.state_update
             kwargs = request.kwargs
@@ -110,21 +107,22 @@ class Application:
                 with component(
                     instance_id, disable_update_task=True
                 ) as component_instance:
-                    component_instance.update_state(state_update, **kwargs)
-                    return {
-                        "status": "success",
-                        "message": "State updated successfully.",
-                    }
+                    component_instance.write_state(state_update, **kwargs)
+                    return Response(
+                        status_code=200,
+                        content=f"Successfully updated {component.name} "
+                        + f"state for {instance_id}",
+                    )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
-        return update_state_endpoint
+        return write_state_endpoint
 
-    def create_component_endpoint(self, component):
+    def create_component_endpoint(self, component: Component) -> Callable:
         async def endpoint(
             request: RunRequest,
             background_tasks: BackgroundTasks,
-            _=Depends(api_key_auth(self.secret_token)),
+            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
         ) -> Any:
             instance_id = request.instance_id
             dataflow_key = request.dataflow_key
@@ -168,10 +166,10 @@ class Application:
 
         return endpoint
 
-    def get_app(self):
+    def get_app(self) -> FastAPI:
         return self.app
 
-    def get_credentials(self):
+    def get_credentials(self) -> Dict[str, str]:
         return {"secret_token": self.secret_token}
 
 
