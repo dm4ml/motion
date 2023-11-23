@@ -43,7 +43,7 @@ def test_endpoint(client):
         json={
             "instance_id": "testid",
             "dataflow_key": "sum",
-            "async_action": False,
+            "is_async": False,
             "props": {"values": [1, 2, 3]},
         },
         headers={"Authorization": f"Bearer {credentials['secret_token']}"},

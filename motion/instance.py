@@ -428,7 +428,7 @@ class ComponentInstance:
 
         Raises:
             ValueError: If more than one dataflow key-value pair is passed.
-            If flush_update is called and the component instance update
+                If flush_update is called and the component instance update
                 processes are disabled.
 
         Returns:
