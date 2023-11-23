@@ -64,16 +64,3 @@ def test_endpoint(client):
 
     assert response.status_code == 200
     assert response.json() == {"multiplier": 2}
-
-
-# Example usage
-# app_instance = Application(components=[ComponentA, ComponentB])
-# credentials = app_instance.get_credentials()
-# app = app_instance.get_app()
-
-# # Credentials are instance-specific and not global
-# print("Credentials for this instance of the app:")
-# print(credentials)
-
-# To run the app, use uvicorn as follows:
-# uvicorn.run(app, host="0.0.0.0", port=8000)

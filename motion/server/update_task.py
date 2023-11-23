@@ -39,7 +39,7 @@ class BaseUpdateTask:
         self.daemon = True
 
         self.redis_params = redis_params
-        self.redis_con = None
+        self.redis_con: Optional[redis.Redis] = None
 
     def __del__(self) -> None:
         if self.redis_con is not None:
