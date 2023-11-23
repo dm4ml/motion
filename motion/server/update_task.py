@@ -38,12 +38,15 @@ class BaseUpdateTask:
         self.running = running
         self.daemon = True
 
-        self.redis_con = redis.Redis(**redis_params)
+        self.redis_params = redis_params
+        self.redis_con: Optional[redis.Redis] = None
 
     def __del__(self) -> None:
-        self.redis_con.close()
+        if self.redis_con is not None:
+            self.redis_con.close()
 
     def custom_run(self) -> None:
+        self.redis_con = redis.Redis(**self.redis_params)
         redis_con = self.redis_con
 
         while self.running.value:

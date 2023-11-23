@@ -16,3 +16,6 @@ dist*
 site*
 *package-lock.json
 projects
+unnecessary.py
+motionstate*
+*.whl

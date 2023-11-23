@@ -11,11 +11,13 @@ nav:
   - Examples:
       - Hello World: examples/hello-world.md
       - Common Design Patterns: examples/design-patterns.md
+      - Orchestrating an Application of Components: examples/application.md
       - Querying Data with Natural Language: examples/nl-query.md
   - API Reference:
       - Component: api/component.md
       - ComponentInstance: api/component-instance.md
       - Props and State: api/props-and-state.md
+      - Application: api/application.md
       - StateMigrator: api/state-migrator.md
   - Helpful Tools:
       - Component Visualization: tools/vis.md
