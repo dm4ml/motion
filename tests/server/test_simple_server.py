@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from motion import Component
-from motion.server.application import Application
+from motion import Application
 
 # Create some components
 

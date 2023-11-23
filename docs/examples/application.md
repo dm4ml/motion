@@ -46,7 +46,7 @@ We'll create an application that serves the two components we just defined.
 
 ```python title="app.py" linenums="1"
 # app.py
-from motion.server import Application
+from motion import Application
 from sample_components import Counter, Calculator
 import uvicorn
 
