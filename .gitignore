@@ -27,4 +27,9 @@ motionstate/target*
 motionstate/Cargo.lock
 *rustc*
 motionstate*.so
+<<<<<<< HEAD
 >>>>>>> e4aede0 (Successfully imported bare bones library version)
+=======
+*.whl
+unnecessary*
+>>>>>>> c994961 (Make sure tests pass)

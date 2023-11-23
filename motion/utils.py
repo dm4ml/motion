@@ -159,13 +159,15 @@ def clear_instance(instance_name: str) -> bool:
         return False
 
     # Delete the instance state, version, and cached results
-    redis_con.delete(f"MOTION_STATE:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
     redis_con.delete(f"MOTION_LOCK:{instance_name}")
 
+    state_vals_to_delete = redis_con.keys(f"MOTION_STATE:{instance_name}/*")
     results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
     queues_to_delete = redis_con.keys(f"MOTION_QUEUE:{instance_name}/*")
     pipeline = redis_con.pipeline()
+    for state_val in state_vals_to_delete:
+        pipeline.delete(state_val)
     for result in results_to_delete:
         pipeline.delete(result)
     for queue in queues_to_delete:

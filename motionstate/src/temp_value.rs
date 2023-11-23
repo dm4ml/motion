@@ -40,15 +40,18 @@ mod tests {
 
     #[test]
     fn test_tempvalue_creation() {
-        let gil = Python::acquire_gil();
-        let py = gil.python();
-        let d = [("TempValue", py.get_type::<TempValue>())].into_py_dict(py);
-        let instance: PyObject = py
-            .eval("TempValue(value='hello', ttl=100)", Some(d), None)
-            .unwrap()
-            .extract()
-            .unwrap();
-        let tempvalue: &TempValue = instance.extract(py).unwrap();
-        assert_eq!(tempvalue.ttl, 100);
+        Python::with_gil(|py| {
+            // Your code that requires Python's GIL goes here
+            let d = [("TempValue", py.get_type::<TempValue>())].into_py_dict(py);
+            let instance: PyObject = py
+                .eval("TempValue(value='hello', ttl=100)", Some(d), None)
+                .unwrap()
+                .extract()
+                .unwrap();
+
+            // Extract ttl as i64 and compare
+            let ttl_value: i64 = instance.getattr(py, "ttl").unwrap().extract(py).unwrap();
+            assert_eq!(ttl_value, 100);
+        });
     }
 }

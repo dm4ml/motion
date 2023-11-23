@@ -527,6 +527,7 @@ mod tests {
         let _state = StateAccessor::new(
             "component".to_string(),
             "instance".to_string(),
+            180 as u64,
             "127.0.0.1",
             6381,
             0,
@@ -540,6 +541,7 @@ mod tests {
         let result = StateAccessor::new(
             "component".to_string(),
             "instance".to_string(),
+            180 as u64,
             "invalid",
             6381,
             0,
@@ -554,6 +556,7 @@ mod tests {
             let mut state = StateAccessor::new(
                 "component".to_string(),
                 "instance".to_string(),
+                180 as u64,
                 "127.0.0.1",
                 6381,
                 0,
@@ -563,7 +566,7 @@ mod tests {
 
             // Set a value to Redis
             let _ = state
-                .bulk_set(py, [("test_key", 42)].into_py_dict(py))
+                .bulk_set(py, [("test_key", 42)].into_py_dict(py), false)
                 .unwrap();
 
             // Clear cache to simulate fetching from Redis
