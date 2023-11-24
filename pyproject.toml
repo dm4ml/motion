@@ -71,7 +71,7 @@ show_error_codes = true
 omit = [".*", "*/site-packages/*"]
 
 [build-system]
-requires = ["poetry-core", "maturin>=0.12"]
+requires = ["poetry-core", "maturin"]
 build-backend = "maturin"
 
 [tool.maturin]
