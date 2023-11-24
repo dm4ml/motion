@@ -35,8 +35,21 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
 
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
       - name: Install dependencies
         run: poetry install
+
+      - name: Build and install Rust library
+        run: |
+          cd motionstate
+          maturin develop --release
+          cd ..
 
       - name: Run pytest
         run: make tests
