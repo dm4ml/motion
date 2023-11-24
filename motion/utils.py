@@ -254,7 +254,8 @@ def configureLogging(level: str) -> None:
     #         "CRITICAL": "bold_red",
     #     },
     # )
-    logging.basicConfig(level=level)
+
+    logging.basicConfig(level=level)  # type: ignore
     # logger = logging.getLogger("motion")
     # if logger.hasHandlers():
     #     logger.handlers.clear()

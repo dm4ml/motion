@@ -133,10 +133,9 @@ class StateMigrator:
         ]
         if not instance_names:
             instance_names = [
-                key.decode("utf-8").replace("MOTION_VERSION:", "")
+                key.decode("utf-8").replace("MOTION_VERSION:", "")  # type: ignore
                 for key in redis_con.keys(f"MOTION_VERSION:{self.component.name}__*")
             ]
-            print(instance_names)
 
         if not instance_names:
             logger.warning(f"No instances for component {self.component.name} found.")

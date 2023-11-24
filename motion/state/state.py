@@ -3,7 +3,7 @@ This file contains the state class.
 """
 from typing import Any, Iterator, List, Optional, Tuple
 
-from motionstate import StateAccessor
+from motionstate import StateAccessor  # type: ignore
 
 STATE_ERROR_MSG = "Cannot edit state directly. Use component update operations instead."
 
@@ -62,7 +62,7 @@ class State:
         super().__init__(*args, **kwargs)
 
     def get_version(self) -> int:
-        return self._state_accessor.version
+        return self._state_accessor.version  # type: ignore
 
     @property
     def instance_id(self) -> str:
@@ -71,13 +71,13 @@ class State:
         Useful if wanting to create other component instances
         within a serve or update operation.
         """
-        return self._instance_id
+        return self._instance_id  # type: ignore
 
     def clear_cache(self) -> None:
         # Clear the cache
         self._state_accessor.clear_cache()
 
-    def __getitem__(self, key: str) -> object:
+    def __getitem__(self, key: str) -> Any:
         try:
             # Get from state accessor
             return self._state_accessor.get(key)
@@ -116,7 +116,7 @@ class State:
         raise RuntimeError(STATE_ERROR_MSG)
 
     def keys(self) -> List[str]:
-        return self._state_accessor.keys()
+        return self._state_accessor.keys()  # type: ignore
 
     def values(self) -> List[Any]:
         """Values in the state dictionary.
@@ -129,7 +129,7 @@ class State:
             List[Any]: List of values in the state.
         """
 
-        return self._state_accessor.values()
+        return self._state_accessor.values()  # type: ignore
 
     def items(self) -> List[Tuple[str, Any]]:
         """Items in the state dictionary.
@@ -143,7 +143,7 @@ class State:
         Returns:
             List[Tuple[str, Any]]: List of key-value pairs in the state.
         """
-        return self._state_accessor.items()
+        return self._state_accessor.items()  # type: ignore
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self._state_accessor.keys())
+        return iter(self._state_accessor.keys())  # type: ignore
