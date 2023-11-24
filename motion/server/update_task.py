@@ -101,10 +101,7 @@ class BaseUpdateTask:
                 old_state = State(
                     self.instance_name.split("__")[0],
                     self.instance_name.split("__")[1],
-                    redis_host=self.redis_params["host"],
-                    redis_port=self.redis_params["port"],
-                    redis_db=self.redis_params["db"],
-                    redis_password=self.redis_params["password"],
+                    redis_params=self.redis_params,
                 )
 
                 state_update = self.routes[queue_name].run(

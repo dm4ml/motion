@@ -16,20 +16,12 @@ dist*
 site*
 *package-lock.json
 projects
-<<<<<<< HEAD
-unnecessary.py
-motionstate*
-*.whl
-=======
 
 motionstate/debug*
 motionstate/target*
 motionstate/Cargo.lock
 *rustc*
 motionstate*.so
-<<<<<<< HEAD
->>>>>>> e4aede0 (Successfully imported bare bones library version)
-=======
+*motionenv*
 *.whl
-unnecessary*
->>>>>>> c994961 (Make sure tests pass)
+*unnecessary*

@@ -218,10 +218,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
     state = State(
         instance_name.split("__")[0],
         instance_name.split("__")[1],
-        rp.host,
-        rp.port,
-        rp.db,
-        rp.password,
+        redis_params=rp.dict(),
     )
     # Iterate through all items
     all_items = {k: v for k, v in state.items()}

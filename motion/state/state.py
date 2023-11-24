@@ -1,7 +1,7 @@
 """
 This file contains the state class.
 """
-from typing import Any, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from motionstate import StateAccessor  # type: ignore
 
@@ -41,10 +41,7 @@ class State:
         self,
         component_name: str,
         instance_id: str,
-        redis_host: str,
-        redis_port: int,
-        redis_db: int = 0,
-        redis_password: Optional[str] = None,
+        redis_params: Dict[str, Any],
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -54,10 +51,11 @@ class State:
             component_name,
             instance_id,
             1000 * 60 * 2,  # 2 minutes lock duration TODO: make this configurable
-            redis_host,
-            redis_port,
-            redis_db,
-            redis_password,
+            redis_params["host"],
+            redis_params["port"],
+            redis_params["db"],
+            redis_params["password"],
+            redis_params.get("ssl", False),
         )
         super().__init__(*args, **kwargs)
 

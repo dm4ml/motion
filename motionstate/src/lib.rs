@@ -31,7 +31,7 @@ pub struct StateAccessor {
     lock_duration: usize,
     version: u64,
     client: redis::Client,
-    cache: HashMap<String, Arc<Vec<u8>>>,
+    cache: HashMap<String, PyObject>, // Stores deserialized values
     lock_manager: RedLock,
     max_lock_attempts: u32,
 }
@@ -47,14 +47,18 @@ impl StateAccessor {
         redis_port: u16,
         redis_db: i64,
         redis_password: Option<&str>,
+        redis_ssl: Option<bool>,
     ) -> PyResult<Self> {
-        // Constructing the Redis URL
+        let use_ssl: bool = redis_ssl.unwrap_or(false);
+        let protocol: &str = if use_ssl { "rediss" } else { "redis" };
+
+        // Constructing the Redis URL with SSL consideration
         let redis_url = match redis_password {
             Some(password) => format!(
-                "redis://:{}@{}:{}/{}",
-                password, redis_host, redis_port, redis_db
+                "{}://:{}@{}:{}/{}",
+                protocol, password, redis_host, redis_port, redis_db
             ),
-            None => format!("redis://{}:{}/{}", redis_host, redis_port, redis_db),
+            None => format!("{}://{}:{}/{}", protocol, redis_host, redis_port, redis_db),
         };
 
         let client = redis::Client::open(redis_url.clone()).map_err(|err| {
@@ -139,7 +143,7 @@ impl StateAccessor {
 
         // Critical section
         // Insert the key and value into the cache
-        self.cache.insert(keyname.clone(), serialized_data.clone());
+        self.cache.insert(keyname.clone(), value.into_py(py));
 
         // Increment the version and write it to Redis
         self.version += 1;
@@ -253,8 +257,19 @@ impl StateAccessor {
 
         // Critical section
         for (keyname, serialized_data, ttl) in serialized_items.iter() {
+            let unserialized_value = items
+                .get_item(keyname.replace(
+                    &format!(
+                        "MOTION_STATE:{}__{}/",
+                        self.component_name, self.instance_id
+                    ),
+                    "",
+                ))
+                .unwrap();
+
             // Insert the key and value into the cache
-            self.cache.insert(keyname.clone(), serialized_data.clone());
+            self.cache
+                .insert(keyname.clone(), unserialized_value.into_py(py));
 
             // If ttl is not None, set the TTL
             if let Some(ttl) = ttl {
@@ -318,9 +333,9 @@ impl StateAccessor {
             self.component_name, self.instance_id, key
         );
 
-        // If the key is in the cache, return it
+        // Return the cached object if it exists
         if let Some(value) = self.cache.get(&keyname) {
-            return deserialize_value(py, &*value);
+            return Ok(value.clone_ref(py));
         }
 
         // Otherwise, fetch it from Redis
@@ -329,12 +344,14 @@ impl StateAccessor {
 
         match result_data {
             Ok(Some(data)) => {
-                let data_arc = Arc::new(data);
-
-                // Insert the key and value into the cache
-                self.cache.insert(keyname.clone(), data_arc.clone());
                 // Deserialize the value
-                deserialize_value(py, &*data_arc)
+                let deserialized_value = deserialize_value(py, &data)?;
+
+                // Insert the deserialized value into the cache
+                self.cache
+                    .insert(keyname.clone(), deserialized_value.clone_ref(py));
+
+                Ok(deserialized_value)
             }
             Ok(None) => Err(PyErr::new::<exceptions::PyKeyError, _>("Key not found")),
             Err(err) => Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(

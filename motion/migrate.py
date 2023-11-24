@@ -28,10 +28,7 @@ def process_migration(
         state = State(
             instance_name.split("__")[0],
             instance_name.split("__")[1],
-            redis_host=rp.host,
-            redis_port=rp.port,
-            redis_db=rp.db,
-            redis_password=rp.password,
+            redis_params=rp.dict(),
         )
 
         # Acquire lock to prevent other writes during migration

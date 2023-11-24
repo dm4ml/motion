@@ -3,8 +3,7 @@ This file has utilities to copy components and their state
 from one Redis instance to another.
 """
 
-import logging
-
+import picologging as logging
 import redis.asyncio as redis
 
 from motion.utils import RedisParams

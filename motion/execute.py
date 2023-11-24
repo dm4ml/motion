@@ -65,10 +65,7 @@ class Executor:
         self._state = State(
             self._instance_name.split("__")[0],
             self._instance_name.split("__")[1],
-            redis_host=self._redis_params.host,
-            redis_port=self._redis_params.port,
-            redis_db=self._redis_params.db,
-            redis_password=self._redis_params.password,
+            self._redis_params.dict(),
         )
         # If it is version 0, then call the init_state_func
         if self._state.get_version() == 0 and self._init_state_func is not None:
@@ -466,6 +463,13 @@ class Executor:
 
         # Run the serve route
         if key in self._serve_routes.keys():
+            # Check if the function is an async function
+            if asyncio.iscoroutinefunction(self._serve_routes[key].udf):
+                raise TypeError(
+                    f"Route {key} is an async function. "
+                    + "Call `await instance.arun(...)` instead."
+                )
+
             route_hit = True
             (
                 route_run,
