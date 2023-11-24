@@ -1,6 +1,5 @@
 """
-This file contains the props class, which is used to store
-properties of a flow.
+This file contains the state class.
 """
 from typing import Any, Iterator, List, Optional, Tuple
 

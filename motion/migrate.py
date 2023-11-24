@@ -148,8 +148,7 @@ class StateMigrator:
                 (
                     instance_name,
                     self.migrate_func,
-                    self.component._load_state_func,
-                    self.component._save_state_func,
+                    lock_timeout,
                 )
                 for instance_name in instance_names
             ]

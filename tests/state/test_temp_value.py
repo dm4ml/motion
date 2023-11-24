@@ -11,12 +11,14 @@ def test_temp_state_value():
     counter = TempCounter()
 
     # Assert nothing in it
-    with pytest.raises(KeyError):
-        counter.read_state("value")
+    assert counter.read_state("value") is None
 
     # Add a temp value
     val = TempValue(0, ttl=1)
     counter.write_state({"value": val})
+
+    # Check that it's there before clearing cache
+    assert counter.read_state("value") == 0
 
     # Check that it's there after clearing cache
     assert counter.read_state("value", force_refresh=True) == 0
@@ -25,5 +27,4 @@ def test_temp_state_value():
     time.sleep(1)
 
     # Check that it's gone after clearing cache
-    with pytest.raises(KeyError):
-        counter.read_state("value", force_refresh=True)
+    assert counter.read_state("value", force_refresh=True) is None

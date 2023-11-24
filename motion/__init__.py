@@ -11,7 +11,6 @@ from motion.migrate import StateMigrator
 from motion.dicts import MDataFrame
 from motion.copy_utils import copy_db
 from motion.server.application import Application
-from motionstate import StateValue, State
 
 __all__ = [
     "Component",
@@ -25,6 +24,4 @@ __all__ = [
     "copy_db",
     "RedisParams",
     "Application",
-    "StateValue",
-    "State",
 ]

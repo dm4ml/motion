@@ -165,7 +165,7 @@ class ComponentInstance:
         """
         return self._executor._state.get_version()  # type: ignore
 
-    def write_state(self, state_update: Dict[str, Any], latest: bool = False) -> None:
+    def write_state(self, state_update: Dict[str, Any]) -> None:
         """Writes the state update to the component instance's state.
         If a update op is currently running, the state update will be
         applied after the update op is finished. Warning: this could
@@ -195,17 +195,12 @@ class ComponentInstance:
         Args:
             state_update (Dict[str, Any]): Dictionary of key-value pairs
                 to update the state with.
-            latest (bool, optional): Whether or not to apply the update
-                to the latest version of the state.
-                If true, Motion will redownload the latest version
-                of the state and apply the update to that version. You
-                only need to set this to true if you are updating an
-                instance you connected to a while ago and might be
-                outdated. Defaults to False.
         """
-        self._executor._updateState(state_update, force_update=latest)
+        self._executor._updateState(state_update)
 
-    def read_state(self, key: str, default_value: Optional[Any] = None) -> Any:
+    def read_state(
+        self, key: str, default_value: Optional[Any] = None, force_refresh: bool = True
+    ) -> Any:
         """Gets the current value for the key in the component instance's state.
 
         Usage:
@@ -233,12 +228,14 @@ class ComponentInstance:
             key (str): Key in the state to get the value for.
             default_value (Optional[Any], optional): Default value to return
                 if the key is not found. Defaults to None.
+            force_refresh (bool, optional): Read the latest value of the state
+                in the KV store, otherwise return what is in the cache.
 
         Returns:
             Any: Current value for the key, or default_value if the key
             is not found.
         """
-        return self._executor._loadState().get(key, default_value)
+        return self._executor._loadState(force_refresh).get(key, default_value)
 
     def flush_update(self, dataflow_key: str) -> None:
         """Flushes the update queue corresponding to the dataflow

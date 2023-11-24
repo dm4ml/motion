@@ -134,9 +134,11 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
-    def _loadState(self) -> State:
+    def _loadState(self, force_refresh: bool = True) -> State:
         # Clear state cache
-        self._state.clear_cache()
+        if force_refresh:
+            self._state.clear_cache()
+        return self._state
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -263,9 +265,7 @@ class Executor:
 
         self.monitor_thread.join()
 
-    def _updateState(
-        self, new_state: Dict[str, Any], force_update: bool = True
-    ) -> None:
+    def _updateState(self, new_state: Dict[str, Any]) -> None:
         if not new_state:
             return
 
@@ -319,7 +319,7 @@ class Executor:
                             raise ValueError("State update must be a dict.")
                         else:
                             # Update state
-                            self._updateState(state_update, force_update=False)
+                            self._updateState(state_update)
                     except Exception as e:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)
@@ -383,7 +383,7 @@ class Executor:
                             raise ValueError("State update must be a dict.")
                         else:
                             # Update state
-                            self._updateState(state_update, force_update=False)
+                            self._updateState(state_update)
                     except Exception as e:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)

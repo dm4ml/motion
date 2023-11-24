@@ -14,6 +14,10 @@ def setUp():
     path = ":file::memory:?cache=shared:"
     conn = sqlite3.connect(path)
     cursor = conn.cursor()
+
+    # Drop table if exists
+    cursor.execute("DROP TABLE IF EXISTS users")
+
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS users
             (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,12 +25,8 @@ def setUp():
             age INTEGER)"""
     )
 
-    cursor.execute(
-        "INSERT INTO users (name, age) VALUES (?, ?)", ("John Doe", 25)
-    )
-    cursor.execute(
-        "INSERT INTO users (name, age) VALUES (?, ?)", ("Jane Smith", 30)
-    )
+    cursor.execute("INSERT INTO users (name, age) VALUES (?, ?)", ("John Doe", 25))
+    cursor.execute("INSERT INTO users (name, age) VALUES (?, ?)", ("Jane Smith", 30))
     conn.commit()
 
     return {"path": path, "fit_count": 0}
@@ -51,9 +51,7 @@ def increment(state, props):
 
 def test_db_component():
     c_instance = c()
-    assert c_instance.run("count", props={"value": 1}, flush_update=True) == [
-        (2,)
-    ]
+    assert c_instance.run("count", props={"value": 1}, flush_update=True) == [(2,)]
     c_instance.run("something", props={"value": 1}, flush_update=True)
     assert c_instance.run("something", props={"value": 5}) == 1
 
