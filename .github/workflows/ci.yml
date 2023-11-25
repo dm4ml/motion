@@ -45,11 +45,9 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Build and install Rust library
+      - name: Build and install
         run: |
-          cd motionstate
-          poetry run maturin develop --release
-          cd ..
+          poetry run maturin develop
 
       - name: Run pytest
         run: make tests

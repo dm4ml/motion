@@ -1,5 +1,5 @@
 from motion import Component
-from motion.state import TempValue
+from motion import TempValue
 
 import pytest
 import time

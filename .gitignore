@@ -20,8 +20,9 @@ projects
 motionstate/debug*
 motionstate/target*
 motionstate/Cargo.lock
+*.so
 *rustc*
-motionstate*.so
 *motionenv*
 *.whl
 *unnecessary*
+target*

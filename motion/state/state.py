@@ -3,7 +3,7 @@ This file contains the state class.
 """
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from motionstate import StateAccessor  # type: ignore
+from ..motion import StateAccessor  # type: ignore
 
 STATE_ERROR_MSG = "Cannot edit state directly. Use component update operations instead."
 

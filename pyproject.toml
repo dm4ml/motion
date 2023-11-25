@@ -71,13 +71,8 @@ show_error_codes = true
 omit = [".*", "*/site-packages/*"]
 
 [build-system]
-requires = ["poetry-core", "maturin"]
+requires = ["maturin>=0.14,<0.15"]
 build-backend = "maturin"
-
-[tool.maturin]
-name = "motionstate"
-sdist = true
-bindings = "pyo3"
 
 [tool.coverage.report]
 exclude_lines = [

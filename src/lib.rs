@@ -527,7 +527,7 @@ fn deserialize_value(py: Python, value: &[u8]) -> PyResult<PyObject> {
 }
 
 #[pymodule]
-fn motionstate(_py: Python, m: &PyModule) -> PyResult<()> {
+fn motion(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<StateAccessor>()?;
     // m.add_class::<StateValue>()?;
     m.add_class::<TempValue>()?;
