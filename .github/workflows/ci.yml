@@ -25,14 +25,14 @@ jobs:
       - name: Get current version from main branch
         id: main_version
         run: |
-          MAIN_VERSION=$(git show origin/main:pyproject.toml | awk -F '"' '/version =/ {print $2}')
+          MAIN_VERSION=$(git show origin/main:pyproject.toml | grep '^version =' | awk -F '"' '{print $2}')
           echo "Main branch version: $MAIN_VERSION"
           echo "MAIN_VERSION=$MAIN_VERSION" >> $GITHUB_ENV
 
       - name: Get version from current branch
         id: current_version
         run: |
-          CURRENT_VERSION=$(awk -F '"' '/version =/ {print $2}' pyproject.toml)
+          CURRENT_VERSION=$(grep '^version =' pyproject.toml | awk -F '"' '{print $2}')
           echo "Current branch version: $CURRENT_VERSION"
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
 
