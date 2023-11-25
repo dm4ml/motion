@@ -117,6 +117,7 @@ jobs:
         uses: messense/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          MATURIN_REPOSITORY: "testpypi"
         with:
           command: upload
-          args: --repository-url https://test.pypi.org/legacy/ --skip-existing *
+          args: --skip-existing *
