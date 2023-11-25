@@ -1,4 +1,4 @@
-name: motion
+name: CI
 
 on:
   workflow_dispatch:
@@ -18,6 +18,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Get current version from main branch
+        id: main_version
+        run: |
+          MAIN_VERSION=$(git show origin/main:pyproject.toml | grep -Po 'version = "\K[^"]+')
+          echo "Main branch version: $MAIN_VERSION"
+          echo "MAIN_VERSION=$MAIN_VERSION" >> $GITHUB_ENV
+
+      - name: Get version from current branch
+        id: current_version
+        run: |
+          CURRENT_VERSION=$(grep -Po 'version = "\K[^"]+' pyproject.toml)
+          echo "Current branch version: $CURRENT_VERSION"
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+
+      - name: Check if version is bumped
+        run: |
+          if [[ "$CURRENT_VERSION" == "$MAIN_VERSION" ]]; then
+            echo "Error: Version in current branch is not bumped from main branch"
+            exit 1
+          fi
 
       - name: Start Redis
         run: |
