@@ -119,7 +119,7 @@ jobs:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
-          args: --repository-url "https://test.pypi.org/legacy/"  --skip-existing *
+          args: --repository-url https://test.pypi.org/legacy/ --skip-existing *
 
       # - name: Publish to PyPI
       #   uses: PyO3/maturin-action@v1
