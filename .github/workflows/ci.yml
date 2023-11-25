@@ -47,7 +47,7 @@ jobs:
 
       - name: Build and install
         run: |
-          poetry run maturin develop
+          make build
 
       - name: Run pytest
         run: make tests
