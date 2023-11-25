@@ -549,6 +549,7 @@ mod tests {
             6381,
             0,
             None,
+            None,
         )
         .unwrap();
     }
@@ -562,6 +563,7 @@ mod tests {
             "invalid",
             6381,
             0,
+            None,
             None,
         );
         assert!(result.is_err());
@@ -577,6 +579,7 @@ mod tests {
                 "127.0.0.1",
                 6381,
                 0,
+                None,
                 None,
             )
             .unwrap();
