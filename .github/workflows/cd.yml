@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        python-version: ["3.9", "3.10", "3.11"]
         target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
     steps:
       - uses: actions/checkout@v3
@@ -46,6 +47,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
+        python-version: ["3.9", "3.10", "3.11"]
         target: [x64, x86]
     steps:
       - uses: actions/checkout@v3
@@ -69,6 +71,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
+        python-version: ["3.9", "3.10", "3.11"]
         target: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v3
@@ -111,10 +114,18 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: wheels
-      - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
+      - name: Publish to TestPyPI
+        uses: messense/maturin-action@v1
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         with:
           command: upload
-          args: --skip-existing *
+          args: --repository-url "https://test.pypi.org/legacy/"  --skip-existing *
+
+      # - name: Publish to PyPI
+      #   uses: PyO3/maturin-action@v1
+      #   env:
+      #     MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      #   with:
+      #     command: upload
+      #     args: --skip-existing *
