@@ -19,7 +19,10 @@ pyyaml = "^6.0.1"
 pandas = "^2.1.0"
 tqdm = "^4.66.1"
 fastvs = "^0.1.7"
+<<<<<<< HEAD
 pyarrow = "^14.0.1"
+=======
+>>>>>>> ce9a6ef (Adding MTable data structure.)
 
 [tool.poetry.group.dev.dependencies]
 poetry-types = "^0.3.5"
