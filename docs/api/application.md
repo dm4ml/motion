@@ -1,4 +1,4 @@
-::: motion.server.Application
+::: motion.Application
     handler: python
     options:
         members:
