@@ -19,3 +19,6 @@ projects
 unnecessary.py
 motionstate*
 *.whl
+*.so
+target*
+.motionenv*
