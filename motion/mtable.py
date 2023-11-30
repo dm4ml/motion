@@ -74,7 +74,7 @@ class MTable:
         self._filesystem = filesystem
         self._identifier = identifier
         self._data = data
-        self._prefix = os.path.expanduser("~/.motion")
+        self._prefix = os.path.join(os.path.expanduser("~"), ".motion")
 
         # Make the prefix directory if it doesn't exist
         if not os.path.exists(self._prefix):
@@ -172,9 +172,9 @@ class MTable:
                 # Create a random identifier phrase
                 identifier = "mtable_" + str(secrets.token_hex(12))
                 identifier = self._prefix + "/" + identifier
-                identifier = str(secrets.token_hex(12))
 
             identifier = identifier + ".parquet"
+            print(identifier)
             pq.write_table(self.data, identifier, filesystem=self.filesystem)
             return {
                 "identifier": identifier,

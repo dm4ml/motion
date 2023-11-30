@@ -83,10 +83,8 @@ class Executor:
             )
         else:
             # Load state
-            self._state = self._loadState()
-            self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-
-        self.version = int(self.version)
+            self.version = -1  # will get updated in _loadState
+            self._loadState()
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -123,8 +121,19 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
-    def _loadState(self) -> State:
-        return loadState(self._redis_con, self._instance_name, self._load_state_func)
+    def _loadState(self) -> None:
+        redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+        if not redis_v:
+            raise ValueError(
+                f"Error loading state for {self._instance_name}." + " No version found."
+            )
+
+        if self.version and self.version < int(redis_v):
+            # Reload state
+            self._state = loadState(
+                self._redis_con, self._instance_name, self._load_state_func
+            )
+            self.version = int(redis_v)
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -273,7 +282,7 @@ class Executor:
                 f"MOTION_LOCK:{self._instance_name}", timeout=120
             ):
                 if force_update:
-                    self._state = self._loadState()
+                    self._loadState()
                 self._state.update(new_state)
 
                 # Save state to redis
@@ -291,7 +300,7 @@ class Executor:
 
         else:
             if force_update:
-                self._state = self._loadState()
+                self._loadState()
             self._state.update(new_state)
 
             # Save state to redis
@@ -331,7 +340,7 @@ class Executor:
                         f"MOTION_LOCK:{self._instance_name}", timeout=120
                     ):
                         try:
-                            self._state = self._loadState()
+                            self._loadState()
 
                             state_update = route.run(
                                 state=self._state,
@@ -401,7 +410,7 @@ class Executor:
                         f"MOTION_LOCK:{self._instance_name}", timeout=120
                     ):
                         try:
-                            self._state = self._loadState()
+                            self._loadState()
 
                             state_update = route.run(
                                 state=self._state,
@@ -463,14 +472,7 @@ class Executor:
         serve_result = None
 
         if force_refresh:
-            self._state = self._loadState()
-            v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-            if not v:
-                raise ValueError(
-                    f"Error loading state for {self._instance_name}."
-                    + " No version found."
-                )
-            self.version = int(v)
+            self._loadState()
 
         # If caching is disabled, return
         if self._cache_ttl == 0:
@@ -641,11 +643,4 @@ class Executor:
         # Wait for update result to finish
         update_events.wait()
         # Update state
-        self._state = self._loadState()
-        v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        if not v:
-            raise ValueError(
-                f"Error loading state for {self._instance_name}." + " No version found."
-            )
-
-        self.version = int(v)
+        self._loadState()
