@@ -20,4 +20,4 @@ docs:
 	poetry run mkdocs serve
 
 build:
-	poetry run maturin develop
+	poetry run maturin develop --release

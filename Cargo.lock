@@ -128,8 +128,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "motionstate"
-version = "0.1.0"
+name = "motion"
+version = "0.2.0"
 dependencies = [
  "bincode",
  "pyo3",
