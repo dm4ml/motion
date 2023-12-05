@@ -16,13 +16,11 @@ dist*
 site*
 *package-lock.json
 projects
-
-motionstate/debug*
-motionstate/target*
-motionstate/Cargo.lock
 *.so
 *rustc*
 *motionenv*
 *.whl
 *unnecessary*
 target*
+unnecessary.py
+motionstate*

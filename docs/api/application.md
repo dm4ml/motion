@@ -1,4 +1,5 @@
 ::: motion.Application
+    handler: python
     options:
         members:
             - __init__

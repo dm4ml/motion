@@ -235,7 +235,9 @@ class ComponentInstance:
             Any: Current value for the key, or default_value if the key
             is not found.
         """
+
         return self._executor._loadState(force_refresh).get(key, default_value)
+
 
     def flush_update(self, dataflow_key: str) -> None:
         """Flushes the update queue corresponding to the dataflow

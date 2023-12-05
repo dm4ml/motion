@@ -32,14 +32,22 @@ def redis_fixture():
     try:
         r.ping()
     except redis.exceptions.ConnectionError:
-        raise ConnectionError(
-            "Make sure you are running Redis on localhost:6381."
-        )
+        raise ConnectionError("Make sure you are running Redis on localhost:6381.")
 
     r.flushdb()
     assert len(r.keys()) == 0
 
     yield r
+
+    # Delete any parquet files that were created
+    home = os.path.expanduser("~")
+    parquet_dir = f"{home}/.motion"
+
+    # Delete any files in the parquet directory
+    for filename in os.listdir(parquet_dir):
+        file_path = os.path.join(parquet_dir, filename)
+        # Delete the file
+        os.remove(file_path)
 
 
 @pytest.hookimpl(tryfirst=True)

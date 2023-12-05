@@ -12,6 +12,7 @@ from motion.dicts import MDataFrame
 from motion.copy_utils import copy_db
 from motion.server.application import Application
 from .motion import TempValue
+from motion.mtable import MTable
 
 __all__ = [
     "Component",
@@ -26,4 +27,5 @@ __all__ = [
     "RedisParams",
     "Application",
     "TempValue",
+    "MTable",
 ]

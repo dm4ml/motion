@@ -17,6 +17,7 @@ nav:
       - Component: api/component.md
       - ComponentInstance: api/component-instance.md
       - Props and State: api/props-and-state.md
+      - MTable: api/mtable.md
       - Application: api/application.md
       - StateMigrator: api/state-migrator.md
   - Helpful Tools:
@@ -98,8 +99,8 @@ markdown_extensions:
   - pymdownx.details
   - attr_list
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 extra:
   version:

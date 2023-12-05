@@ -67,34 +67,12 @@ class Executor:
             self._instance_name.split("__")[1],
             self._redis_params.dict(),
         )
+        
         # If it is version 0, then call the init_state_func
         if self._state.get_version() == 0 and self._init_state_func is not None:
             update_dict = self._init_state_func(**self._init_state_params)
             self._state.flushUpdateDict(update_dict)
-
-        # self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        # self._state = State(
-        #     instance_name.split("__")[0],
-        #     instance_name.split("__")[1],
-        #     {},
-        # )
-        # if self.version is None:
-        #     self.version = 1
-        #     # Setup state
-        #     self._state.update(self.setUp(**self._init_state_params))
-        #     saveState(
-        #         self._state,
-        #         self._redis_con,
-        #         self._instance_name,
-        #         self._save_state_func,
-        #     )
-        # else:
-        #     # Load state
-        #     self._state = self._loadState()
-        # version_name = f"MOTION_VERSION:{self._instance_name}"
-        #     self.version = self._redis_con.get(version_name)
-
-        # self.version = int(self.version)
+        
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -131,11 +109,13 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
+
     def _loadState(self, force_refresh: bool = True) -> State:
         # Clear state cache
         if force_refresh:
             self._state.clear_cache()
         return self._state
+
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -266,27 +246,12 @@ class Executor:
         if not new_state:
             return
 
-        # if not isinstance(new_state, dict):
-        #     raise TypeError("State should be a dict.")
+        if not isinstance(new_state, dict):
+            raise TypeError("State should be a dict.")
 
-        # Get latest state
-        # with self._redis_con.lock(
-        #     f"MOTION_LOCK:{self._instance_name}", timeout=120
-        # ):
-        # self._state = self._loadState()
+
         self._state.flushUpdateDict(new_state)
 
-        # Save state to redis
-        # saveState(
-        #     self._state,
-        #     self._redis_con,
-        #     self._instance_name,
-        #     self._save_state_func,
-        # )
-
-        # self.version = self._redis_con.get(
-        #     f"MOTION_VERSION:{self._instance_name}"
-        # )
 
     def _enqueue_and_trigger_update(
         self,
@@ -367,6 +332,7 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
+
                     try:
                         state_update = route.run(
                             state=self._state,
@@ -385,6 +351,7 @@ class Executor:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)
                         )
+
 
                 else:
                     # Enqueue update
