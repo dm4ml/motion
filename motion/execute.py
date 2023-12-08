@@ -67,12 +67,11 @@ class Executor:
             self._instance_name.split("__")[1],
             self._redis_params.dict(),
         )
-        
+
         # If it is version 0, then call the init_state_func
         if self._state.get_version() == 0 and self._init_state_func is not None:
             update_dict = self._init_state_func(**self._init_state_params)
             self._state.flushUpdateDict(update_dict)
-        
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -109,13 +108,11 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
-
     def _loadState(self, force_refresh: bool = True) -> State:
         # Clear state cache
         if force_refresh:
             self._state.clear_cache()
         return self._state
-
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -249,9 +246,7 @@ class Executor:
         if not isinstance(new_state, dict):
             raise TypeError("State should be a dict.")
 
-
         self._state.flushUpdateDict(new_state)
-
 
     def _enqueue_and_trigger_update(
         self,
@@ -332,7 +327,6 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-
                     try:
                         state_update = route.run(
                             state=self._state,
@@ -351,7 +345,6 @@ class Executor:
                         raise RuntimeError(
                             "Error running update route in main process: " + str(e)
                         )
-
 
                 else:
                     # Enqueue update
@@ -461,7 +454,7 @@ class Executor:
                     )
 
                 # Cache result
-                if value_hash:
+                if value_hash and self._cache_ttl > 0:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
@@ -514,7 +507,7 @@ class Executor:
                 props._serve_result = serve_result
 
                 # Cache result
-                if value_hash:
+                if value_hash and self._cache_ttl > 0:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
