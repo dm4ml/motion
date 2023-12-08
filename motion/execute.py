@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import multiprocessing
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -7,20 +6,20 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from uuid import uuid4
 
 import cloudpickle
+import picologging as logging
 import psutil
 import redis
 
-from motion.dicts import Properties, State
+from motion.dicts import Properties
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
+from motion.state import State
 from motion.utils import (
     RedisParams,
     UpdateEvent,
     UpdateEventGroup,
     get_redis_params,
     hash_object,
-    loadState,
-    saveState,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,8 @@ class Executor:
         cache_ttl: int,
         init_state_func: Optional[Callable],
         init_state_params: Dict[str, Any],
-        save_state_func: Optional[Callable],
-        load_state_func: Optional[Callable],
+        # save_state_func: Optional[Callable],
+        # load_state_func: Optional[Callable],
         serve_routes: Dict[str, Route],
         update_routes: Dict[str, List[Route]],
         update_task_type: Literal["thread", "process"] = "thread",
@@ -46,8 +45,6 @@ class Executor:
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
-        self._load_state_func = load_state_func
-        self._save_state_func = save_state_func
 
         self.running: Any = multiprocessing.Value("b", False)
         self._redis_socket_timeout = redis_socket_timeout
@@ -65,26 +62,16 @@ class Executor:
         self.running.value = True
 
         # Set up state
-        self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
         self._state = State(
-            instance_name.split("__")[0],
-            instance_name.split("__")[1],
-            {},
+            self._instance_name.split("__")[0],
+            self._instance_name.split("__")[1],
+            self._redis_params.dict(),
         )
-        if self.version is None:
-            self.version = 1
-            # Setup state
-            self._state.update(self.setUp(**self._init_state_params))
-            saveState(
-                self._state,
-                self._redis_con,
-                self._instance_name,
-                self._save_state_func,
-            )
-        else:
-            # Load state
-            self.version = -1  # will get updated in _loadState
-            self._loadState()
+
+        # If it is version 0, then call the init_state_func
+        if self._state.get_version() == 0 and self._init_state_func is not None:
+            update_dict = self._init_state_func(**self._init_state_params)
+            self._state.flushUpdateDict(update_dict)
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -121,19 +108,11 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
-    def _loadState(self) -> None:
-        redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        if not redis_v:
-            raise ValueError(
-                f"Error loading state for {self._instance_name}." + " No version found."
-            )
-
-        if self.version and self.version < int(redis_v):
-            # Reload state
-            self._state = loadState(
-                self._redis_con, self._instance_name, self._load_state_func
-            )
-            self.version = int(redis_v)
+    def _loadState(self, force_refresh: bool = True) -> State:
+        # Clear state cache
+        if force_refresh:
+            self._state.clear_cache()
+        return self._state
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -170,8 +149,6 @@ class Executor:
             self.worker_task = update_cls(
                 instance_name=self._instance_name,
                 routes=self.route_dict_for_fit,
-                save_state_func=self._save_state_func,
-                load_state_func=self._load_state_func,
                 queue_identifiers=self.queue_ids_for_fit,
                 channel_identifiers=self.channel_dict_for_fit,
                 redis_params=self._redis_params.dict(),
@@ -206,8 +183,6 @@ class Executor:
                 self.worker_task = update_cls(
                     instance_name=self._instance_name,
                     routes=self.route_dict_for_fit,
-                    save_state_func=self._save_state_func,
-                    load_state_func=self._load_state_func,
                     queue_identifiers=self.queue_ids_for_fit,
                     channel_identifiers=self.channel_dict_for_fit,
                     redis_params=self._redis_params.dict(),
@@ -264,57 +239,14 @@ class Executor:
 
         self.monitor_thread.join()
 
-    def _updateState(
-        self,
-        new_state: Dict[str, Any],
-        force_update: bool = True,
-        use_lock: bool = True,
-    ) -> None:
+    def _updateState(self, new_state: Dict[str, Any]) -> None:
         if not new_state:
             return
 
         if not isinstance(new_state, dict):
             raise TypeError("State should be a dict.")
 
-        # Get latest state
-        if use_lock:
-            with self._redis_con.lock(
-                f"MOTION_LOCK:{self._instance_name}", timeout=120
-            ):
-                if force_update:
-                    self._loadState()
-                self._state.update(new_state)
-
-                # Save state to redis
-                saveState(
-                    self._state,
-                    self._redis_con,
-                    self._instance_name,
-                    self._save_state_func,
-                )
-
-                version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                if version is None:
-                    raise ValueError("Version not found in Redis.")
-                self.version = int(version)
-
-        else:
-            if force_update:
-                self._loadState()
-            self._state.update(new_state)
-
-            # Save state to redis
-            saveState(
-                self._state,
-                self._redis_con,
-                self._instance_name,
-                self._save_state_func,
-            )
-
-            version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-            if version is None:
-                raise ValueError("Version not found in Redis.")
-            self.version = int(version)
+        self._state.flushUpdateDict(new_state)
 
     def _enqueue_and_trigger_update(
         self,
@@ -334,32 +266,21 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    # Hold lock
+                    try:
+                        state_update = route.run(
+                            state=self._state,
+                            props=props,
+                        )
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
-                        try:
-                            self._loadState()
-
-                            state_update = route.run(
-                                state=self._state,
-                                props=props,
-                            )
-
-                            if not isinstance(state_update, dict):
-                                raise ValueError("State update must be a dict.")
-                            else:
-                                # Update state
-                                self._updateState(
-                                    state_update,
-                                    force_update=False,
-                                    use_lock=False,
-                                )
-                        except Exception as e:
-                            raise RuntimeError(
-                                "Error running update route in main process: " + str(e)
-                            )
+                        if not isinstance(state_update, dict):
+                            raise ValueError("State update must be a dict.")
+                        else:
+                            # Update state
+                            self._updateState(state_update)
+                    except Exception as e:
+                        raise RuntimeError(
+                            "Error running update route in main process: " + str(e)
+                        )
 
                 else:
                     # Enqueue update
@@ -406,33 +327,24 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
-                        try:
-                            self._loadState()
+                    try:
+                        state_update = route.run(
+                            state=self._state,
+                            props=props,
+                        )
 
-                            state_update = route.run(
-                                state=self._state,
-                                props=props,
-                            )
+                        if asyncio.iscoroutine(state_update):
+                            state_update = await state_update
 
-                            if asyncio.iscoroutine(state_update):
-                                state_update = await state_update
-
-                            if not isinstance(state_update, dict):
-                                raise ValueError("State update must be a dict.")
-                            else:
-                                # Update state
-                                self._updateState(
-                                    state_update,
-                                    force_update=False,
-                                    use_lock=False,
-                                )
-                        except Exception as e:
-                            raise RuntimeError(
-                                "Error running update route in main process: " + str(e)
-                            )
+                        if not isinstance(state_update, dict):
+                            raise ValueError("State update must be a dict.")
+                        else:
+                            # Update state
+                            self._updateState(state_update)
+                    except Exception as e:
+                        raise RuntimeError(
+                            "Error running update route in main process: " + str(e)
+                        )
 
                 else:
                     # Enqueue update
@@ -511,6 +423,13 @@ class Executor:
 
         # Run the serve route
         if key in self._serve_routes.keys():
+            # Check if the function is an async function
+            if asyncio.iscoroutinefunction(self._serve_routes[key].udf):
+                raise TypeError(
+                    f"Route {key} is an async function. "
+                    + "Call `await instance.arun(...)` instead."
+                )
+
             route_hit = True
             (
                 route_run,
@@ -535,7 +454,7 @@ class Executor:
                     )
 
                 # Cache result
-                if value_hash:
+                if value_hash and self._cache_ttl > 0:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )
@@ -588,7 +507,7 @@ class Executor:
                 props._serve_result = serve_result
 
                 # Cache result
-                if value_hash:
+                if value_hash and self._cache_ttl > 0:
                     cache_result_key = (
                         f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
                     )

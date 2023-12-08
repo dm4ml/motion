@@ -16,9 +16,11 @@ dist*
 site*
 *package-lock.json
 projects
+*.so
+*rustc*
+*motionenv*
+*.whl
+*unnecessary*
+target*
 unnecessary.py
 motionstate*
-*.whl
-*.so
-target*
-.motionenv*

@@ -22,9 +22,13 @@ def migrator_not_returning_dict(state):
     return "this isn't a dict"
 
 
-def good_migrator(state):
+def bad_inplace_update(state):
     state.update({"another_val": 0})
     return state
+
+
+def good_migrator(state):
+    return {"another_val": 0}
 
 
 def test_state_migration():
@@ -42,9 +46,14 @@ def test_state_migration():
         sm = StateMigrator(Something, migrator_not_returning_dict)
         sm.migrate()
 
-    # Run good migrator
+    # Run another bad migrator
+    sm = StateMigrator(Something, bad_inplace_update)
+    result = sm.migrate([instance_ids[0]], num_workers=1)
+    assert result[0].exception is not None
+
+    # Run good migrator on one instance
     sm = StateMigrator(Something, good_migrator)
-    result = sm.migrate([instance_ids[0]])
+    result = sm.migrate([instance_ids[0]], num_workers=1)
     assert len(result) == 1
     assert result[0].instance_id == instance_ids[0]
     assert result[0].exception is None
@@ -59,4 +68,5 @@ def test_state_migration():
     # Assert the instances have the new state
     for instance_id in instance_ids:
         s = Something(instance_id)
-        assert s._executor._state == {"state_val": 0, "another_val": 0}
+        assert s._executor._state["state_val"] == 0
+        assert s._executor._state["another_val"] == 0

@@ -147,8 +147,8 @@ class Component:
         self._serve_routes: Dict[str, Route] = {}
         self._update_routes: Dict[str, List[Route]] = {}
         self._init_state_func: Optional[Callable] = None
-        self._save_state_func: Optional[Callable] = None
-        self._load_state_func: Optional[Callable] = None
+        # self._save_state_func: Optional[Callable] = None
+        # self._load_state_func: Optional[Callable] = None
 
     @property
     def cache_ttl(self) -> int:
@@ -245,59 +245,59 @@ class Component:
         self._init_state_func = func
         return func
 
-    def save_state(self, func: Callable) -> Callable:
-        """Decorator for the save_state function. This function
-        saves the state of the component to be accessible in
-        future component instances of the same name.
+    # def save_state(self, func: Callable) -> Callable:
+    #     """Decorator for the save_state function. This function
+    #     saves the state of the component to be accessible in
+    #     future component instances of the same name.
 
-        Usage:
-        ```python
-        from motion import Component
+    #     Usage:
+    #     ```python
+    #     from motion import Component
 
-        MyComponent = Component("MyComponent")
+    #     MyComponent = Component("MyComponent")
 
-        @c.save_state
-        def save(state):
-            # state might have other unpicklable keys, like a DB connection
-            return {"fit_count": state["fit_count"]}
-        ```
+    #     @c.save_state
+    #     def save(state):
+    #         # state might have other unpicklable keys, like a DB connection
+    #         return {"fit_count": state["fit_count"]}
+    #     ```
 
-        Args:
-            func (Callable): Function that returns a cloudpickleable object.
+    #     Args:
+    #         func (Callable): Function that returns a cloudpickleable object.
 
-        Returns:
-            Callable: Decorated save_state function.
-        """
-        self._save_state_func = func
-        return func
+    #     Returns:
+    #         Callable: Decorated save_state function.
+    #     """
+    #     self._save_state_func = func
+    #     return func
 
-    def load_state(self, func: Callable) -> Callable:
-        """Decorator for the load_state function. This function
-        loads the state of the component from the unpickled state.
+    # def load_state(self, func: Callable) -> Callable:
+    #     """Decorator for the load_state function. This function
+    #     loads the state of the component from the unpickled state.
 
-        Usage:
-        ```python
-        from motion import Component
+    #     Usage:
+    #     ```python
+    #     from motion import Component
 
-        MyComponent = Component("MyComponent")
+    #     MyComponent = Component("MyComponent")
 
-        @c.load_state
-        def load(state):
-            conn = sqlite3.connect(":memory:")
-            cursor = conn.cursor()
-            return {"cursor": cursor, "fit_count": state["fit_count"]}
-        ```
+    #     @c.load_state
+    #     def load(state):
+    #         conn = sqlite3.connect(":memory:")
+    #         cursor = conn.cursor()
+    #         return {"cursor": cursor, "fit_count": state["fit_count"]}
+    #     ```
 
-        Args:
-            func (Callable): Function that consumes a cloudpickleable object.
-                Should return a dictionary representing the state of the
-                component instance.
+    #     Args:
+    #         func (Callable): Function that consumes a cloudpickleable object.
+    #             Should return a dictionary representing the state of the
+    #             component instance.
 
-        Returns:
-            Callable: Decorated load_state function.
-        """
-        self._load_state_func = func
-        return func
+    #     Returns:
+    #         Callable: Decorated load_state function.
+    #     """
+    #     self._load_state_func = func
+    #     return func
 
     def serve(self, keys: Union[str, List[str]]) -> Callable:
         """Decorator for any serve operation for a dataflow through the
@@ -549,8 +549,8 @@ class Component:
                 instance_id=instance_id,
                 init_state_func=self._init_state_func,
                 init_state_params=init_state_params,
-                save_state_func=self._save_state_func,
-                load_state_func=self._load_state_func,
+                # save_state_func=self._save_state_func,
+                # load_state_func=self._load_state_func,
                 serve_routes=self._serve_routes,
                 update_routes=self._update_routes,
                 logging_level=logging_level,

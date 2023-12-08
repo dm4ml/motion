@@ -1,17 +1,16 @@
 import hashlib
-import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import cloudpickle
-import colorlog
+import picologging as logging
 import redis
 import yaml
 from pydantic import BaseModel
 
-from motion.dicts import CustomDict, State
+from motion.dicts import CustomDict
+from motion.state import State
 
 logger = logging.getLogger(__name__)
 
@@ -160,13 +159,15 @@ def clear_instance(instance_name: str) -> bool:
         return False
 
     # Delete the instance state, version, and cached results
-    redis_con.delete(f"MOTION_STATE:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
     redis_con.delete(f"MOTION_LOCK:{instance_name}")
 
+    state_vals_to_delete = redis_con.keys(f"MOTION_STATE:{instance_name}/*")
     results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
     queues_to_delete = redis_con.keys(f"MOTION_QUEUE:{instance_name}/*")
     pipeline = redis_con.pipeline()
+    for state_val in state_vals_to_delete:
+        pipeline.delete(state_val)
     for result in results_to_delete:
         pipeline.delete(result)
     for queue in queues_to_delete:
@@ -214,10 +215,15 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
         raise ValueError(f"Instance {instance_name} does not exist.")
 
     # Get the state
-    state = loadState(redis_con, instance_name, None)
+    state = State(
+        instance_name.split("__")[0],
+        instance_name.split("__")[1],
+        redis_params=rp.dict(),
+    )
+    # Iterate through all items
+    all_items = {k: v for k, v in state.items()}
 
-    redis_con.close()
-    return state
+    return all_items
 
 
 def validate_args(parameters: Any, op: str) -> bool:
@@ -234,68 +240,69 @@ def validate_args(parameters: Any, op: str) -> bool:
 
 
 def configureLogging(level: str) -> None:
-    formatter = colorlog.ColoredFormatter(
-        "%(log_color)s%(asctime)s %(levelname)-8s%(reset)s %(blue)s%(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "bold_red",
-        },
-    )
+    # formatter = colorlog.ColoredFormatter(
+    #     "%(log_color)s%(asctime)s %(levelname)-8s%(reset)s %(blue)s%(message)s",
+    #     datefmt="%Y-%m-%d %H:%M:%S",
+    #     log_colors={
+    #         "DEBUG": "cyan",
+    #         "INFO": "green",
+    #         "WARNING": "yellow",
+    #         "ERROR": "red",
+    #         "CRITICAL": "bold_red",
+    #     },
+    # )
 
-    logger = logging.getLogger("motion")
-    if logger.hasHandlers():
-        logger.handlers.clear()
+    logging.basicConfig(level=level)  # type: ignore
+    # logger = logging.getLogger("motion")
+    # if logger.hasHandlers():
+    #     logger.handlers.clear()
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
+    # stream_handler = logging.StreamHandler()
+    # stream_handler.setFormatter(formatter)
 
-    logger.addHandler(stream_handler)
-    logger.setLevel(level)
-
-
-def loadState(
-    redis_con: redis.Redis,
-    instance_name: str,
-    load_state_func: Optional[Callable],
-) -> State:
-    # Get state from redis
-    state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
-    loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
-
-    if not loaded_state:
-        # This is an error
-        logger.warning(f"Could not find state for {instance_name}.")
-        return state
-
-    # Unpickle state
-    loaded_state = cloudpickle.loads(loaded_state)
-
-    if load_state_func is not None:
-        state.update(load_state_func(loaded_state))
-    else:
-        state.update(loaded_state)
-
-    return state
+    # logger.addHandler(stream_handler)
+    # logger.setLevel(level)
 
 
-def saveState(
-    state_to_save: State,
-    redis_con: redis.Redis,
-    instance_name: str,
-    save_state_func: Optional[Callable],
-) -> None:
-    # Save state to redis
-    if save_state_func is not None:
-        state_to_save = save_state_func(state_to_save)
+# def loadState(
+#     redis_con: redis.Redis,
+#     instance_name: str,
+#     load_state_func: Optional[Callable],
+# ) -> State:
+#     # Get state from redis
+#     state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
+#     loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
-    state_pickled = cloudpickle.dumps(state_to_save)
+#     if not loaded_state:
+#         # This is an error
+#         logger.warning(f"Could not find state for {instance_name}.")
+#         return state
 
-    redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
-    redis_con.incr(f"MOTION_VERSION:{instance_name}")
+#     # Unpickle state
+#     loaded_state = cloudpickle.loads(loaded_state)
+
+#     if load_state_func is not None:
+#         state.update(load_state_func(loaded_state))
+#     else:
+#         state.update(loaded_state)
+
+#     return state
+
+
+# def saveState(
+#     state_to_save: State,
+#     redis_con: redis.Redis,
+#     instance_name: str,
+#     save_state_func: Optional[Callable],
+# ) -> None:
+#     # Save state to redis
+#     if save_state_func is not None:
+#         state_to_save = save_state_func(state_to_save)
+
+#     state_pickled = cloudpickle.dumps(state_to_save)
+
+#     redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
+#     redis_con.incr(f"MOTION_VERSION:{instance_name}")
 
 
 class UpdateEvent:

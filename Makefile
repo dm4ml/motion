@@ -1,4 +1,4 @@
-.PHONY: tests lint install mypy update docs
+.PHONY: tests lint install mypy update docs build
 
 tests:
 	poetry run pytest
@@ -18,3 +18,6 @@ update:
 
 docs:
 	poetry run mkdocs serve
+
+build:
+	poetry run maturin develop --release

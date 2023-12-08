@@ -9,11 +9,9 @@
         show_source: false
         show_signature_annotations: true
 
-::: motion.dicts.State
+::: motion.state.State
     handler: python
     options:
-        members:
-            - instance_id
         show_root_full_path: false
         show_root_toc_entry: false
         show_root_heading: true

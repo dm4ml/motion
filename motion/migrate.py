@@ -1,15 +1,15 @@
 import inspect
-import logging
 from multiprocessing import Pool
 from typing import Callable, List, Optional, Tuple
 
+import picologging as logging
 import redis
 from pydantic import BaseConfig, BaseModel, Field
 from tqdm import tqdm
 
 from motion.component import Component
-from motion.dicts import State
-from motion.utils import get_redis_params, loadState, saveState
+from motion.state import State
+from motion.utils import get_redis_params
 
 logger = logging.getLogger(__name__)
 
@@ -17,31 +17,37 @@ logger = logging.getLogger(__name__)
 def process_migration(
     instance_name: str,
     migrate_func: Callable,
-    load_state_fn: Callable,
-    save_state_fn: Callable,
+    timeout: int = 60,  # 60-second timeout for lock
 ) -> Tuple[str, Optional[Exception]]:
     try:
         rp = get_redis_params()
         redis_con = redis.Redis(
             **rp.dict(),
         )
-        state = loadState(redis_con, instance_name, load_state_fn)
-        new_state = migrate_func(state)
-        assert isinstance(new_state, dict), (
-            "Migration function must return a dict."
-            + " Warning: partial progress may have been made!"
-        )
-        empty_state = State(
+
+        state = State(
             instance_name.split("__")[0],
             instance_name.split("__")[1],
-            {},
+            redis_params=rp.dict(),
         )
-        empty_state.update(new_state)
-        saveState(empty_state, redis_con, instance_name, save_state_fn)
+
+        # Acquire lock to prevent other writes during migration
+        with redis_con.lock(f"MOTION_LOCK:{instance_name}", timeout=timeout):
+            # state = loadState(redis_con, instance_name, load_state_fn)
+            state_updates = migrate_func(state)
+
+            assert isinstance(state_updates, dict), (
+                "Migration function must return a dict of updates."
+                + " Warning: partial progress may have been made!"
+            )
+            state.flushUpdateDict(state_updates, from_migration=True)
+        # saveState(empty_state, redis_con, instance_name, save_state_fn)
     except Exception as e:
         if isinstance(e, AssertionError):
             raise e
         else:
+            # Log an error and continue
+            logger.error(f"Error migrating {instance_name}: {e}", exc_info=True)
             return instance_name, e
 
     redis_con.close()
@@ -85,7 +91,10 @@ class StateMigrator:
         self.migrate_func = migrate_func
 
     def migrate(
-        self, instance_ids: List[str] = [], num_workers: int = 4
+        self,
+        instance_ids: List[str] = [],
+        num_workers: int = 4,
+        lock_timeout: int = 60,
     ) -> List[MigrationResult]:
         """Performs the migrate_func for component instances' states.
         If instance_ids is empty, then migrate_func is performed for all
@@ -98,6 +107,10 @@ class StateMigrator:
             num_workers (int, optional):
                 Number of workers to use for parallel processing the migration.
                 Defaults to 4.
+            lock_timeout (int, optional):
+                Number of seconds to lock the state object during its migration
+                operation to prevent any other writes from other processes.
+                Defaults to 60.
 
         Returns:
             List[MigrationResult]:
@@ -117,8 +130,8 @@ class StateMigrator:
         ]
         if not instance_names:
             instance_names = [
-                key.decode("utf-8").replace("MOTION_STATE:", "")  # type: ignore
-                for key in redis_con.keys(f"MOTION_STATE:{self.component.name}__*")
+                key.decode("utf-8").replace("MOTION_VERSION:", "")  # type: ignore
+                for key in redis_con.keys(f"MOTION_VERSION:{self.component.name}__*")
             ]
 
         if not instance_names:
@@ -131,8 +144,7 @@ class StateMigrator:
                 (
                     instance_name,
                     self.migrate_func,
-                    self.component._load_state_func,
-                    self.component._save_state_func,
+                    lock_timeout,
                 )
                 for instance_name in instance_names
             ]

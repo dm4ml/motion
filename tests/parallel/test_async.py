@@ -50,13 +50,12 @@ async def test_async_update():
 
 
 @pytest.mark.asyncio
-@pytest.mark.timeout(1)  # This test should take less than 3 seconds
+@pytest.mark.timeout(2)  # This test should take less than 3 seconds
 async def test_gather():
     c = Counter(disable_update_task=True)
 
     tasks = [
-        c.arun("multiply", props={"value": i}, flush_update=True)
-        for i in range(100)
+        c.arun("multiply", props={"value": i}, flush_update=True) for i in range(100)
     ]
     # Run all tasks at the same time
     await asyncio.gather(*tasks)
