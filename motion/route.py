@@ -33,7 +33,7 @@ class Route(BaseModel):
         try:
             result = self.udf(**filtered_kwargs)
         except Exception as e:
-            logger.error(f"Error in {self.key}, {self.op} flow: {e}")
+            logger.error(f"Error in {self.key}, {self.op} flow: {e}", exc_info=True)
             raise e
 
         return result

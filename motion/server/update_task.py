@@ -67,7 +67,7 @@ class BaseUpdateTask:
                 # if flush_update:
                 #     break
             except redis.exceptions.ConnectionError:
-                logger.error("Connection to redis lost.")
+                logger.error("Connection to redis lost.", exc_info=True)
                 break
 
             # Check if we should stop
