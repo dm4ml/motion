@@ -72,15 +72,21 @@ class Executor:
             {},
         )
         if self.version is None:
-            self.version = 1
-            # Setup state
-            self._state.update(self.setUp(**self._init_state_params))
-            saveState(
-                self._state,
-                self._redis_con,
-                self._instance_name,
-                self._save_state_func,
-            )
+            # Hold lock
+            with self._redis_con.lock(
+                f"MOTION_LOCK:{self._instance_name}", timeout=120
+            ):
+                # Set version
+                self.version = 1
+                # Setup state
+                self._state.update(self.setUp(**self._init_state_params))
+
+                saveState(
+                    self._state,
+                    self._redis_con,
+                    self._instance_name,
+                    self._save_state_func,
+                )
         else:
             # Load state
             self.version = -1  # will get updated in _loadState
