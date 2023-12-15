@@ -2,8 +2,10 @@
 This file creates a FastAPI application instance for a group of components."""
 
 import secrets
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List
 
+import jwt
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
@@ -63,14 +65,27 @@ class UpdateStateRequest(BaseModel):
     kwargs: Dict[str, Any]
 
 
+class AuthRequest(BaseModel):
+    """A pydantic model representing a request to authenticate an instance id.
+
+    Attributes:
+        instance_id (str): The unique identifier for the component instance.
+        token_expiration_days (int): The number of days for which the token
+            should be valid. Default is 1 day.
+    """
+
+    instance_id: str
+    token_expiration_days: int = 1
+
+
 # Authentication dependency
-def api_key_auth(secret_token: str) -> Callable:
+def api_key_auth(api_key: str) -> Callable:
     """
     Dependency for API key authentication. Validates the provided API key
     against the expected secret token.
 
     Args:
-        secret_token (str): The secret token used for API key validation.
+        api_key (str): The secret token used for API key validation.
 
     Returns:
         Callable: A function that validates the API key in the request header.
@@ -80,13 +95,11 @@ def api_key_auth(secret_token: str) -> Callable:
     """
 
     def validate_api_key(request: Request) -> bool:
-        if "Authorization" not in request.headers:
-            raise HTTPException(
-                status_code=401, detail="No Authorization header provided"
-            )
+        if "X-API-Key" not in request.headers:
+            raise HTTPException(status_code=401, detail="No X-API-Key header provided")
 
-        api_key = request.headers["Authorization"].split("Bearer ")[-1]
-        expected_key = f"{secret_token}"
+        api_key = request.headers["X-API-Key"]
+        expected_key = f"{api_key}"
         if secrets.compare_digest(api_key, expected_key):
             return True
         else:
@@ -97,6 +110,27 @@ def api_key_auth(secret_token: str) -> Callable:
     return validate_api_key
 
 
+def jwt_auth(api_key: str) -> Callable:
+    def _jwt_validator(request: Request):
+        # Extract the JWT token from the request headers
+        token = request.headers.get("Authorization")
+        if not token or not token.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401, detail="Token is missing or invalid format."
+            )
+
+        try:
+            # Decode the JWT
+            payload = jwt.decode(token.split(" ")[1], api_key, algorithms=["HS256"])
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token has expired.")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token.")
+
+    return _jwt_validator
+
+
 class Application:
     """
     The main application class that sets up FastAPI routes for the given
@@ -105,7 +139,7 @@ class Application:
     Attributes:
         components (List[Component]): A list of component instances to be
             included in the application.
-        secret_token (str): The secret token used for API key validation.
+        api_key (str): The secret token used for API key validation.
 
     Methods:
         get_app: Returns the FastAPI app instance.
@@ -113,21 +147,19 @@ class Application:
             secret token.
     """
 
-    def __init__(self, components: List[Component], secret_token: str = "") -> None:
+    def __init__(self, components: List[Component], api_key: str = "") -> None:
         """
         Initializes the Application instance.
 
         Args:
             components (List[Component]): List of component instances to be
                 managed by the application.
-            secret_token (str, optional): Secret token for API key
+            api_key (str, optional): Secret token for API key
                 authentication. If not provided, a new token is generated.
         """
         self.app = FastAPI()
         self.components = components
-        self.secret_token = (
-            secret_token if secret_token else "sk_" + str(secrets.token_urlsafe(32))
-        )
+        self.api_key = api_key if api_key else "sk_" + str(secrets.token_urlsafe(32))
         self._generate_routes()
 
     def _generate_routes(self) -> None:
@@ -135,6 +167,9 @@ class Application:
         Generates API routes for each component in the application. It sets up
         endpoints for component dataflows and state management.
         """
+        # Create an endpoint for logging into an instance id
+        self.app.post("/auth")(self.create_instance_id_endpoint())
+
         for component in self.components:
             component_name = component.name
             endpoint = self.create_component_endpoint(component)
@@ -146,6 +181,41 @@ class Application:
 
             self.app.post(update_route)(self.create_write_state_endpoint(component))
             self.app.get(read_route)(self.create_read_state_endpoint(component))
+
+    def create_instance_id_endpoint(self) -> Callable:
+        """
+        Creates an endpoint for logging into a given instance id.
+
+        Returns:
+            Callable: An asynchronous function that serves as the endpoint for
+                logging into an instance id.
+        """
+
+        async def auth_instance_id_endpoint(
+            request: AuthRequest,
+            _: Any = Depends(api_key_auth(self.api_key)),  # type: ignore
+        ) -> JSONResponse:
+            # Create a jwt token for the instance id
+            instance_id = request.instance_id
+            token_expiration_days = request.token_expiration_days
+
+            try:
+                # Define the payload of the JWT
+                payload = {
+                    "instance_id": instance_id,
+                    "exp": datetime.utcnow()
+                    + timedelta(days=token_expiration_days),  # Token expiration time
+                }
+
+                # Encode the JWT
+                token = jwt.encode(payload, self.api_key, algorithm="HS256")
+
+                # Return the token in a JSON response
+                return JSONResponse(content={"token": token})
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        return auth_instance_id_endpoint
 
     def create_read_state_endpoint(self, component: Component) -> Callable:
         """
@@ -164,8 +234,15 @@ class Application:
         async def read_state_endpoint(
             instance_id: str,
             key: str,
-            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
+            tp: Dict[str, Any] = Depends(jwt_auth(self.api_key)),  # type: ignore
+            _: Any = Depends(api_key_auth(self.api_key)),  # type: ignore
         ) -> JSONResponse:
+            # Validate that the instance_id in the token matches the request
+            if tp["instance_id"] != instance_id:
+                raise HTTPException(
+                    status_code=400, detail="Instance ID does not match token."
+                )
+
             try:
                 with component(
                     instance_id, disable_update_task=True
@@ -194,9 +271,17 @@ class Application:
 
         async def write_state_endpoint(
             request: UpdateStateRequest,
-            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
+            tp: Dict[str, Any] = Depends(jwt_auth(self.api_key)),  # type: ignore
+            _: Any = Depends(api_key_auth(self.api_key)),  # type: ignore
         ) -> Response:
             instance_id = request.instance_id
+
+            # Validate that the instance_id in the token matches the request
+            if tp["instance_id"] != instance_id:
+                raise HTTPException(
+                    status_code=400, detail="Instance ID does not match token."
+                )
+
             state_update = request.state_update
             kwargs = request.kwargs
 
@@ -234,9 +319,17 @@ class Application:
         async def endpoint(
             request: RunRequest,
             background_tasks: BackgroundTasks,
-            _: Any = Depends(api_key_auth(self.secret_token)),  # type: ignore
+            token_payload: Dict[str, Any] = Depends(jwt_auth(self.api_key)),
+            _: Any = Depends(api_key_auth(self.api_key)),  # type: ignore
         ) -> Any:
             instance_id = request.instance_id
+
+            # Validate that the instance_id in the token matches the request
+            if token_payload["instance_id"] != instance_id:
+                raise HTTPException(
+                    status_code=400, detail="Instance ID does not match token."
+                )
+
             dataflow_key = request.dataflow_key
             is_async = request.is_async
             props = request.props
@@ -293,6 +386,6 @@ class Application:
 
         Returns:
             Dict[str, str]: A dictionary containing the application's
-                credentials. E.g., {"secret_token": "sk_abc123"}
+                credentials. E.g., {"api_key": "sk_abc123"}
         """
-        return {"secret_token": self.secret_token}
+        return {"api_key": self.api_key}
