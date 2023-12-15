@@ -111,7 +111,7 @@ def api_key_auth(api_key: str) -> Callable:
 
 
 def jwt_auth(api_key: str) -> Callable:
-    def _jwt_validator(request: Request):
+    def _jwt_validator(request: Request) -> Any:
         # Extract the JWT token from the request headers
         token = request.headers.get("Authorization")
         if not token or not token.startswith("Bearer "):
