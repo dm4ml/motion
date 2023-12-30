@@ -8,7 +8,7 @@ from motion.utils import (
 )
 from motion.instance import ComponentInstance
 from motion.migrate import StateMigrator
-from motion.dicts import MDataFrame
+from motion.df import MDataFrame
 from motion.copy_utils import copy_db
 from motion.server.application import Application
 from motion.mtable import MTable
