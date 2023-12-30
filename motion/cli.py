@@ -6,6 +6,7 @@ from datetime import datetime
 
 import click
 import redis
+import yaml
 from rich.console import Console
 
 from motion import clear_instance, get_instances, inspect_state
@@ -15,6 +16,35 @@ from motion import clear_instance, get_instances, inspect_state
 def motioncli() -> None:
     """Motion commands."""
     pass
+
+
+@motioncli.command("init", epilog="Example usage:\n motion init")
+def init() -> None:
+    """Initializes a motion project."""
+    # If .motionrc.yml already exists, do nothing
+    if os.path.exists(".motionrc.yml"):
+        click.echo("A .motionrc.yml file already exists in this directory.")
+        return
+
+    console = Console()
+    checkmark = "\u2705"
+
+    config = {
+        "MOTION_REDIS_HOST": os.getenv("MOTION_REDIS_HOST", "localhost"),
+        "MOTION_REDIS_PORT": int(os.getenv("MOTION_REDIS_PORT", "6379")),
+        "MOTION_REDIS_DB": int(os.getenv("MOTION_REDIS_DB", "0")),
+        "MOTION_REDIS_PASSWORD": os.getenv("MOTION_REDIS_PASSWORD"),
+        "MOTION_REDIS_SSL": os.getenv("MOTION_REDIS_SSL", False),
+    }
+
+    # Creates an .motionrc.yml file
+    with console.status("Creating .motionrc.yml", spinner="dots"):
+        with open(".motionrc.yml", "w") as f:
+            # Write the following
+            yaml.dump(config, f)
+
+    # Done
+    click.echo(f"{checkmark} Created .motionrc.yml in current directory {os.getcwd()}.")
 
 
 @motioncli.command(

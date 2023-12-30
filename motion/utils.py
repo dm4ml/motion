@@ -11,12 +11,11 @@ import redis
 import yaml
 from pydantic import BaseModel
 
-from motion.dicts import CustomDict, State
+from motion.dicts import State
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_TTL = 60 * 60 * 24  # 1 day
-fake_custom_dict = CustomDict("fake", "fake", "fake", {})
 
 
 def hash_object(obj: Any) -> str:
@@ -89,14 +88,14 @@ class RedisParams(BaseModel, extra="allow"):
 
 
 def get_redis_params(
-    config_file: str = "mconfig.yaml",
+    config_file: str = ".motionrc.yml",
 ) -> RedisParams:
     config = None
     if os.path.isfile(config_file):
         with open(config_file, "r") as file:
             config = yaml.safe_load(file)
     else:
-        logger.debug("No mconfig file found, using environment variables.")
+        logger.debug("No .motionrc.yml file found, using environment variables.")
 
     rp = RedisParams(config=config)
     return rp

@@ -21,7 +21,7 @@
         show_signature_annotations: true
 
 
-::: motion.dicts.MDataFrame
+::: motion.df.MDataFrame
     handler: python
     options:
         members:
