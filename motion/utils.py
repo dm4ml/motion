@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cloudpickle
 import colorlog
@@ -124,6 +124,25 @@ def get_instances(component_name: str) -> List[str]:
     return instance_ids
 
 
+def clear_dev_instances() -> int:
+    """Clears all dev instances."""
+    rp = get_redis_params()
+    redis_con = redis.Redis(**rp.dict())
+
+    # Scan for all keys with prefix
+    prefix = "MOTION_VERSION:DEV:*"
+    pipeline = redis_con.pipeline()
+    num_keys_deleted = 0
+    for key in redis_con.scan_iter(prefix):
+        pipeline.delete(key)
+        num_keys_deleted += 1
+
+    pipeline.execute()
+    pipeline.close()
+
+    return num_keys_deleted
+
+
 def clear_instance(instance_name: str) -> bool:
     """Clears the state and cached results associated with a component instance.
 
@@ -160,6 +179,8 @@ def clear_instance(instance_name: str) -> bool:
 
     # Delete the instance state, version, and cached results
     redis_con.delete(f"MOTION_STATE:{instance_name}")
+    redis_con.delete(f"MOTION_STATE:DEV:{instance_name}")
+    redis_con.delete(f"MOTION_VERSION:DEV:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
     redis_con.delete(f"MOTION_LOCK:{instance_name}")
 
@@ -213,7 +234,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
         raise ValueError(f"Instance {instance_name} does not exist.")
 
     # Get the state
-    state = loadState(redis_con, instance_name, None)
+    state, _ = loadState(redis_con, instance_name, None)
 
     redis_con.close()
     return state
@@ -260,15 +281,30 @@ def loadState(
     redis_con: redis.Redis,
     instance_name: str,
     load_state_func: Optional[Callable],
-) -> State:
+) -> Tuple[State, int]:
     # Get state from redis
     state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
-    loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
+
+    # If dev mode, load with diff prefix
+    loaded_state = None
+    version = None
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        loaded_state = redis_con.get(f"MOTION_STATE:DEV:{instance_name}")
+        if loaded_state:
+            version = int(redis_con.get(f"MOTION_VERSION:DEV:{instance_name}"))
+        else:
+            loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
+
+    else:
+        loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
     if not loaded_state:
         # This is an error
-        logger.warning(f"Could not find state for {instance_name}.")
-        return state
+        logger.warning(f"Could not find state for {instance_name}. Creating new state.")
+        return None, 0
+
+    if not version:
+        version = int(redis_con.get(f"MOTION_VERSION:{instance_name}"))
 
     # Unpickle state
     loaded_state = cloudpickle.loads(loaded_state)
@@ -278,23 +314,44 @@ def loadState(
     else:
         state.update(loaded_state)
 
-    return state
+    return state, version
 
 
 def saveState(
     state_to_save: State,
+    version: int,
     redis_con: redis.Redis,
     instance_name: str,
     save_state_func: Optional[Callable],
-) -> None:
+) -> int:
+    # If the version in redis is greater than this version, drop the save
+    redis_v = None
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        redis_con.get(f"MOTION_VERSION:DEV:{instance_name}")
+
+    if not redis_v:
+        redis_v = redis_con.get(f"MOTION_VERSION:{instance_name}")
+
+    if redis_v and int(redis_v) > version:
+        # This means that another process has already saved the state
+        # Return a sentinel value that indicates that the state was not saved
+        return -1
+
     # Save state to redis
     if save_state_func is not None:
         state_to_save = save_state_func(state_to_save)
 
     state_pickled = cloudpickle.dumps(state_to_save)
 
-    redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
-    redis_con.incr(f"MOTION_VERSION:{instance_name}")
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        redis_con.set(f"MOTION_STATE:DEV:{instance_name}", state_pickled)
+        redis_con.set(f"MOTION_VERSION:DEV:{instance_name}", version + 1)
+
+    else:
+        redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
+        redis_con.set(f"MOTION_VERSION:{instance_name}", version + 1)
+
+    return version + 1
 
 
 class UpdateEvent:

@@ -95,7 +95,7 @@ class BaseUpdateTask:
             # Run update op
             try:
                 with redis_con.lock(f"MOTION_LOCK:{self.instance_name}", timeout=120):
-                    old_state = loadState(
+                    old_state, version = loadState(
                         redis_con,
                         self.instance_name,
                         self.load_state_func,
@@ -110,12 +110,14 @@ class BaseUpdateTask:
 
                     if not isinstance(state_update, dict):
                         logger.error(
-                            "Update methods should return a dict of state updates."
+                            "Update methods should return a dict of state updates.",
+                            exc_info=True,
                         )
                     else:
                         old_state.update(state_update)
                         saveState(
                             old_state,
+                            version,
                             redis_con,
                             self.instance_name,
                             self.save_state_func,

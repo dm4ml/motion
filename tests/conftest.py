@@ -15,6 +15,7 @@ def redis_fixture():
     os.environ["MOTION_REDIS_PORT"] = "6381"
     os.environ.pop("MOTION_REDIS_PASSWORD", None)
     os.environ["MOTION_REDIS_DB"] = "0"
+    os.environ["MOTION_ENV"] = "prod"
 
     config = None
     config_file = "config.yaml"

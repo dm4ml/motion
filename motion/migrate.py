@@ -25,7 +25,7 @@ def process_migration(
         redis_con = redis.Redis(
             **rp.dict(),
         )
-        state = loadState(redis_con, instance_name, load_state_fn)
+        state, version = loadState(redis_con, instance_name, load_state_fn)
         new_state = migrate_func(state)
         assert isinstance(new_state, dict), (
             "Migration function must return a dict."
@@ -37,7 +37,7 @@ def process_migration(
             {},
         )
         empty_state.update(new_state)
-        saveState(empty_state, redis_con, instance_name, save_state_fn)
+        _ = saveState(empty_state, version, redis_con, instance_name, save_state_fn)
     except Exception as e:
         if isinstance(e, AssertionError):
             raise e
