@@ -222,7 +222,7 @@ def clear_instance(instance_name: str) -> bool:
     return True
 
 
-def inspect_state(instance_name: str) -> Dict[str, Any]:
+def inspect_state(instance_name: str) -> Optional[State]:
     """
     Returns the state of a component instance.
 
@@ -243,7 +243,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
             `componentname__instanceid` or if the instance does not exist.
 
     Returns:
-        Dict[str, Any]: The state of the component instance.
+        State: The state of the component instance.
     """
     if "__" not in instance_name:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
@@ -305,7 +305,7 @@ def loadState(
     redis_con: redis.Redis,
     instance_name: str,
     load_state_func: Optional[Callable],
-) -> Tuple[State, int]:
+) -> Tuple[Optional[State], int]:
     # Get state from redis
     state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
 
@@ -315,7 +315,8 @@ def loadState(
     if os.getenv("MOTION_ENV", "dev") == "dev":
         loaded_state = redis_con.get(f"MOTION_STATE:DEV:{instance_name}")
         if loaded_state:
-            version = int(redis_con.get(f"MOTION_VERSION:DEV:{instance_name}"))
+            v_identifier = f"MOTION_VERSION:DEV:{instance_name}"
+            version = int(redis_con.get(v_identifier))  # type: ignore
         else:
             loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
@@ -328,7 +329,7 @@ def loadState(
         return None, 0
 
     if not version:
-        version = int(redis_con.get(f"MOTION_VERSION:{instance_name}"))
+        version = int(redis_con.get(f"MOTION_VERSION:{instance_name}"))  # type: ignore
 
     # Unpickle state
     loaded_state = cloudpickle.loads(loaded_state)

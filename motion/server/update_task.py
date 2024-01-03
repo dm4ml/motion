@@ -102,6 +102,9 @@ class BaseUpdateTask:
                         self.instance_name,
                         self.load_state_func,
                     )
+                    if old_state is None:
+                        raise ValueError(f"State for {self.instance_name} not found.")
+
                     state_update = self.routes[queue_name].run(
                         state=old_state,
                         props=item["props"],

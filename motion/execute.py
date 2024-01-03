@@ -154,11 +154,17 @@ class Executor:
 
         if self.version and self.version < int(redis_v):
             # Reload state
-            self._state, self.version = loadState(
+            new_state, self.version = loadState(
                 self._redis_con, self._instance_name, self._load_state_func
             )
+            if new_state is None:
+                raise ValueError(
+                    f"Error loading state for {self._instance_name}."
+                    + " State is None."
+                )
+            self._state = new_state
 
-    def _saveState(self, new_state: Dict[str, Any]) -> None:
+    def _saveState(self, new_state: State) -> None:
         # Save state to redis
         new_version = saveState(
             new_state,
