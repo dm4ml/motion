@@ -1,10 +1,16 @@
 import inspect
+import os
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from motion.dicts import Params
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import DEFAULT_KEY_TTL, random_passphrase, validate_args
+from motion.utils import (
+    DEFAULT_KEY_TTL,
+    clear_dev_instances,
+    random_passphrase,
+    validate_args,
+)
 
 
 class Component:
@@ -542,6 +548,35 @@ class Component:
                 f"Instance name {instance_id} cannot contain '__'. Strip the component"
                 + "name from your instance id."
             )
+
+        # Register cleanup hook if in dev mode
+        # Set up an atexit hook to clear all instances in dev mode
+
+        if os.getenv("MOTION_ENV", "dev") == "dev":
+            if not os.getenv("CLEANUP_DEV_REGISTERED"):
+                import atexit
+
+                from rich.console import Console
+
+                def cleanup_dev() -> None:
+                    # Print cleanup message with rich spinner
+                    console = Console()
+                    with console.status(
+                        "[bold green]Performing cleanup...[/bold green]", spinner="dots"
+                    ):
+                        num_deleted = clear_dev_instances()
+
+                    plural = "s" if num_deleted != 1 else ""
+                    console.print(
+                        "[bold green]Cleanup finished successfully! "
+                        + f"Deleted {num_deleted} instance{plural}.[/bold green]"
+                    )
+
+                # Register the cleanup function
+                atexit.register(cleanup_dev)
+
+                # Set the env var to True
+                os.environ["CLEANUP_DEV_REGISTERED"] = "True"
 
         try:
             ci = ComponentInstance(

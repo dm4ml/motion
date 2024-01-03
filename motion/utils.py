@@ -189,7 +189,9 @@ def clear_instance(instance_name: str) -> bool:
     )
 
     # Check if the instance exists
-    if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
+    if not redis_con.exists(f"MOTION_VERSION:{instance_name}") and not redis_con.exists(
+        f"MOTION_VERSION:DEV:{instance_name}"
+    ):
         return False
 
     # Delete the instance state, version, and cached results
@@ -198,14 +200,21 @@ def clear_instance(instance_name: str) -> bool:
     redis_con.delete(f"MOTION_VERSION:DEV:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
     redis_con.delete(f"MOTION_LOCK:{instance_name}")
+    redis_con.delete(f"MOTION_LOCK:DEV:{instance_name}")
 
-    results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
-    queues_to_delete = redis_con.keys(f"MOTION_QUEUE:{instance_name}/*")
-    pipeline = redis_con.pipeline()
-    for result in results_to_delete:
-        pipeline.delete(result)
-    for queue in queues_to_delete:
-        pipeline.delete(queue)
+    for env in [":DEV", ""]:
+        results_to_delete = redis_con.keys(f"MOTION_RESULT{env}:{instance_name}/*")
+        queues_to_delete = redis_con.keys(f"MOTION_QUEUE{env}:{instance_name}/*")
+        channels_to_delete = redis_con.keys(f"MOTION_CHANNEL{env}:{instance_name}/*")
+
+        pipeline = redis_con.pipeline()
+        for result in results_to_delete:
+            pipeline.delete(result)
+        for queue in queues_to_delete:
+            pipeline.delete(queue)
+        for channel in channels_to_delete:
+            pipeline.delete(channel)
+
     pipeline.execute()
 
     redis_con.close()

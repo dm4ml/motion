@@ -1,6 +1,7 @@
 from motion import Component, clear_instance, inspect_state, get_instances
 
 import pytest
+import os
 
 C = Component("MyComponent")
 
@@ -17,6 +18,9 @@ def test_instance_clear():
     assert c_instance.get_version() == 1
     c_instance.shutdown()
 
+    # Print all instances
+    instances = get_instances(C.name)
+
     # Clear instance
     cleared = clear_instance(instance_name)
     assert cleared
@@ -28,11 +32,7 @@ def test_instance_clear():
 
     # Make sure there are no cached resuts
     assert (
-        len(
-            new_instance._executor._redis_con.keys(
-                f"MOTION_RESULT:{instance_name}"
-            )
-        )
+        len(new_instance._executor._redis_con.keys(f"MOTION_RESULT:{instance_name}"))
         == 0
     )
 
@@ -58,7 +58,6 @@ def test_instance_inspect():
 
 
 def test_list_instances():
-    c_instance = C()
     instance_ids = get_instances(C.name)
 
     assert len(instance_ids) >= 1

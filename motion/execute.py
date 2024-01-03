@@ -49,6 +49,21 @@ class Executor:
         self._init_state_params = init_state_params
         self._load_state_func = load_state_func
         self._save_state_func = save_state_func
+        self.__lock_prefix = (
+            f"MOTION_LOCK:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_LOCK:{self._instance_name}"
+        )
+        self.__queue_prefix = (
+            f"MOTION_QUEUE:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_QUEUE:{self._instance_name}"
+        )
+        self.__channel_prefix = (
+            f"MOTION_CHANNEL:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_CHANNEL:{self._instance_name}"
+        )
 
         self.running: Any = multiprocessing.Value("b", False)
         self._redis_socket_timeout = redis_socket_timeout
@@ -72,9 +87,7 @@ class Executor:
 
         # If state does not exist, run setUp
         if state is None:
-            with self._redis_con.lock(
-                f"MOTION_LOCK:{self._instance_name}", timeout=120
-            ):
+            with self._redis_con.lock(self.__queue_prefix, timeout=120):
                 state = State(
                     instance_name.split("__")[0], instance_name.split("__")[1], {}
                 )
@@ -203,6 +216,7 @@ class Executor:
                 load_state_func=self._load_state_func,
                 queue_identifiers=self.queue_ids_for_fit,
                 channel_identifiers=self.channel_dict_for_fit,
+                lock_identifier=self.__lock_prefix,
                 redis_params=self._redis_params.dict(),
                 running=self.running,
             )
@@ -239,6 +253,7 @@ class Executor:
                     load_state_func=self._load_state_func,
                     queue_identifiers=self.queue_ids_for_fit,
                     channel_identifiers=self.channel_dict_for_fit,
+                    lock_identifier=self.__lock_prefix,
                     redis_params=self._redis_params.dict(),
                     running=self.running,
                 )
@@ -252,11 +267,11 @@ class Executor:
 
     def _get_queue_identifier(self, route_key: str, udf_name: str) -> str:
         """Gets the queue identifier for a given route key and UDF name."""
-        return f"MOTION_QUEUE:{self._instance_name}/{route_key}/{udf_name}"
+        return f"{self.__queue_prefix}/{route_key}/{udf_name}"
 
     def _get_channel_identifier(self, route_key: str, udf_name: str) -> str:
         """Gets the channel identifier for a given route key and UDF name."""
-        return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
+        return f"{self.__channel_prefix}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
         if self.disable_update_task:
@@ -307,9 +322,7 @@ class Executor:
 
         # Get latest state
         if use_lock:
-            with self._redis_con.lock(
-                f"MOTION_LOCK:{self._instance_name}", timeout=120
-            ):
+            with self._redis_con.lock(self.__lock_prefix, timeout=120):
                 if force_update:
                     self._loadState()
                 self._state.update(new_state)
@@ -345,9 +358,7 @@ class Executor:
 
                     # Hold lock
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
+                    with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
 
@@ -415,9 +426,7 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
+                    with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
 
