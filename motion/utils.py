@@ -137,6 +137,21 @@ def clear_dev_instances() -> int:
         pipeline.delete(key)
         num_keys_deleted += 1
 
+    # Delete all states too
+    prefix = "MOTION_STATE:DEV:*"
+    for key in redis_con.scan_iter(prefix):
+        pipeline.delete(key)
+
+    results_to_delete = redis_con.keys("MOTION_RESULT:DEV:*")
+    queues_to_delete = redis_con.keys("MOTION_QUEUE:DEV:*")
+    locks_to_delete = redis_con.keys("MOTION_LOCK:DEV:*")
+    for result in results_to_delete:
+        pipeline.delete(result)
+    for queue in queues_to_delete:
+        pipeline.delete(queue)
+    for lock in locks_to_delete:
+        pipeline.delete(lock)
+
     pipeline.execute()
     pipeline.close()
 
