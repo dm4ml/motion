@@ -37,7 +37,17 @@ def process_migration(
             {},
         )
         empty_state.update(new_state)
-        _ = saveState(empty_state, version, redis_con, instance_name, save_state_fn)
+        success_indicator = saveState(
+            empty_state, version, redis_con, instance_name, save_state_fn
+        )
+
+        if success_indicator == -1:
+            # Migration failed because the state was updated in the meantime
+            raise RuntimeError(
+                f"Migration failed for {instance_name} because the "
+                + "state was updated by another process in the meantime."
+            )
+
     except Exception as e:
         if isinstance(e, AssertionError):
             raise e
