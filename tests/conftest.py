@@ -2,34 +2,30 @@ import redis
 import psutil
 import pytest
 import os
-import yaml
-
-from motion.utils import RedisParams
+import logging
 
 
 @pytest.fixture(scope="session", autouse=True)
 def redis_fixture():
     """Set up redis as a pytest fixture."""
-    # Set env vars
-    os.environ["MOTION_REDIS_HOST"] = "localhost"
-    os.environ["MOTION_REDIS_PORT"] = "6381"
-    os.environ.pop("MOTION_REDIS_PASSWORD", None)
-    os.environ["MOTION_REDIS_DB"] = "0"
-    os.environ["MOTION_ENV"] = "prod"
 
-    config = None
-    config_file = "config.yaml"
-    if os.path.isfile(config_file):
-        with open(config_file, "r") as file:
-            config = yaml.safe_load(file)
+    # Change dir to the root of tests
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    rp = RedisParams(config=config)
+    from motion import RedisParams
+    from motion.utils import import_config
+
+    import_config()
+
+    rp = RedisParams()
     r = redis.Redis(
         host=rp.host,
         port=rp.port,
         password=rp.password,
         db=rp.db,
     )
+    assert os.getenv("MOTION_ENV") == "prod", "MOTION_ENV must be set to prod."
+
     try:
         r.ping()
     except redis.exceptions.ConnectionError:

@@ -64,6 +64,11 @@ class Executor:
             if os.getenv("MOTION_ENV", "dev") == "dev"
             else f"MOTION_CHANNEL:{self._instance_name}"
         )
+        self.__cache_result_prefix = (
+            f"MOTION_RESULT:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_RESULT:{self._instance_name}"
+        )
 
         self.running: Any = multiprocessing.Value("b", False)
         self._redis_socket_timeout = redis_socket_timeout
@@ -135,6 +140,9 @@ class Executor:
         param_dict = rp.dict()
         if "socket_timeout" not in param_dict:
             param_dict["socket_timeout"] = self._redis_socket_timeout
+
+        # Pop all None values
+        param_dict = {k: v for k, v in param_dict.items() if v is not None}
 
         r = redis.Redis(**param_dict)
         return rp, r
@@ -511,7 +519,7 @@ class Executor:
         # Check if key is in cache if value can be hashed and
         # user doesn't want to force refresh state
         if value_hash and not force_refresh and not ignore_cache:
-            cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+            cache_result_key = f"{self.__cache_result_prefix}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
                 new_props = cloudpickle.loads(self._redis_con.get(cache_result_key))
                 if new_props._serve_result is not None:
@@ -561,7 +569,7 @@ class Executor:
                 # Cache result
                 if value_hash:
                     cache_result_key = (
-                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
                     )
                     self.tp.submit(self._setRedis, cache_result_key, props)
 

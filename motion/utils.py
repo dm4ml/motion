@@ -18,6 +18,21 @@ logger = logging.getLogger(__name__)
 DEFAULT_KEY_TTL = 60 * 60 * 24  # 1 day
 
 
+def import_config(config_path: str = ".motionrc.yml") -> None:
+    # If env var MOTION_YAML_LOADED is not set, load .motionrc.yml
+    if os.getenv("MOTION_YAML_LOADED") is None:
+        # Load .motionrc.yml if it exists
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+
+            # Set env vars to the values in .motionrc.yml
+            for k, v in config.items():
+                os.environ[k] = str(v)
+
+        os.environ["MOTION_YAML_LOADED"] = "1"
+
+
 def hash_object(obj: Any) -> str:
     # Convert the object to a string representation
     obj_str = str(obj).encode("utf-8")
@@ -39,65 +54,21 @@ class RedisParams(BaseModel, extra="allow"):
     ssl: bool = False
 
     def __init__(self, **kwargs: Any) -> None:
-        config = kwargs.get("config", None)
+        kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
+        kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
+        kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
 
-        if config is not None:
-            kwargs.setdefault(
-                "host",
-                config.get(
-                    "MOTION_REDIS_HOST",
-                    os.getenv("MOTION_REDIS_HOST", "localhost"),
-                ),
-            )
-            kwargs.setdefault(
-                "port",
-                config.get(
-                    "MOTION_REDIS_PORT",
-                    int(os.getenv("MOTION_REDIS_PORT", "6379")),
-                ),
-            )
-            kwargs.setdefault(
-                "db",
-                config.get("MOTION_REDIS_DB", int(os.getenv("MOTION_REDIS_DB", "0"))),
-            )
-            kwargs.setdefault(
-                "password",
-                config.get(
-                    "MOTION_REDIS_PASSWORD",
-                    os.getenv("MOTION_REDIS_PASSWORD", None),
-                ),
-            )
-            kwargs.setdefault(
-                "ssl",
-                config.get(
-                    "MOTION_REDIS_SSL",
-                    os.getenv("MOTION_REDIS_PASSWORD", False),
-                ),
-            )
-        else:
-            kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
-            kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
-            kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
-            kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
-            kwargs.setdefault("ssl", os.getenv("MOTION_REDIS_SSL", False))
+        if str(os.getenv("MOTION_REDIS_PASSWORD", "None")) != "None":
+            kwargs["password"] = os.getenv("MOTION_REDIS_PASSWORD")
 
-        # Pop the config key
-        kwargs.pop("config", None)
+        if str(os.getenv("MOTION_REDIS_SSL", "False")) == "True":
+            kwargs["ssl"] = True
 
         super().__init__(**kwargs)
 
 
-def get_redis_params(
-    config_file: str = ".motionrc.yml",
-) -> RedisParams:
-    config = None
-    if os.path.isfile(config_file):
-        with open(config_file, "r") as file:
-            config = yaml.safe_load(file)
-    else:
-        logger.debug("No .motionrc.yml file found, using environment variables.")
-
-    rp = RedisParams(config=config)
+def get_redis_params() -> RedisParams:
+    rp = RedisParams()
     return rp
 
 

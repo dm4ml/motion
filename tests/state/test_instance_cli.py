@@ -18,9 +18,6 @@ def test_instance_clear():
     assert c_instance.get_version() == 1
     c_instance.shutdown()
 
-    # Print all instances
-    instances = get_instances(C.name)
-
     # Clear instance
     cleared = clear_instance(instance_name)
     assert cleared
