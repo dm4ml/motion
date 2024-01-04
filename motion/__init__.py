@@ -13,6 +13,7 @@ from motion.copy_utils import copy_db
 from motion.server.application import Application
 from motion.mtable import MTable
 
+
 __all__ = [
     "Component",
     "UpdateEventGroup",

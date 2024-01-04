@@ -1,10 +1,17 @@
 import inspect
+import os
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from motion.dicts import Params
 from motion.instance import ComponentInstance
 from motion.route import Route
-from motion.utils import DEFAULT_KEY_TTL, random_passphrase, validate_args
+from motion.utils import (
+    DEFAULT_KEY_TTL,
+    clear_dev_instances,
+    import_config,
+    random_passphrase,
+    validate_args,
+)
 
 
 class Component:
@@ -474,6 +481,7 @@ class Component:
         update_task_type: Literal["thread", "process"] = "thread",
         disable_update_task: bool = False,
         redis_socket_timeout: int = 60,
+        config_path: str = ".motionrc.yml",
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -531,6 +539,8 @@ class Component:
             redis_socket_timeout (int, optional):
                 Timeout for redis socket connections (seconds). Defaults to 60.
                 This means the redis connection will close if idle for 60 seconds.
+            config_path (str, optional):
+                Path to config file of env vars. Defaults to ".motionrc.yml".
         Returns:
             ComponentInstance: Component instance to run dataflows with.
         """
@@ -542,6 +552,37 @@ class Component:
                 f"Instance name {instance_id} cannot contain '__'. Strip the component"
                 + "name from your instance id."
             )
+
+        import_config(config_path)
+
+        # Register cleanup hook if in dev mode
+        # Set up an atexit hook to clear all instances in dev mode
+
+        if os.getenv("MOTION_ENV", "dev") == "dev":
+            if not os.getenv("CLEANUP_DEV_REGISTERED"):
+                import atexit
+
+                from rich.console import Console
+
+                def cleanup_dev() -> None:
+                    # Print cleanup message with rich spinner
+                    console = Console()
+                    with console.status(
+                        "[bold green]Performing cleanup...[/bold green]", spinner="dots"
+                    ):
+                        num_deleted = clear_dev_instances()
+
+                    plural = "s" if num_deleted != 1 else ""
+                    console.print(
+                        "[bold green]Cleanup finished successfully! "
+                        + f"Deleted {num_deleted} instance{plural}.[/bold green]"
+                    )
+
+                # Register the cleanup function
+                atexit.register(cleanup_dev)
+
+                # Set the env var to True
+                os.environ["CLEANUP_DEV_REGISTERED"] = "True"
 
         try:
             ci = ComponentInstance(

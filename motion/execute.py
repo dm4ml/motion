@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import multiprocessing
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
@@ -48,6 +49,26 @@ class Executor:
         self._init_state_params = init_state_params
         self._load_state_func = load_state_func
         self._save_state_func = save_state_func
+        self.__lock_prefix = (
+            f"MOTION_LOCK:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_LOCK:{self._instance_name}"
+        )
+        self.__queue_prefix = (
+            f"MOTION_QUEUE:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_QUEUE:{self._instance_name}"
+        )
+        self.__channel_prefix = (
+            f"MOTION_CHANNEL:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_CHANNEL:{self._instance_name}"
+        )
+        self.__cache_result_prefix = (
+            f"MOTION_RESULT:DEV:{self._instance_name}"
+            if os.getenv("MOTION_ENV", "dev") == "dev"
+            else f"MOTION_RESULT:{self._instance_name}"
+        )
 
         self.running: Any = multiprocessing.Value("b", False)
         self._redis_socket_timeout = redis_socket_timeout
@@ -65,32 +86,28 @@ class Executor:
         self.running.value = True
 
         # Set up state
-        self.version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-        self._state = State(
-            instance_name.split("__")[0],
-            instance_name.split("__")[1],
-            {},
+        state, version = loadState(
+            self._redis_con, self._instance_name, self._load_state_func
         )
-        if self.version is None:
-            # Hold lock
-            with self._redis_con.lock(
-                f"MOTION_LOCK:{self._instance_name}", timeout=120
-            ):
-                # Set version
-                self.version = 1
-                # Setup state
-                self._state.update(self.setUp(**self._init_state_params))
 
-                saveState(
-                    self._state,
+        # If state does not exist, run setUp
+        if state is None:
+            with self._redis_con.lock(self.__queue_prefix, timeout=120):
+                state = State(
+                    instance_name.split("__")[0], instance_name.split("__")[1], {}
+                )
+                state.update(self.setUp(**self._init_state_params))
+                version = saveState(
+                    state,
+                    0,
                     self._redis_con,
                     self._instance_name,
                     self._save_state_func,
                 )
-        else:
-            # Load state
-            self.version = -1  # will get updated in _loadState
-            self._loadState()
+                assert version == 1, "Version should be 1 after saving state."
+
+        self._state = state
+        self.version = version
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -124,11 +141,20 @@ class Executor:
         if "socket_timeout" not in param_dict:
             param_dict["socket_timeout"] = self._redis_socket_timeout
 
+        # Pop all None values
+        param_dict = {k: v for k, v in param_dict.items() if v is not None}
+
         r = redis.Redis(**param_dict)
         return rp, r
 
     def _loadState(self) -> None:
-        redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+        # If in dev mode, try loading dev state
+        redis_v = None
+        if os.getenv("MOTION_ENV", "dev") == "dev":
+            redis_v = self._redis_con.get(f"MOTION_VERSION:DEV:{self._instance_name}")
+
+        if not redis_v:
+            redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
         if not redis_v:
             raise ValueError(
                 f"Error loading state for {self._instance_name}." + " No version found."
@@ -136,10 +162,34 @@ class Executor:
 
         if self.version and self.version < int(redis_v):
             # Reload state
-            self._state = loadState(
+            new_state, self.version = loadState(
                 self._redis_con, self._instance_name, self._load_state_func
             )
-            self.version = int(redis_v)
+            if new_state is None:
+                raise ValueError(
+                    f"Error loading state for {self._instance_name}."
+                    + " State is None."
+                )
+            self._state = new_state
+
+    def _saveState(self, new_state: State) -> None:
+        # Save state to redis
+        new_version = saveState(
+            new_state,
+            self.version,
+            self._redis_con,
+            self._instance_name,
+            self._save_state_func,
+        )
+        if new_version == -1:
+            logger.error(
+                f"Error saving state to Redis for {self._instance_name}:"
+                + " there was a newer state found."
+            )
+            # Reload state
+            self._loadState()
+        else:
+            self.version = new_version
 
     def setUp(self, **kwargs: Any) -> Dict[str, Any]:
         # Set up initial state
@@ -180,6 +230,7 @@ class Executor:
                 load_state_func=self._load_state_func,
                 queue_identifiers=self.queue_ids_for_fit,
                 channel_identifiers=self.channel_dict_for_fit,
+                lock_identifier=self.__lock_prefix,
                 redis_params=self._redis_params.dict(),
                 running=self.running,
             )
@@ -216,6 +267,7 @@ class Executor:
                     load_state_func=self._load_state_func,
                     queue_identifiers=self.queue_ids_for_fit,
                     channel_identifiers=self.channel_dict_for_fit,
+                    lock_identifier=self.__lock_prefix,
                     redis_params=self._redis_params.dict(),
                     running=self.running,
                 )
@@ -229,11 +281,11 @@ class Executor:
 
     def _get_queue_identifier(self, route_key: str, udf_name: str) -> str:
         """Gets the queue identifier for a given route key and UDF name."""
-        return f"MOTION_QUEUE:{self._instance_name}/{route_key}/{udf_name}"
+        return f"{self.__queue_prefix}/{route_key}/{udf_name}"
 
     def _get_channel_identifier(self, route_key: str, udf_name: str) -> str:
         """Gets the channel identifier for a given route key and UDF name."""
-        return f"MOTION_CHANNEL:{self._instance_name}/{route_key}/{udf_name}"
+        return f"{self.__channel_prefix}/{route_key}/{udf_name}"
 
     def shutdown(self, is_open: bool) -> None:
         if self.disable_update_task:
@@ -284,25 +336,13 @@ class Executor:
 
         # Get latest state
         if use_lock:
-            with self._redis_con.lock(
-                f"MOTION_LOCK:{self._instance_name}", timeout=120
-            ):
+            with self._redis_con.lock(self.__lock_prefix, timeout=120):
                 if force_update:
                     self._loadState()
                 self._state.update(new_state)
 
                 # Save state to redis
-                saveState(
-                    self._state,
-                    self._redis_con,
-                    self._instance_name,
-                    self._save_state_func,
-                )
-
-                version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-                if version is None:
-                    raise ValueError("Version not found in Redis.")
-                self.version = int(version)
+                self._saveState(self._state)
 
         else:
             if force_update:
@@ -310,17 +350,7 @@ class Executor:
             self._state.update(new_state)
 
             # Save state to redis
-            saveState(
-                self._state,
-                self._redis_con,
-                self._instance_name,
-                self._save_state_func,
-            )
-
-            version = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
-            if version is None:
-                raise ValueError("Version not found in Redis.")
-            self.version = int(version)
+            self._saveState(self._state)
 
     def _enqueue_and_trigger_update(
         self,
@@ -342,9 +372,7 @@ class Executor:
 
                     # Hold lock
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
+                    with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
 
@@ -412,9 +440,7 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
-                    with self._redis_con.lock(
-                        f"MOTION_LOCK:{self._instance_name}", timeout=120
-                    ):
+                    with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
 
@@ -493,7 +519,7 @@ class Executor:
         # Check if key is in cache if value can be hashed and
         # user doesn't want to force refresh state
         if value_hash and not force_refresh and not ignore_cache:
-            cache_result_key = f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+            cache_result_key = f"{self.__cache_result_prefix}/{key}/{value_hash}"
             if self._redis_con.exists(cache_result_key):
                 new_props = cloudpickle.loads(self._redis_con.get(cache_result_key))
                 if new_props._serve_result is not None:
@@ -543,7 +569,7 @@ class Executor:
                 # Cache result
                 if value_hash:
                     cache_result_key = (
-                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
                     )
                     self.tp.submit(self._setRedis, cache_result_key, props)
 

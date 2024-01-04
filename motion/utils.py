@@ -3,7 +3,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cloudpickle
 import colorlog
@@ -16,6 +16,21 @@ from motion.dicts import State
 logger = logging.getLogger(__name__)
 
 DEFAULT_KEY_TTL = 60 * 60 * 24  # 1 day
+
+
+def import_config(config_path: str = ".motionrc.yml") -> None:
+    # If env var MOTION_YAML_LOADED is not set, load .motionrc.yml
+    if os.getenv("MOTION_YAML_LOADED") is None:
+        # Load .motionrc.yml if it exists
+        if os.path.exists(config_path):
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+
+            # Set env vars to the values in .motionrc.yml
+            for k, v in config.items():
+                os.environ[k] = str(v)
+
+        os.environ["MOTION_YAML_LOADED"] = "1"
 
 
 def hash_object(obj: Any) -> str:
@@ -39,65 +54,21 @@ class RedisParams(BaseModel, extra="allow"):
     ssl: bool = False
 
     def __init__(self, **kwargs: Any) -> None:
-        config = kwargs.get("config", None)
+        kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
+        kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
+        kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
 
-        if config is not None:
-            kwargs.setdefault(
-                "host",
-                config.get(
-                    "MOTION_REDIS_HOST",
-                    os.getenv("MOTION_REDIS_HOST", "localhost"),
-                ),
-            )
-            kwargs.setdefault(
-                "port",
-                config.get(
-                    "MOTION_REDIS_PORT",
-                    int(os.getenv("MOTION_REDIS_PORT", "6379")),
-                ),
-            )
-            kwargs.setdefault(
-                "db",
-                config.get("MOTION_REDIS_DB", int(os.getenv("MOTION_REDIS_DB", "0"))),
-            )
-            kwargs.setdefault(
-                "password",
-                config.get(
-                    "MOTION_REDIS_PASSWORD",
-                    os.getenv("MOTION_REDIS_PASSWORD", None),
-                ),
-            )
-            kwargs.setdefault(
-                "ssl",
-                config.get(
-                    "MOTION_REDIS_SSL",
-                    os.getenv("MOTION_REDIS_PASSWORD", False),
-                ),
-            )
-        else:
-            kwargs.setdefault("host", os.getenv("MOTION_REDIS_HOST", "localhost"))
-            kwargs.setdefault("port", int(os.getenv("MOTION_REDIS_PORT", "6379")))
-            kwargs.setdefault("db", int(os.getenv("MOTION_REDIS_DB", "0")))
-            kwargs.setdefault("password", os.getenv("MOTION_REDIS_PASSWORD", None))
-            kwargs.setdefault("ssl", os.getenv("MOTION_REDIS_SSL", False))
+        if str(os.getenv("MOTION_REDIS_PASSWORD", "None")) != "None":
+            kwargs["password"] = os.getenv("MOTION_REDIS_PASSWORD")
 
-        # Pop the config key
-        kwargs.pop("config", None)
+        if str(os.getenv("MOTION_REDIS_SSL", "False")) == "True":
+            kwargs["ssl"] = True
 
         super().__init__(**kwargs)
 
 
-def get_redis_params(
-    config_file: str = ".motionrc.yml",
-) -> RedisParams:
-    config = None
-    if os.path.isfile(config_file):
-        with open(config_file, "r") as file:
-            config = yaml.safe_load(file)
-    else:
-        logger.debug("No .motionrc.yml file found, using environment variables.")
-
-    rp = RedisParams(config=config)
+def get_redis_params() -> RedisParams:
+    rp = RedisParams()
     return rp
 
 
@@ -122,6 +93,40 @@ def get_instances(component_name: str) -> List[str]:
     redis_con.close()
 
     return instance_ids
+
+
+def clear_dev_instances() -> int:
+    """Clears all dev instances."""
+    rp = get_redis_params()
+    redis_con = redis.Redis(**rp.dict())
+
+    # Scan for all keys with prefix
+    prefix = "MOTION_VERSION:DEV:*"
+    pipeline = redis_con.pipeline()
+    num_keys_deleted = 0
+    for key in redis_con.scan_iter(prefix):
+        pipeline.delete(key)
+        num_keys_deleted += 1
+
+    # Delete all states too
+    prefix = "MOTION_STATE:DEV:*"
+    for key in redis_con.scan_iter(prefix):
+        pipeline.delete(key)
+
+    results_to_delete = redis_con.keys("MOTION_RESULT:DEV:*")
+    queues_to_delete = redis_con.keys("MOTION_QUEUE:DEV:*")
+    locks_to_delete = redis_con.keys("MOTION_LOCK:DEV:*")
+    for result in results_to_delete:
+        pipeline.delete(result)
+    for queue in queues_to_delete:
+        pipeline.delete(queue)
+    for lock in locks_to_delete:
+        pipeline.delete(lock)
+
+    pipeline.execute()
+    pipeline.close()
+
+    return num_keys_deleted
 
 
 def clear_instance(instance_name: str) -> bool:
@@ -155,21 +160,32 @@ def clear_instance(instance_name: str) -> bool:
     )
 
     # Check if the instance exists
-    if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
+    if not redis_con.exists(f"MOTION_VERSION:{instance_name}") and not redis_con.exists(
+        f"MOTION_VERSION:DEV:{instance_name}"
+    ):
         return False
 
     # Delete the instance state, version, and cached results
     redis_con.delete(f"MOTION_STATE:{instance_name}")
+    redis_con.delete(f"MOTION_STATE:DEV:{instance_name}")
+    redis_con.delete(f"MOTION_VERSION:DEV:{instance_name}")
     redis_con.delete(f"MOTION_VERSION:{instance_name}")
     redis_con.delete(f"MOTION_LOCK:{instance_name}")
+    redis_con.delete(f"MOTION_LOCK:DEV:{instance_name}")
 
-    results_to_delete = redis_con.keys(f"MOTION_RESULT:{instance_name}/*")
-    queues_to_delete = redis_con.keys(f"MOTION_QUEUE:{instance_name}/*")
-    pipeline = redis_con.pipeline()
-    for result in results_to_delete:
-        pipeline.delete(result)
-    for queue in queues_to_delete:
-        pipeline.delete(queue)
+    for env in [":DEV", ""]:
+        results_to_delete = redis_con.keys(f"MOTION_RESULT{env}:{instance_name}/*")
+        queues_to_delete = redis_con.keys(f"MOTION_QUEUE{env}:{instance_name}/*")
+        channels_to_delete = redis_con.keys(f"MOTION_CHANNEL{env}:{instance_name}/*")
+
+        pipeline = redis_con.pipeline()
+        for result in results_to_delete:
+            pipeline.delete(result)
+        for queue in queues_to_delete:
+            pipeline.delete(queue)
+        for channel in channels_to_delete:
+            pipeline.delete(channel)
+
     pipeline.execute()
 
     redis_con.close()
@@ -177,7 +193,7 @@ def clear_instance(instance_name: str) -> bool:
     return True
 
 
-def inspect_state(instance_name: str) -> Dict[str, Any]:
+def inspect_state(instance_name: str) -> Optional[State]:
     """
     Returns the state of a component instance.
 
@@ -198,7 +214,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
             `componentname__instanceid` or if the instance does not exist.
 
     Returns:
-        Dict[str, Any]: The state of the component instance.
+        State: The state of the component instance.
     """
     if "__" not in instance_name:
         raise ValueError("Instance must be in the form `componentname__instanceid`.")
@@ -213,7 +229,7 @@ def inspect_state(instance_name: str) -> Dict[str, Any]:
         raise ValueError(f"Instance {instance_name} does not exist.")
 
     # Get the state
-    state = loadState(redis_con, instance_name, None)
+    state, _ = loadState(redis_con, instance_name, None)
 
     redis_con.close()
     return state
@@ -260,15 +276,31 @@ def loadState(
     redis_con: redis.Redis,
     instance_name: str,
     load_state_func: Optional[Callable],
-) -> State:
+) -> Tuple[Optional[State], int]:
     # Get state from redis
     state = State(instance_name.split("__")[0], instance_name.split("__")[1], {})
-    loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
+
+    # If dev mode, load with diff prefix
+    loaded_state = None
+    version = None
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        loaded_state = redis_con.get(f"MOTION_STATE:DEV:{instance_name}")
+        if loaded_state:
+            v_identifier = f"MOTION_VERSION:DEV:{instance_name}"
+            version = int(redis_con.get(v_identifier))  # type: ignore
+        else:
+            loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
+
+    else:
+        loaded_state = redis_con.get(f"MOTION_STATE:{instance_name}")
 
     if not loaded_state:
         # This is an error
-        logger.warning(f"Could not find state for {instance_name}.")
-        return state
+        logger.warning(f"Could not find state for {instance_name}. Creating new state.")
+        return None, 0
+
+    if not version:
+        version = int(redis_con.get(f"MOTION_VERSION:{instance_name}"))  # type: ignore
 
     # Unpickle state
     loaded_state = cloudpickle.loads(loaded_state)
@@ -278,23 +310,44 @@ def loadState(
     else:
         state.update(loaded_state)
 
-    return state
+    return state, version
 
 
 def saveState(
     state_to_save: State,
+    version: int,
     redis_con: redis.Redis,
     instance_name: str,
     save_state_func: Optional[Callable],
-) -> None:
+) -> int:
+    # If the version in redis is greater than this version, drop the save
+    redis_v = None
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        redis_con.get(f"MOTION_VERSION:DEV:{instance_name}")
+
+    if not redis_v:
+        redis_v = redis_con.get(f"MOTION_VERSION:{instance_name}")
+
+    if redis_v and int(redis_v) > version:
+        # This means that another process has already saved the state
+        # Return a sentinel value that indicates that the state was not saved
+        return -1
+
     # Save state to redis
     if save_state_func is not None:
         state_to_save = save_state_func(state_to_save)
 
     state_pickled = cloudpickle.dumps(state_to_save)
 
-    redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
-    redis_con.incr(f"MOTION_VERSION:{instance_name}")
+    if os.getenv("MOTION_ENV", "dev") == "dev":
+        redis_con.set(f"MOTION_STATE:DEV:{instance_name}", state_pickled)
+        redis_con.set(f"MOTION_VERSION:DEV:{instance_name}", version + 1)
+
+    else:
+        redis_con.set(f"MOTION_STATE:{instance_name}", state_pickled)
+        redis_con.set(f"MOTION_VERSION:{instance_name}", version + 1)
+
+    return version + 1
 
 
 class UpdateEvent:

@@ -21,6 +21,7 @@ class BaseUpdateTask:
         load_state_func: Optional[Callable],
         queue_identifiers: List[str],
         channel_identifiers: Dict[str, str],
+        lock_identifier: str,
         redis_params: Dict[str, Any],
         running: Any,
     ):
@@ -34,6 +35,7 @@ class BaseUpdateTask:
         self.routes = routes
         self.queue_identifiers = queue_identifiers
         self.channel_identifiers = channel_identifiers
+        self.lock_identifier = lock_identifier
 
         self.running = running
         self.daemon = True
@@ -94,12 +96,15 @@ class BaseUpdateTask:
 
             # Run update op
             try:
-                with redis_con.lock(f"MOTION_LOCK:{self.instance_name}", timeout=120):
-                    old_state = loadState(
+                with redis_con.lock(self.lock_identifier, timeout=120):
+                    old_state, version = loadState(
                         redis_con,
                         self.instance_name,
                         self.load_state_func,
                     )
+                    if old_state is None:
+                        raise ValueError(f"State for {self.instance_name} not found.")
+
                     state_update = self.routes[queue_name].run(
                         state=old_state,
                         props=item["props"],
@@ -110,12 +115,14 @@ class BaseUpdateTask:
 
                     if not isinstance(state_update, dict):
                         logger.error(
-                            "Update methods should return a dict of state updates."
+                            "Update methods should return a dict of state updates.",
+                            exc_info=True,
                         )
                     else:
                         old_state.update(state_update)
                         saveState(
                             old_state,
+                            version,
                             redis_con,
                             self.instance_name,
                             self.save_state_func,
