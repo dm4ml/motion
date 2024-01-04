@@ -43,7 +43,7 @@ def process_migration(
 
         if success_indicator == -1:
             # Migration failed because the state was updated in the meantime
-            raise AssertionError(
+            raise RuntimeError(
                 f"Migration failed for {instance_name} because the "
                 + "state was updated by another process in the meantime."
             )
