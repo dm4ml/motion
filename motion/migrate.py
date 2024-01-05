@@ -1,5 +1,6 @@
 import inspect
 import logging
+import os
 from multiprocessing import Pool
 from typing import Callable, List, Optional, Tuple
 
@@ -52,6 +53,7 @@ def process_migration(
         if isinstance(e, AssertionError):
             raise e
         else:
+            logger.error(e, exc_info=True)
             return instance_name, e
 
     redis_con.close()
@@ -81,6 +83,11 @@ class StateMigrator:
             TypeError: if component is not a valid Component
             ValueError: if migrate_func does not have exactly one parameter
         """
+
+        # Assert that we are in prod
+        assert (
+            os.environ.get("MOTION_ENV") == "prod"
+        ), "StateMigrator should only be used in prod."
 
         # Type check
         if not isinstance(component, Component):
@@ -115,6 +122,7 @@ class StateMigrator:
                 exception is None if the migration was successful for that
                 instance name.
         """
+
         # Read all the states
 
         rp = get_redis_params()
