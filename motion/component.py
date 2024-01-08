@@ -558,7 +558,7 @@ class Component:
         # Register cleanup hook if in dev mode
         # Set up an atexit hook to clear all instances in dev mode
 
-        if os.getenv("MOTION_ENV", "dev") == "dev":
+        if os.getenv("MOTION_ENV", "prod") == "dev":
             if not os.getenv("CLEANUP_DEV_REGISTERED"):
                 import atexit
 
