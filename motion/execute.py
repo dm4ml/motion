@@ -3,6 +3,7 @@ import logging
 import multiprocessing
 import os
 import threading
+import types
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 from uuid import uuid4
@@ -539,6 +540,7 @@ class Executor:
     ) -> Any:
         route_hit = False
         serve_result = None
+        is_generated = False
         props = Properties(props)
 
         # Run the serve route
@@ -557,6 +559,20 @@ class Executor:
                 serve_result = self._serve_routes[key].run(
                     state=self._state, props=props
                 )
+
+                # Check if the serve_result is a generator (streaming result)
+                if isinstance(serve_result, types.GeneratorType):
+                    # Accumulate items from generator
+                    is_generated = True
+                    accumulated_result = []
+
+                    # Process each item yielded by the generator
+                    for item in serve_result:
+                        accumulated_result.append(item)
+                        yield item  # Yield the item for streaming
+
+                    serve_result = accumulated_result
+
                 props._serve_result = serve_result
 
                 # Check that serve_result is not an awaitable
@@ -584,7 +600,8 @@ class Executor:
                 f"Key {key} not in routes for component {self._instance_name}."
             )
 
-        return serve_result
+        if not is_generated:
+            yield serve_result
 
     async def arun(
         self,
@@ -599,6 +616,7 @@ class Executor:
         props = Properties(props)
 
         # Run the serve route
+        is_generated = False
         if key in self._serve_routes.keys():
             route_hit = True
             (
@@ -614,7 +632,22 @@ class Executor:
                 serve_result = self._serve_routes[key].run(
                     state=self._state, props=props
                 )
-                if asyncio.iscoroutine(serve_result):
+                # Check if the serve_result is an async generator (streaming result)
+                if isinstance(serve_result, types.AsyncGeneratorType):
+                    # Accumulate items from generator
+                    is_generated = True
+                    accumulated_result = []
+
+                    # Process each item yielded by the generator
+                    # but don't trigger a "return statement with value is
+                    # not allowed in an async generator" error
+                    async for item in serve_result:
+                        accumulated_result.append(item)
+                        yield item
+
+                    serve_result = accumulated_result
+
+                elif asyncio.iscoroutine(serve_result):
                     serve_result = await serve_result
 
                 props._serve_result = serve_result
@@ -622,7 +655,7 @@ class Executor:
                 # Cache result
                 if value_hash:
                     cache_result_key = (
-                        f"MOTION_RESULT:{self._instance_name}/{key}/{value_hash}"
+                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
                     )
                     self.tp.submit(self._setRedis, cache_result_key, props)
 
@@ -637,7 +670,8 @@ class Executor:
                 f"Key {key} not in routes for component {self._instance_name}."
             )
 
-        return serve_result
+        if not is_generated:
+            yield serve_result
 
     def flush_update(self, dataflow_key: str) -> None:
         # Check if key has update ops

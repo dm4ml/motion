@@ -1,6 +1,16 @@
 import atexit
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Optional,
+)
 
 from motion.execute import Executor
 from motion.route import Route
@@ -289,6 +299,23 @@ class ComponentInstance:
 
         self._executor.flush_update(dataflow_key)
 
+    def iter(
+        self,
+        dataflow_key: str,
+        props: Dict[str, Any] = {},
+        ignore_cache: bool = False,
+        force_refresh: bool = False,
+        flush_update: bool = False,
+    ) -> Generator[Any, None, None]:
+        for elem in self._executor.run(
+            key=dataflow_key,
+            props=props,
+            ignore_cache=ignore_cache,
+            force_refresh=force_refresh,
+            flush_update=flush_update,
+        ):  # type: ignore
+            yield elem
+
     def run(
         self,
         # *,
@@ -367,15 +394,31 @@ class ComponentInstance:
             computationally expensive.
         """
 
-        serve_result = self._executor.run(
+        serve_result = []
+        for elem in self.iter(
+            dataflow_key, props, ignore_cache, force_refresh, flush_update
+        ):
+            serve_result.append(elem)
+
+        return serve_result[0]
+
+    async def aiter(
+        self,
+        dataflow_key: str,
+        props: Dict[str, Any] = {},
+        ignore_cache: bool = False,
+        force_refresh: bool = False,
+        flush_update: bool = False,
+    ) -> AsyncGenerator[Any, None]:
+        # Directly yield the result of arun
+        async for elem in self._executor.arun(
             key=dataflow_key,
             props=props,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_update=flush_update,
-        )
-
-        return serve_result
+        ):  # type: ignore
+            yield elem
 
     async def arun(
         self,
@@ -436,13 +479,12 @@ class ComponentInstance:
             Awaitable[Any]: Awaitable Result of the serve call.
         """
 
-        serve_result = await self._executor.arun(
-            key=dataflow_key,
-            props=props,
-            # value=value,
-            ignore_cache=ignore_cache,
-            force_refresh=force_refresh,
-            flush_update=flush_update,
-        )  # type: ignore
+        # Run agen and collect the results into a list
+        results = []
 
-        return serve_result  # type: ignore
+        async for elem in self.aiter(
+            dataflow_key, props, ignore_cache, force_refresh, flush_update
+        ):
+            results.append(elem)
+
+        return results[0]  # type: ignore
