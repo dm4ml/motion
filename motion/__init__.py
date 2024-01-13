@@ -1,3 +1,4 @@
+from typing import Any
 from motion.component import Component
 from motion.utils import (
     UpdateEventGroup,
@@ -30,7 +31,7 @@ try:
 except ImportError:
 
     class ApplicationImportError(ImportError):
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             message = (
                 "The 'Application' class requires additional dependencies. "
                 "Please install the 'application' extras by running: "
@@ -38,8 +39,8 @@ except ImportError:
             )
             super().__init__(message, *args, **kwargs)
 
-    class Application:
-        def __init__(self, *args, **kwargs):
+    class Application:  # type: ignore
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise ApplicationImportError()
 
     __all__.append("Application")
@@ -53,7 +54,7 @@ try:
 except ImportError:
 
     class TableImportError(ImportError):
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             message = (
                 "The 'MDataFrame' and 'MTable' classes require additional dependencies. "
                 "Please install the 'table' extras by running: "
@@ -61,12 +62,12 @@ except ImportError:
             )
             super().__init__(message, *args, **kwargs)
 
-    class MDataFrame:
-        def __init__(self, *args, **kwargs):
+    class MDataFrame:  # type: ignore
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise TableImportError()
 
-    class MTable:
-        def __init__(self, *args, **kwargs):
+    class MTable:  # type: ignore
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise TableImportError()
 
     __all__.extend(["MDataFrame", "MTable"])
