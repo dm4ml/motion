@@ -8,6 +8,15 @@ pip install motion-python
 
 To verify motion is working as intended, run `motion` in your terminal. An usage explanation should be returned, as well as a list of CLI commands that can be executed.
 
+To install Motion with support for Applications (FastAPI apps that serve Motion components) and Tables (wrapper around PyArrow table with zero-copy vector search), run the following command:
+
+```bash
+pip install motion-python[application]
+pip install motion-python[table]
+```
+
+Optionally, the shorthand `pip install motion-python[application,table]` or `pip install motion-python[all]` can be used.
+
 ## Setting up the database
 
 Motion relies on Redis to store component state and metadata. You can install Redis [here](https://redis.io/download) and run it however you like, e.g., via [Docker](https://redis.io/docs/stack/get-started/install/docker/). You will need to configure the following environment variables:
