@@ -8,7 +8,7 @@ lint:
 
 install:
 	pip install poetry
-	poetry install
+	poetry install -E all
 
 mypy:
 	poetry run mypy
