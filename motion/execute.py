@@ -1,11 +1,12 @@
 import asyncio
+import inspect
 import logging
 import multiprocessing
 import os
 import threading
 import types
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple
 from uuid import uuid4
 
 import cloudpickle
@@ -537,7 +538,7 @@ class Executor:
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
-    ) -> Any:
+    ) -> Iterable[Any]:
         route_hit = False
         serve_result = None
         is_generated = False
@@ -552,6 +553,17 @@ class Executor:
                 props,
                 value_hash,
             ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+
+            # If route is run and serve result is not None and self.
+            # _serve_routes[key].udf is a generator, iterate through the serve
+            # result
+            if route_run and inspect.isgeneratorfunction(self._serve_routes[key].udf):
+                is_generated = True
+
+                # Process each item yielded by the generator
+                if serve_result is not None:
+                    for item in serve_result:
+                        yield item
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
@@ -610,7 +622,7 @@ class Executor:
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
-    ) -> Any:
+    ) -> Iterable[Any]:
         route_hit = False
         serve_result = None
         props = Properties(props)
@@ -625,6 +637,17 @@ class Executor:
                 props,
                 value_hash,
             ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+
+            # If route is run and serve result is not None and self.
+            # _serve_routes[key].udf is a generator, iterate through the serve
+            # result
+            if route_run and inspect.isasyncgenfunction(self._serve_routes[key].udf):
+                is_generated = True
+
+                # Process each item yielded by the generator
+                if serve_result is not None:
+                    for item in serve_result:
+                        yield item
 
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route

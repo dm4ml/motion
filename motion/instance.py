@@ -299,7 +299,7 @@ class ComponentInstance:
 
         self._executor.flush_update(dataflow_key)
 
-    def iter(
+    def gen(
         self,
         dataflow_key: str,
         props: Dict[str, Any] = {},
@@ -395,14 +395,14 @@ class ComponentInstance:
         """
 
         serve_result = []
-        for elem in self.iter(
+        for elem in self.gen(
             dataflow_key, props, ignore_cache, force_refresh, flush_update
         ):
             serve_result.append(elem)
 
         return serve_result[0]
 
-    async def aiter(
+    async def agen(
         self,
         dataflow_key: str,
         props: Dict[str, Any] = {},
@@ -482,7 +482,7 @@ class ComponentInstance:
         # Run agen and collect the results into a list
         results = []
 
-        async for elem in self.aiter(
+        async for elem in self.agen(
             dataflow_key, props, ignore_cache, force_refresh, flush_update
         ):
             results.append(elem)
