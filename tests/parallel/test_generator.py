@@ -3,18 +3,22 @@ This file tests the generator and async generator functionality.
 """
 import pytest
 from motion import Component
+import random
 
 C = Component("GeneratorComponent")
 
 
 @C.init_state
 def setUp():
-    return {"value": 1}
+    return {}
 
 
 @C.serve("identity")
 def identity(state, props):
-    values = props["values"]
+    k = props["k"]
+
+    # Randomly generate a list of k values
+    values = [random.randint(0, 100) for _ in range(k)]
 
     # Return an iterator over the props values
     for v in values:
@@ -29,7 +33,10 @@ def assert_list(state, props):
 
 @C.serve("async_identity")
 async def async_identity(state, props):
-    values = props["values"]
+    k = props["k"]
+
+    # Randomly generate a list of k values
+    values = [random.randint(0, 100) for _ in range(k)]
 
     # Return an iterator over the props values
     for v in values:
@@ -44,24 +51,23 @@ async def async_assert_list(state, props):
 
 def test_regular_generator():
     c = C("some_instance")
-    values = [1, 2, 3]
 
     serve_values = []
-    for v in c.gen("identity", props={"values": values}, flush_update=True):
+    for v in c.gen("identity", props={"k": 3}, flush_update=True):
         serve_values.append(v)
-    assert serve_values == values
+    assert len(serve_values) == 3
 
-    assert c.read_state("sync_serve_result") == values
+    assert c.read_state("sync_serve_result") == serve_values
     c.shutdown()
 
     # Open the instance again and read the cached result
     c = C("some_instance")
-    assert c.read_state("sync_serve_result") == values
+    assert c.read_state("sync_serve_result") == serve_values
 
-    serve_values = []
-    for v in c.gen("identity", props={"values": values}):
-        serve_values.append(v)
-    assert serve_values == values, "Cached result should be returned"
+    new_serve_values = []
+    for v in c.gen("identity", props={"k": 3}):
+        new_serve_values.append(v)
+    assert new_serve_values == serve_values, "Cached result should be returned"
 
     c.shutdown()
 
@@ -69,25 +75,22 @@ def test_regular_generator():
 @pytest.mark.asyncio
 async def test_async_generator():
     c = C("some_async_instance")
-    values = [4, 5, 6]
 
     serve_values = []
-    async for v in c.agen(
-        "async_identity", props={"values": values}, flush_update=True
-    ):
+    async for v in c.agen("async_identity", props={"k": 3}, flush_update=True):
         serve_values.append(v)
-    assert serve_values == values
+    assert len(serve_values) == 3
 
-    assert c.read_state("async_serve_result") == values
+    assert c.read_state("async_serve_result") == serve_values
     c.shutdown()
 
     # Open the instance again and read the cached result
     c = C("some_async_instance")
-    assert c.read_state("async_serve_result") == values
+    assert c.read_state("async_serve_result") == serve_values
 
-    serve_values = []
-    async for v in c.agen("async_identity", props={"values": values}):
-        serve_values.append(v)
-    assert serve_values == values, "Cached result should be returned"
+    new_serve_values = []
+    async for v in c.agen("async_identity", props={"k": 3}):
+        new_serve_values.append(v)
+    assert new_serve_values == serve_values, "Cached result should be returned"
 
     c.shutdown()
