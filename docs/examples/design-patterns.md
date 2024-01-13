@@ -3,3 +3,4 @@
 - Caching results to save cost (wrapper around OpenAI LLM)
 - Disabled component instances
 - Context manager component instances
+- Generator UDFs (e.g., for streaming LLM output)

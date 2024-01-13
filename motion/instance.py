@@ -1,6 +1,16 @@
 import atexit
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Literal, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Optional,
+)
 
 from motion.execute import Executor
 from motion.route import Route
@@ -123,6 +133,11 @@ class ComponentInstance:
             c_instance.run(...)
             c_instance.run(...)
             c_instance.shutdown()
+
+            # Or, use a context manager
+            with C() as c_instance:
+                c_instance.run(...)
+                c_instance.run(...)
         ```
         """
         if self.disable_update_task:
@@ -158,8 +173,8 @@ class ComponentInstance:
         # Define serve and update operations
 
         if __name__ == "__main__":
-            c_instance = C()
-            c_instance.get_version() # Returns 1 (first version)
+            with C() as c_instance:
+                c_instance.get_version() # Returns 1 (first version)
         ```
         """
         return self._executor.version  # type: ignore
@@ -184,11 +199,11 @@ class ComponentInstance:
         ...
 
         if __name__ == "__main__":
-            c_instance = C()
-            c_instance.read_state("value") # Returns 0
-            c_instance.write_state({"value": 1, "value2": 2})
-            c_instance.read_state("value") # Returns 1
-            c_instance.read_state("value2") # Returns 2
+            with C() as c_instance:
+                c_instance.read_state("value") # Returns 0
+                c_instance.write_state({"value": 1, "value2": 2})
+                c_instance.read_state("value") # Returns 1
+                c_instance.read_state("value2") # Returns 2
         ```
 
         Args:
@@ -221,11 +236,11 @@ class ComponentInstance:
         ...
 
         if __name__ == "__main__":
-            c_instance = C()
-            c_instance.read_state("value") # Returns 0
-            c_instance.run(...)
-            c_instance.read_state("value") # This will return the current value
-            # of "value" in the state
+            with C() as c_instance:
+                c_instance.read_state("value") # Returns 0
+                c_instance.run(...)
+                c_instance.read_state("value") # This will return the current
+                # value of "value" in the state
         ```
 
         Args:
@@ -269,10 +284,10 @@ class ComponentInstance:
             return state["value"] * value
 
         if __name__ == "__main__":
-            c = C() # Create instance of C
-            c.run("add", props={"value": 1})
-            c.flush_update("add") # (1)!
-            c.run("add", props={"value": 2}) # This will use the updated state
+            with C() as c: # Create instance of C
+                c.run("add", props={"value": 1})
+                c.flush_update("add") # (1)!
+                c.run("add", props={"value": 2}) # This will use the updated state
 
         # 1. Waits for the update op to finish, then updates the state
         ```
@@ -288,6 +303,77 @@ class ComponentInstance:
             raise RuntimeError("Cannot run a disable_update_task component instance.")
 
         self._executor.flush_update(dataflow_key)
+
+    def gen(
+        self,
+        dataflow_key: str,
+        props: Dict[str, Any] = {},
+        ignore_cache: bool = False,
+        force_refresh: bool = False,
+        flush_update: bool = False,
+    ) -> Generator[Any, None, None]:
+        """Runs the dataflow (serve and update ops) for the specified key and
+        yields the results as they come in, as a generator. Use this if your
+        serve op is a generator function. If your serve op just returns a
+        value, use run instead. You should use agen as opposed to gen if your
+        serve op is an async generator function.
+
+        Example Usage:
+        ```python
+        from motion import Component
+        import asyncio
+
+        C = Component("MyComponent")
+
+        @C.serve("count")
+        def count(state, value):
+            for i in range(value):
+                yield i
+
+        def main():
+            with C() as c:
+                for elem in c.gen("count", props={"value": 3}): # (1)!
+                    print(elem) # Prints 0, 1, 2
+
+        if __name__ == "__main__":
+            asyncio.run(main())
+
+        # 1. Iterates over the generator returned by the "count" serve op
+        ```
+
+        Args:
+            dataflow_key (str): Key of the dataflow to run.
+            props (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
+            ignore_cache (bool, optional):
+                If True, ignores the cache and runs the serve op. Does not
+                force refresh the state. Defaults to False.
+            force_refresh (bool, optional): Read the latest value of the
+                state before running an serve call, otherwise a stale
+                version of the state or a cached result may be used.
+                Defaults to False.
+            flush_update (bool, optional):
+                If True, waits for the update op to finish executing before
+                returning. If the update queue hasn't reached batch_size
+                yet, the update op runs anyways. Force refreshes the
+                state after the update op completes. Defaults to False.
+
+        Raises:
+            ValueError: If more than one dataflow key-value pair is passed.
+                If flush_update is called and the component instance update
+                processes are disabled.
+
+        Returns:
+            Awaitable[Any]: Awaitable Result of the serve call.
+        """
+        for elem in self._executor.run(
+            key=dataflow_key,
+            props=props,
+            ignore_cache=ignore_cache,
+            force_refresh=force_refresh,
+            flush_update=flush_update,
+        ):  # type: ignore
+            yield elem
 
     def run(
         self,
@@ -321,15 +407,15 @@ class ComponentInstance:
             return {"value": state["value"] + value}
 
         if __name__ == "__main__":
-            c = C() # Create instance of C
-            c.run("add", props={"value": 1}, flush_update=True) # (1)!
-            c.run("add", props={"value": 1}) # Returns 1
-            c.run("add", props={"value": 2}, flush_update=True) # (2)!
+            with C() as c: # Create instance of C
+                c.run("add", props={"value": 1}, flush_update=True) # (1)!
+                c.run("add", props={"value": 1}) # Returns 1
+                c.run("add", props={"value": 2}, flush_update=True) # (2)!
 
-            c.run("add", props={"value": 3})
-            time.sleep(3) # Wait for the previous update op to finish
+                c.run("add", props={"value": 3})
+                time.sleep(3) # Wait for the previous update op to finish
 
-            c.run("add", props={"value": 3}, force_refresh=True) # (3)!
+                c.run("add", props={"value": 3}, force_refresh=True) # (3)!
 
         # 1. Waits for the update op to finish, then updates the state
         # 2. Returns 2, result state["value"] = 4
@@ -367,15 +453,83 @@ class ComponentInstance:
             computationally expensive.
         """
 
-        serve_result = self._executor.run(
+        serve_result = []
+        for elem in self.gen(
+            dataflow_key, props, ignore_cache, force_refresh, flush_update
+        ):
+            serve_result.append(elem)
+
+        return serve_result[0]
+
+    async def agen(
+        self,
+        dataflow_key: str,
+        props: Dict[str, Any] = {},
+        ignore_cache: bool = False,
+        force_refresh: bool = False,
+        flush_update: bool = False,
+    ) -> AsyncGenerator[Any, None]:
+        """Async version of gen. Runs the dataflow (serve and update ops) for
+        the specified key and yields the results as they come in,
+        as a generator. Use this if your serve op is an async
+        generator function. You should use agen as opposed to gen if your
+        serve op is an async function.
+
+        Example Usage:
+        ```python
+        from motion import Component
+        import asyncio
+
+        C = Component("MyComponent")
+
+        @C.serve("count")
+        async def count(state, value):
+            for i in range(value):
+                yield i
+                await asyncio.sleep(i)
+
+        async def main():
+            with C() as c:
+                async for elem in c.agen("count", props={"value": 3}):
+                    print(elem) # Prints 0, 1, 2
+
+        if __name__ == "__main__":
+            asyncio.run(main())
+        ```
+
+        Args:
+            dataflow_key (str): Key of the dataflow to run.
+            props (Dict[str, Any]): Keyword arguments to pass into the
+                dataflow ops, in addition to the state.
+            ignore_cache (bool, optional):
+                If True, ignores the cache and runs the serve op. Does not
+                force refresh the state. Defaults to False.
+            force_refresh (bool, optional): Read the latest value of the
+                state before running an serve call, otherwise a stale
+                version of the state or a cached result may be used.
+                Defaults to False.
+            flush_update (bool, optional):
+                If True, waits for the update op to finish executing before
+                returning. If the update queue hasn't reached batch_size
+                yet, the update op runs anyways. Force refreshes the
+                state after the update op completes. Defaults to False.
+
+        Raises:
+            ValueError: If more than one dataflow key-value pair is passed.
+                If flush_update is called and the component instance update
+                processes are disabled.
+
+        Returns:
+            Awaitable[Any]: Awaitable Result of the serve call.
+        """
+        async for elem in self._executor.arun(
             key=dataflow_key,
             props=props,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
             flush_update=flush_update,
-        )
-
-        return serve_result
+        ):  # type: ignore
+            yield elem
 
     async def arun(
         self,
@@ -403,8 +557,8 @@ class ComponentInstance:
             return "Slept!"
 
         async def main():
-            c = C()
-            await c.arun("sleep", props={"value": 1})
+            with C() as c:
+                await c.arun("sleep", props={"value": 1})
 
         if __name__ == "__main__":
             asyncio.run(main())
@@ -436,13 +590,12 @@ class ComponentInstance:
             Awaitable[Any]: Awaitable Result of the serve call.
         """
 
-        serve_result = await self._executor.arun(
-            key=dataflow_key,
-            props=props,
-            # value=value,
-            ignore_cache=ignore_cache,
-            force_refresh=force_refresh,
-            flush_update=flush_update,
-        )  # type: ignore
+        # Run agen and collect the results into a list
+        results = []
 
-        return serve_result  # type: ignore
+        async for elem in self.agen(
+            dataflow_key, props, ignore_cache, force_refresh, flush_update
+        ):
+            results.append(elem)
+
+        return results[0]  # type: ignore

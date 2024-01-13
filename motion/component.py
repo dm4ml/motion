@@ -507,9 +507,13 @@ class Component:
         if __name__ == "__main__":
             c_instance = MyComponent(init_state_params={"starting_val": 3})
             c_instance.run(..)
+            c_instance.shutdown()
         ```
 
-        You can also use component instances as context managers:
+        You can also use component instances as context managers,
+        which is the recommended way to use them (because it will
+        automatically gracefully shut down the component instance
+        when the context manager exits):
         ```python
         ...
         if __name__ == "__main__":
