@@ -6,7 +6,17 @@ import os
 import threading
 import types
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+)
 from uuid import uuid4
 
 import cloudpickle
@@ -538,7 +548,7 @@ class Executor:
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
-    ) -> Iterable[Any]:
+    ) -> Generator[Any, None, None]:
         route_hit = False
         serve_result = None
         is_generated = False
@@ -622,7 +632,7 @@ class Executor:
         ignore_cache: bool,
         force_refresh: bool,
         flush_update: bool,
-    ) -> Iterable[Any]:
+    ) -> AsyncGenerator[Any, None]:
         route_hit = False
         serve_result = None
         props = Properties(props)

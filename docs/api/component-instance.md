@@ -4,6 +4,8 @@
         members:
             - run
             - arun
+            - gen
+            - agen
             - read_state
             - write_state
             - flush_update
