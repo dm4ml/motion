@@ -1,28 +1,21 @@
 # Welcome to Motion
 
-Motion is a lightweight **framework** for building machine learning (ML) applications, designed to **reduce the MLOps burdens** of making sure your models, prompts, and other stateful objects are **up-to-date with your data.**
+Motion is a **Python framework** for incrementally maintaining prompts and other LLM pipeline state as new data arrives. Motion components are **stateful** and **incremental**, and can be run anywhere (e.g., in a notebook, in a serverless function, in a web app) because they are backed by a key-value store.
 
 !!! tip "Alpha Release"
 
     Motion is currently in alpha. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at [shreyashankar@berkeley.edu](mailto:shreyashankar@berkeley.edu).
 
-## Why Motion?
-
-While building an ML application demo is easier than ever thanks to state-of-the-art models and open-source libraries, making sure ML applications _update with new data over time_ is still a challenge. As a result, developers painstakingly stitch together data tools and maintain pipelines that run on a schedule (e.g., fine-tuning, updating indexes).
-
-With Motion, a dataflow-based framework, your state is automatically updated in the background when you run your pipelines on new data. Moreover, multiple pipelines can easily share the same state.
-
 ## Should I use Motion?
 
 Motion is especially useful for applications that:
 
-- Need to update some state based on new data (e.g., maintain a dynamic list of examples in an LLM prompt or fine-tune a model on new data)
-- Need to support different instances of state for a single logical component (e.g., prompts and vectors for each user)
-- Require state persistence (e.g., saving and loading small models, prompts, and other objects)
+- Need to update prompts based on new data (e.g., maintain a dynamic list of examples in the prompt)
+- Need to continually fine-tune models or do any online learning
+- Want to maintain state across multiple requests
+- Want a Pythonic interface to build a distributed system of LLM application components
 
 Motion is built for developers who know how to code in Python and want to be able to control operations in their ML applications. For low-code and domain-specific development patterns (e.g., enhancing videos), you may want to check out other tools.
-
-Finally, Motion is a framework, not necessarily just a library, and thus supports the usage of _any_ Python library or ML model for individual operations in an ML pipeline.
 
 ## Where did Motion come from?
 
