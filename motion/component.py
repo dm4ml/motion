@@ -45,7 +45,7 @@ class Component:
             # Resulting state will eventually be {"value": 3}
         ```
 
-    === "Multiple Dataflows"
+    === "Multiple Flows"
         ```python
         from motion import Component
 
@@ -307,10 +307,10 @@ class Component:
         return func
 
     def serve(self, keys: Union[str, List[str]]) -> Callable:
-        """Decorator for any serve operation for a dataflow through the
+        """Decorator for any serve operation for a flow through the
         component. Takes in a string or list of strings that represents the
-        dataflow key. If the decorator is called with a list of strings, each
-        dataflow key will be mapped to the same serve function.
+        flow key. If the decorator is called with a list of strings, each
+        flow key will be mapped to the same serve function.
 
         2 arguments required for an serve operation:
             * `state`: The current state of the component instance, which is a
@@ -319,10 +319,10 @@ class Component:
                 the `run` method of the component instance. You can add to
                 the `props` dictionary in the serve op, and the modified
                 `props` will be passed to the subsequent update ops in the flow.
-                Props are short-lived and die after the dataflow's update op
+                Props are short-lived and die after the flow's update op
                 finishes.
 
-        Components can have multiple serve ops, but no dataflow key within
+        Components can have multiple serve ops, but no flow key within
         the component can have more than one serve op. serve ops should not
         modify the state object. If you want to modify the state object, write
         an `update` op for your flow.
@@ -352,7 +352,7 @@ class Component:
 
         Args:
             keys (Union[str, List[str]]): String or list of strings that
-                represent the input keyword(s) for the serve dataflow.
+                represent the input keyword(s) for the serve flow.
 
         Returns:
             Callable: Decorated serve function.
@@ -362,9 +362,7 @@ class Component:
 
         for key in keys:
             if "::" in key:
-                raise ValueError(
-                    f"Dataflow key {key} should not have a double colon (::)"
-                )
+                raise ValueError(f"Flow key {key} should not have a double colon (::)")
 
         def decorator(func: Callable) -> Any:
             # type_hint = get_type_hints(func).get("value", None)
@@ -384,10 +382,10 @@ class Component:
         return decorator
 
     def update(self, keys: Union[str, List[str]]) -> Any:
-        """Decorator for any update operations for dataflows through the
+        """Decorator for any update operations for flows through the
         component. Takes in a string or list of strings that represents the
-        dataflow key. If the decorator is called with a list of strings, each
-        dataflow key will be mapped to the same update operation.
+        flow key. If the decorator is called with a list of strings, each
+        flow key will be mapped to the same update operation.
 
         2 arguments required for a update operation:
             - `state`: The current state of the component, represented as a
@@ -395,7 +393,7 @@ class Component:
             - `props`: The properties of the current flow, which could contain
             properties that were added to the `props` dictionary
             in the serve op before this update op. Props are short-lived and
-            die after the dataflow's update op finishes.
+            die after the flow's update op finishes.
 
         Components can have multiple update ops, and the same key can also have
         multiple update ops. Update functions should return a dictionary
@@ -440,7 +438,7 @@ class Component:
 
         Args:
             keys (Union[str, List[str]]): String or list of strings that
-                represent the input keyword(s) for the update dataflow.
+                represent the input keyword(s) for the update flow.
 
         Returns:
             Callable: Decorated update function.
@@ -538,7 +536,7 @@ class Component:
                 but has higher startup overhead. Defaults to "thread".
             disable_update_task (bool, optional):
                 Whether or not to disable the component instance update ops.
-                Useful for printing out state values without running dataflows.
+                Useful for printing out state values without running flows.
                 Defaults to False.
             redis_socket_timeout (int, optional):
                 Timeout for redis socket connections (seconds). Defaults to 60.
@@ -546,7 +544,7 @@ class Component:
             config_path (str, optional):
                 Path to config file of env vars. Defaults to ".motionrc.yml".
         Returns:
-            ComponentInstance: Component instance to run dataflows with.
+            ComponentInstance: Component instance to run flows with.
         """
         if not instance_id:
             instance_id = random_passphrase()

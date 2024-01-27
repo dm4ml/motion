@@ -1,5 +1,5 @@
 """
-This file is used to test functionality of running a dataflow for many keys.
+This file is used to test functionality of running a flow for many keys.
 """
 from motion import Component
 

@@ -54,7 +54,7 @@ def test_endpoint(client):
         "/Counter",
         json={
             "instance_id": instance_id,
-            "dataflow_key": "sum",
+            "flow_key": "sum",
             "is_async": False,
             "props": {"values": [1, 2, 3]},
         },

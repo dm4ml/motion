@@ -394,7 +394,7 @@ class UpdateEventGroup:
         self.events[udf_name] = event
 
     def wait(self) -> None:
-        """Waits for all update operations for this dataflow key
+        """Waits for all update operations for this flow key
         to finish.
 
         Example usage:

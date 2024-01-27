@@ -20,14 +20,14 @@ class RunRequest(BaseModel):
 
     Attributes:
         instance_id (str): The unique identifier for the component instance.
-        dataflow_key (str): A key representing the specific dataflow or
+        flow_key (str): A key representing the specific flow or
             operation to be run on the component.
         is_async (bool): Flag to indicate if the operation should be performed
             asynchronously. Use this if you would call the component with
             `component.arun` instead of `component.run` (i.e., the operation is
             an async function). Default is False.
         props (Dict[str, Any]): A dictionary of properties specific to the
-            component's dataflow that you want to run.
+            component's flow that you want to run.
         run_kwargs (Dict[str, Any]): Additional keyword arguments to pass to
             the run method of the component.
         creation_kwargs (Dict[str, Any]): Keyword arguments to pass for
@@ -35,7 +35,7 @@ class RunRequest(BaseModel):
     """
 
     instance_id: str
-    dataflow_key: str
+    flow_key: str
     is_async: bool = False
     props: Dict[str, Any]
     run_kwargs: Dict[str, Any] = {}  # kwargs to pass to the run method
@@ -165,7 +165,7 @@ class Application:
     def _generate_routes(self) -> None:
         """
         Generates API routes for each component in the application. It sets up
-        endpoints for component dataflows and state management.
+        endpoints for component flows and state management.
         """
         # Create an endpoint for logging into an instance id
         self.app.post("/auth")(self.create_instance_id_endpoint())
@@ -304,16 +304,16 @@ class Application:
 
     def create_component_endpoint(self, component: Component) -> Callable:
         """
-        Creates an endpoint for running dataflows on a given component. This is
+        Creates an endpoint for running flows on a given component. This is
         called automatically when an application is created.
 
         Args:
             component (Component): The component instance for which to create
-                the dataflow endpoint.
+                the flow endpoint.
 
         Returns:
             Callable: An asynchronous function that serves as the endpoint for
-                running component dataflows.
+                running component flows.
         """
 
         async def endpoint(
@@ -330,7 +330,7 @@ class Application:
                     status_code=400, detail="Instance ID does not match token."
                 )
 
-            dataflow_key = request.dataflow_key
+            flow_key = request.flow_key
             is_async = request.is_async
             props = request.props
             run_kwargs = request.run_kwargs
@@ -344,19 +344,19 @@ class Application:
                 # Run the relevant action
                 if is_async:
                     result = await component_instance.arun(
-                        dataflow_key=dataflow_key, props=props, **run_kwargs
+                        flow_key=flow_key, props=props, **run_kwargs
                     )
 
                 else:
                     result = component_instance.run(
-                        dataflow_key=dataflow_key, props=props, **run_kwargs
+                        flow_key=flow_key, props=props, **run_kwargs
                     )
 
                 # Add flush update task to background
                 if run_kwargs.get("flush_update", False):
                     background_tasks.add_task(
                         component_instance.flush_update,
-                        **{"dataflow_key": dataflow_key},
+                        **{"flow_key": flow_key},
                     )
 
                 background_tasks.add_task(component_instance.shutdown)
