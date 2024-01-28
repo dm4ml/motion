@@ -431,10 +431,10 @@ class Executor:
                     # If the func has a expire_after attribute, expire_at
                     # = current time + expire_after
                     expire_at = (
-                        self._redis_con.time()[0] + func._expire_after
-                        if func._expire_policy == ExpirePolicy.SECONDS
+                        self._redis_con.time()[0] + func._expire_after  # type: ignore
+                        if func._expire_policy == ExpirePolicy.SECONDS  # type: ignore
                         else None
-                    )
+                    )  # type: ignore
 
                     # Add to update queue
                     self._redis_con.rpush(
@@ -450,21 +450,21 @@ class Executor:
 
                     # If the func has a expire_after attribute, delete
                     # old items in a queue
-                    if func._expire_after is not None:
-                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:
+                    if func._expire_after is not None:  # type: ignore
+                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
                             # Get the length of the queue
                             queue_length = self._redis_con.llen(queue_identifier)
                             # If the queue length is greater than the
                             # expire_after attribute, delete the oldest
                             # (queue_length - expire_after) items
-                            if queue_length > func._expire_after:
+                            if queue_length > func._expire_after:  # type: ignore
                                 self._redis_con.ltrim(
                                     queue_identifier,
-                                    queue_length - func._expire_after,
+                                    queue_length - func._expire_after,  # type: ignore
                                     -1,
                                 )
 
-                        elif func._expire_policy == ExpirePolicy.SECONDS:
+                        elif func._expire_policy == ExpirePolicy.SECONDS:  # type: ignore # noqa: E501
                             # Need to delete items that are older than
                             # expire_after seconds
                             # Can just do this in the update task
@@ -534,8 +534,8 @@ class Executor:
                     # If the func has a expire_after attribute, expire_at
                     # = current time + expire_after
                     expire_at = (
-                        self._redis_con.time()[0] + func._expire_after
-                        if func._expire_policy == ExpirePolicy.SECONDS
+                        self._redis_con.time()[0] + func._expire_after  # type: ignore
+                        if func._expire_policy == ExpirePolicy.SECONDS  # type: ignore
                         else None
                     )
 
@@ -553,21 +553,21 @@ class Executor:
 
                     # If the func has a expire_after attribute, delete
                     # old items in a queue
-                    if func._expire_after is not None:
-                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:
+                    if func._expire_after is not None:  # type: ignore
+                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
                             # Get the length of the queue
                             queue_length = self._redis_con.llen(queue_identifier)
                             # If the queue length is greater than the
                             # expire_after attribute, delete the oldest
                             # (queue_length - expire_after) items
-                            if queue_length > func._expire_after:
+                            if queue_length > func._expire_after:  # type: ignore
                                 self._redis_con.ltrim(
                                     queue_identifier,
-                                    queue_length - func._expire_after,
+                                    queue_length - func._expire_after,  # type: ignore
                                     -1,
                                 )
 
-                        elif func._expire_policy == ExpirePolicy.SECONDS:
+                        elif func._expire_policy == ExpirePolicy.SECONDS:  # type: ignore # noqa: E501
                             # Need to delete items that are older than
                             # expire_after seconds
                             # Can just do this in the update task

@@ -3,6 +3,7 @@ This file contains expiration policies for update queues.
 """
 
 from enum import Enum
+from typing import Optional
 
 
 class ExpirePolicy(Enum):
@@ -11,7 +12,7 @@ class ExpirePolicy(Enum):
     SECONDS = 2
 
 
-def validate_policy(policy: ExpirePolicy, expire_after: int) -> None:
+def validate_policy(policy: ExpirePolicy, expire_after: Optional[int]) -> None:
     if policy == ExpirePolicy.NONE:
         if expire_after is not None:
             raise ValueError("expire_after must be None for policy NONE")
