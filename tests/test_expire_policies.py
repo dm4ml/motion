@@ -30,7 +30,7 @@ def update_sum_default(state, props):
 
 @C.update("sum", expire_after=1, expire_policy=ExpirePolicy.SECONDS)
 def update_sum_seconds(state, props):
-    time.sleep(0.02)
+    time.sleep(0.05)
     return {"seconds_value": state["seconds_value"] + props["value"]}
 
 
@@ -48,7 +48,7 @@ async def aupdate_sum_default(state, props):
 
 @C.update("asum", expire_after=1, expire_policy=ExpirePolicy.SECONDS)
 async def aupdate_sum_seconds(state, props):
-    await asyncio.sleep(0.02)
+    await asyncio.sleep(0.05)
     return {"seconds_value": state["seconds_value"] + props["value"]}
 
 
