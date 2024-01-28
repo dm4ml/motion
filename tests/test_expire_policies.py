@@ -19,7 +19,7 @@ def setup():
 @C.update("sum", expire_after=10, expire_policy=ExpirePolicy.NUM_NEW_UPDATES)
 def update_sum_num_new(state, props):
     # Sleep for a bit so there's a real bottleneck in the update queue
-    time.sleep(0.01)
+    time.sleep(0.02)
     return {"num_new_update_value": state["num_new_update_value"] + props["value"]}
 
 
