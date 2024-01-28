@@ -334,6 +334,10 @@ class Executor:
 
         self.monitor_thread.join()
 
+        # Delete self.running
+        self.running = None
+        del self.running
+
     def _updateState(
         self,
         new_state: Dict[str, Any],
