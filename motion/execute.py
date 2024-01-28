@@ -706,19 +706,19 @@ class Executor:
         if not is_generated:
             yield serve_result
 
-    def flush_update(self, dataflow_key: str) -> None:
+    def flush_update(self, flow_key: str) -> None:
         # Check if key has update ops
-        if dataflow_key not in self._update_routes.keys():
+        if flow_key not in self._update_routes.keys():
             return
 
         # Push a noop into the relevant queues
-        update_events = UpdateEventGroup(dataflow_key)
-        for update_udf_name in self._update_routes[dataflow_key].keys():
+        update_events = UpdateEventGroup(flow_key)
+        for update_udf_name in self._update_routes[flow_key].keys():
             queue_identifier: str = self._get_queue_identifier(
-                dataflow_key, update_udf_name
+                flow_key, update_udf_name
             )
             channel_identifier: str = self._get_channel_identifier(
-                dataflow_key, update_udf_name
+                flow_key, update_udf_name
             )
 
             identifier = "NOOP_" + str(uuid4())

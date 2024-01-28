@@ -255,8 +255,8 @@ class ComponentInstance:
         self._executor._loadState()
         return self._executor._state.get(key, default_value)
 
-    def flush_update(self, dataflow_key: str) -> None:
-        """Flushes the update queue corresponding to the dataflow
+    def flush_update(self, flow_key: str) -> None:
+        """Flushes the update queue corresponding to the flow
         key, if it exists, and updates the instance state.
         Warning: this is a blocking operation and could take
         a while if your update op takes a long time!
@@ -293,7 +293,7 @@ class ComponentInstance:
         ```
 
         Args:
-            dataflow_key (str): Key of the dataflow.
+            flow_key (str): Key of the flow.
 
         Raises:
             RuntimeError:
@@ -302,17 +302,17 @@ class ComponentInstance:
         if self.disable_update_task:
             raise RuntimeError("Cannot run a disable_update_task component instance.")
 
-        self._executor.flush_update(dataflow_key)
+        self._executor.flush_update(flow_key)
 
     def gen(
         self,
-        dataflow_key: str,
+        flow_key: str,
         props: Dict[str, Any] = {},
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
     ) -> Generator[Any, None, None]:
-        """Runs the dataflow (serve and update ops) for the specified key and
+        """Runs the flow (serve and update ops) for the specified key and
         yields the results as they come in, as a generator. Use this if your
         serve op is a generator function. If your serve op just returns a
         value, use run instead. You should use agen as opposed to gen if your
@@ -342,9 +342,9 @@ class ComponentInstance:
         ```
 
         Args:
-            dataflow_key (str): Key of the dataflow to run.
+            flow_key (str): Key of the flow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
-                dataflow ops, in addition to the state.
+                flow ops, in addition to the state.
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
@@ -359,7 +359,7 @@ class ComponentInstance:
                 state after the update op completes. Defaults to False.
 
         Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
+            ValueError: If more than one flow key-value pair is passed.
                 If flush_update is called and the component instance update
                 processes are disabled.
 
@@ -367,7 +367,7 @@ class ComponentInstance:
             Awaitable[Any]: Awaitable Result of the serve call.
         """
         for elem in self._executor.run(
-            key=dataflow_key,
+            key=flow_key,
             props=props,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
@@ -378,15 +378,15 @@ class ComponentInstance:
     def run(
         self,
         # *,
-        dataflow_key: str,
+        flow_key: str,
         props: Dict[str, Any] = {},
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
     ) -> Any:
-        """Runs the dataflow (serve and update ops) for the keyword argument
+        """Runs the flow (serve and update ops) for the keyword argument
         passed in. If the key is not found to have any ops, an error
-        is raised. Only one dataflow key should be passed in.
+        is raised. Only one flow key should be passed in.
 
         Example Usage:
         ```python
@@ -419,15 +419,15 @@ class ComponentInstance:
 
         # 1. Waits for the update op to finish, then updates the state
         # 2. Returns 2, result state["value"] = 4
-        # 3. Force refreshes the state before running the dataflow, and
+        # 3. Force refreshes the state before running the flow, and
         #    reruns the serve op even though the result might be cached.
         ```
 
 
         Args:
-            dataflow_key (str): Key of the dataflow to run.
+            flow_key (str): Key of the flow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
-                dataflow ops, in addition to the state.
+                flow ops, in addition to the state.
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
@@ -442,7 +442,7 @@ class ComponentInstance:
                 state after the update op completes. Defaults to False.
 
          Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
+            ValueError: If more than one flow key-value pair is passed.
             RuntimeError:
                 If flush_update is called and the component instance update
                 processes are disabled.
@@ -455,7 +455,7 @@ class ComponentInstance:
 
         serve_result = []
         for elem in self.gen(
-            dataflow_key, props, ignore_cache, force_refresh, flush_update
+            flow_key, props, ignore_cache, force_refresh, flush_update
         ):
             serve_result.append(elem)
 
@@ -463,13 +463,13 @@ class ComponentInstance:
 
     async def agen(
         self,
-        dataflow_key: str,
+        flow_key: str,
         props: Dict[str, Any] = {},
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
     ) -> AsyncGenerator[Any, None]:
-        """Async version of gen. Runs the dataflow (serve and update ops) for
+        """Async version of gen. Runs the flow (serve and update ops) for
         the specified key and yields the results as they come in,
         as a generator. Use this if your serve op is an async
         generator function. You should use agen as opposed to gen if your
@@ -498,9 +498,9 @@ class ComponentInstance:
         ```
 
         Args:
-            dataflow_key (str): Key of the dataflow to run.
+            flow_key (str): Key of the flow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
-                dataflow ops, in addition to the state.
+                flow ops, in addition to the state.
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
@@ -515,7 +515,7 @@ class ComponentInstance:
                 state after the update op completes. Defaults to False.
 
         Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
+            ValueError: If more than one flow key-value pair is passed.
                 If flush_update is called and the component instance update
                 processes are disabled.
 
@@ -523,7 +523,7 @@ class ComponentInstance:
             Awaitable[Any]: Awaitable Result of the serve call.
         """
         async for elem in self._executor.arun(
-            key=dataflow_key,
+            key=flow_key,
             props=props,
             ignore_cache=ignore_cache,
             force_refresh=force_refresh,
@@ -534,13 +534,13 @@ class ComponentInstance:
     async def arun(
         self,
         # *,
-        dataflow_key: str,
+        flow_key: str,
         props: Dict[str, Any] = {},
         ignore_cache: bool = False,
         force_refresh: bool = False,
         flush_update: bool = False,
     ) -> Awaitable[Any]:
-        """Async version of run. Runs the dataflow (serve and update ops) for
+        """Async version of run. Runs the flow (serve and update ops) for
         the specified key. You should use arun if either the serve or update op
         is an async function.
 
@@ -565,9 +565,9 @@ class ComponentInstance:
         ```
 
         Args:
-            dataflow_key (str): Key of the dataflow to run.
+            flow_key (str): Key of the flow to run.
             props (Dict[str, Any]): Keyword arguments to pass into the
-                dataflow ops, in addition to the state.
+                flow ops, in addition to the state.
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
@@ -582,7 +582,7 @@ class ComponentInstance:
                 state after the update op completes. Defaults to False.
 
         Raises:
-            ValueError: If more than one dataflow key-value pair is passed.
+            ValueError: If more than one flow key-value pair is passed.
                 If flush_update is called and the component instance update
                 processes are disabled.
 
@@ -594,7 +594,7 @@ class ComponentInstance:
         results = []
 
         async for elem in self.agen(
-            dataflow_key, props, ignore_cache, force_refresh, flush_update
+            flow_key, props, ignore_cache, force_refresh, flush_update
         ):
             results.append(elem)
 

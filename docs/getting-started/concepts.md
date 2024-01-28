@@ -1,33 +1,33 @@
 # Motion Concepts
 
-Motion applications consist of _components_ that hold state and _operations_ that read and update state. Components and operations are connected by _dataflows_.
+Motion applications consist of _components_ that hold state and _operations_ that read and update state. Components and operations are connected by _flows_.
 
 ## The Component Lifecycle
 
 When a component instance is first created, an `init` function initializes the component's state. The state is a dictionary of key-value pairs.
 
-Components can have multiple dataflows that read and update the state. A dataflow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
+Components can have multiple flows that read and update the state. A flow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
 
 - **serve**: a function that takes in (1) the current state dictionary, and (2) a user-defined ` props` dictionary (passed in at runtime), then returns a result back to the user.
 
-- **update**: a function that runs in the background and takes in (1) the current state dictionary, and (2) the user-defined `props` dictionary, including the result of the serve op (accessed via `props.serve_result`). The `update` operation returns any updates to the state, which can be used in future operations. The `props` dictionary dies after the update operation for a dataflow.
+- **update**: a function that runs in the background and takes in (1) the current state dictionary, and (2) the user-defined `props` dictionary, including the result of the serve op (accessed via `props.serve_result`). The `update` operation returns any updates to the state, which can be used in future operations. The `props` dictionary dies after the update operation for a flow.
 
 Serve operations do not modify the state, while update operations do.
 
 ## State vs Props
 
-The difference between state and props can be a little confusing, since both are dictionaries. The main difference is that state is persistent, while props are ephemeral/limited to a dataflow.
+The difference between state and props can be a little confusing, since both are dictionaries. The main difference is that state is persistent, while props are ephemeral/limited to a flow.
 
-State is initialized when the component is created and persists between successive dataflows. Since Motion is backed by Redis, state also persists when the component is restarted. State is available to all operations for all dataflows, but can only be changed by update operations.
+State is initialized when the component is created and persists between successive flows. Since Motion is backed by Redis, state also persists when the component is restarted. State is available to all operations for all flows, but can only be changed by update operations.
 
-On the other hand, props are passed in at runtime and are only available to the serve and update operations for a _single_ dataflow. Props can be modified in serve operation, so they can be used to pass data between serve and update operations. Of note is `props.serve_result`, which is the result of the serve operation for a dataflow (and thus only accessible in update operations). This is useful for update operations that need to use the result of the serve operation. Think of props like a kwargs dictionary that becomes irrelevant after the particular dataflow is finished.
+On the other hand, props are passed in at runtime and are only available to the serve and update operations for a _single_ flow. Props can be modified in serve operation, so they can be used to pass data between serve and update operations. Of note is `props.serve_result`, which is the result of the serve operation for a flow (and thus only accessible in update operations). This is useful for update operations that need to use the result of the serve operation. Think of props like a kwargs dictionary that becomes irrelevant after the particular flow is finished.
 
 ### Things to Keep in Mind
 
-- Components can have many dataflows, each with their own key, serve operation, and update operation(s).
+- Components can have many flows, each with their own key, serve operation, and update operation(s).
 - Components can only have one serve operation per key.
 - The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
-- `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same dataflow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
+- `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same flow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
 
 ## Example Component
 
@@ -67,14 +67,14 @@ def update(state, props):  # (2)!
 1. This function is executed on the main thread, and the result is immediately returned to the user.
 2. This function is executed in the background and merges the updates back to the state when ready.
 
-To run the component, we can create an instance of our component, `c`, and call `c.run` on the dataflow's key and value:
+To run the component, we can create an instance of our component, `c`, and call `c.run` on the flow's key and value:
 
 ```python title="main.py" linenums="29"
 if __name__ == "__main__":
     import time
     c = ZScoreComponent() # Create instance of component
 
-    # Observe 10 values of the dataflow's key
+    # Observe 10 values of the flow's key
     for i in range(9):
         print(c.run("number", props={"value": i}))  # (1)!
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
 ```
 
 1. The first few runs might return None, as the mean and std are not yet initialized.
-2. This will block until the resulting update operation has finished running. update ops run in the order that dataflows were executed (i.e., the update op for number 8 will run before the update op for number 9).
+2. This will block until the resulting update operation has finished running. update ops run in the order that flows were executed (i.e., the update op for number 8 will run before the update op for number 9).
 3. This uses the updated state dictionary from the previous run operation, since `flush_update` also updates the state.
 4. This uses the cached result for 10. To ignore the cached result and rerun the serve op with a (potentially old) state, we should call `c.run("number", props={"value": 10}, ignore_cache=True)`. To make sure we have the latest state, we can call `c.run("number", props={"value": 10}, force_refresh=True)`.
 
@@ -122,7 +122,7 @@ Note that the `update` operation is running in a separate process, whenever new 
 
 ## Component Parameters
 
-You can inject static component parameters into your dataflow operations by passing them to the component constructor:
+You can inject static component parameters into your flow operations by passing them to the component constructor:
 
 ```python
 from motion import Component

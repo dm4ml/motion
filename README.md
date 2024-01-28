@@ -12,7 +12,7 @@ Motion is a **Python framework** for incrementally maintaining prompts and other
 
 ## An Example Motion Component
 
-It's hard to understand Motion without an example. In Motion, you define components, which are stateful objects that can be updated incrementally with new data. A component has an `init_state` method that initializes the state of the component, and any number of **dataflows**, where each dataflow consists of a `serve` operation (state read-only) and an `update` operation (can read and write state). These operations are arbitrary user-defined Python functions.
+It's hard to understand Motion without an example. In Motion, you define components, which are stateful objects that can be updated incrementally with new data. A component has an `init_state` method that initializes the state of the component, and any number of **flows**, where each flow consists of a `serve` operation (state read-only) and an `update` operation (can read and write state). These operations are arbitrary user-defined Python functions.
 
 Here's an example of a component that recommends books to buy, personalized to each user:
 
@@ -49,20 +49,20 @@ async def update_genres(state, props):
 
 In the above example, the `serve` operation recommends a book to the user based on a specified genre, and the `update` operation updates the context to be used in future recommendations (i.e., "rec" serve operations). `serve` operations execute first and cannot modify state, while `update` operations can modify state and execute after `serve` operations in the background.
 
-You can run a dataflow by calling `run` or `arun` (async version of `run`) on the component:
+You can run a flow by calling `run` or `arun` (async version of `run`) on the component:
 
 ```python
 # Initialize component instance
 book_recommender = BookRecommender("some_user_id", init_state_params={"user_demographics": "some_user_demographics", "liked_books": ["book1", "book2"]})
 
-# Run the "rec" dataflow. Will return the result of the "rec" serve
+# Run the "rec" flow. Will return the result of the "rec" serve
 # operation, and queue the "rec" update operation to run in the background.
 rec = await book_recommender.arun("rec", {"specified_genre": "fantasy"})
 ```
 
-After `rec` is returned, the `update` operation will run in the background and update the state of the component (for as long as the Python process is running). The state of the component instance is always committed to the key-value store after a dataflow is fully run, and is loaded from the key-value store when the component instance is initialized again.
+After `rec` is returned, the `update` operation will run in the background and update the state of the component (for as long as the Python process is running). The state of the component instance is always committed to the key-value store after a flow is fully run, and is loaded from the key-value store when the component instance is initialized again.
 
-Multiple clients can run dataflows on the same component instance, and the state of the component will be updated accordingly. Serve operations are run in parallel, while update operations are run sequentially in the order they are called. Motion maintains consistency by locking the state of the component while an update operation is running. Serve operations can run with old state while an update operation is running, so they are not blocked.
+Multiple clients can run flows on the same component instance, and the state of the component will be updated accordingly. Serve operations are run in parallel, while update operations are run sequentially in the order they are called. Motion maintains consistency by locking the state of the component while an update operation is running. Serve operations can run with old state while an update operation is running, so they are not blocked.
 
 ## Should I use Motion?
 

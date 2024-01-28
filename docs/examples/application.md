@@ -66,7 +66,7 @@ In the script, we include a statement to print the secret key (which is useful i
 
 To run the application, we can run `python app.py` in the terminal. We can also run `uvicorn app:fastapi_app --reload` to run the application with hot reloading.
 
-One of the powerful features of FastAPI is its automatic generation of interactive API documentation. Once your server is running, you can access the API documentation by visiting `http://localhost:8000/docs` in your web browser. This documentation provides a detailed overview of all the available routes (i.e., the Counter and Calculator component dataflows) and allows you to directly test the API endpoints from the browser.
+One of the powerful features of FastAPI is its automatic generation of interactive API documentation. Once your server is running, you can access the API documentation by visiting `http://localhost:8000/docs` in your web browser. This documentation provides a detailed overview of all the available routes (i.e., the Counter and Calculator component flows) and allows you to directly test the API endpoints from the browser.
 
 ## Step 3: Interact with the Application
 
@@ -90,7 +90,7 @@ const queryServer = async () => {
       "http://localhost:8000/Counter",
       {
         instance_id: "ts_testid",
-        dataflow_key: "increment",
+        flow_key: "increment",
         props: {},
       },
       {
@@ -104,7 +104,7 @@ const queryServer = async () => {
       "http://localhost:8000/Calculator",
       {
         instance_id: "ts_testid",
-        dataflow_key: "add",
+        flow_key: "add",
         props: { a: 20, b: 10 },
       },
       {
