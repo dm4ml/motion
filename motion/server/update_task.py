@@ -56,7 +56,7 @@ class BaseUpdateTask:
             queue_name = ""
             try:
                 # for _ in range(self.batch_size):
-                full_item = redis_con.brpop(self.queue_identifiers, timeout=0.1)
+                full_item = redis_con.brpop(self.queue_identifiers, timeout=0.01)
                 if full_item is None:
                     if not self.running.value:
                         break  # no more items in the list
@@ -93,6 +93,21 @@ class BaseUpdateTask:
                     ),
                 )
                 continue
+
+            # Check if item.get("expire_at") has passed
+            expire_at = item.get("expire_at")
+            if expire_at is not None:
+                if expire_at < redis_con.time()[0]:
+                    redis_con.publish(
+                        self.channel_identifiers[queue_name],
+                        str(
+                            {
+                                "identifier": item["identifier"],
+                                "exception": "Expired",
+                            }
+                        ),
+                    )
+                    continue
 
             # Run update op
             try:

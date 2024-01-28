@@ -24,6 +24,7 @@ import psutil
 import redis
 
 from motion.dicts import Properties, State
+from motion.expire_policy import ExpirePolicy
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
@@ -419,11 +420,21 @@ class Executor:
                             f"Update process is disabled. Cannot run update for {key}."
                         )
 
+                    func = self._update_routes[key][update_udf_name].udf
+
                     queue_identifier: str = self._get_queue_identifier(
                         key, update_udf_name
                     )
 
                     identifier = str(uuid4())
+
+                    # If the func has a expire_after attribute, expire_at
+                    # = current time + expire_after
+                    expire_at = (
+                        self._redis_con.time()[0] + func._expire_after
+                        if func._expire_policy == ExpirePolicy.SECONDS
+                        else None
+                    )
 
                     # Add to update queue
                     self._redis_con.rpush(
@@ -432,9 +443,32 @@ class Executor:
                             {
                                 "props": props,
                                 "identifier": identifier,
+                                "expire_at": expire_at,
                             }
                         ),
                     )
+
+                    # If the func has a expire_after attribute, delete
+                    # old items in a queue
+                    if func._expire_after is not None:
+                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:
+                            # Get the length of the queue
+                            queue_length = self._redis_con.llen(queue_identifier)
+                            # If the queue length is greater than the
+                            # expire_after attribute, delete the oldest
+                            # (queue_length - expire_after) items
+                            if queue_length > func._expire_after:
+                                self._redis_con.ltrim(
+                                    queue_identifier,
+                                    queue_length - func._expire_after,
+                                    -1,
+                                )
+
+                        elif func._expire_policy == ExpirePolicy.SECONDS:
+                            # Need to delete items that are older than
+                            # expire_after seconds
+                            # Can just do this in the update task
+                            pass
 
         return route_hit
 
@@ -490,11 +524,20 @@ class Executor:
                             f"Update process is disabled. Cannot run update for {key}."
                         )
 
+                    func = self._update_routes[key][update_udf_name].udf
                     queue_identifier: str = self._get_queue_identifier(
                         key, update_udf_name
                     )
 
                     identifier = str(uuid4())
+
+                    # If the func has a expire_after attribute, expire_at
+                    # = current time + expire_after
+                    expire_at = (
+                        self._redis_con.time()[0] + func._expire_after
+                        if func._expire_policy == ExpirePolicy.SECONDS
+                        else None
+                    )
 
                     # Add to update queue
                     self._redis_con.rpush(
@@ -503,9 +546,32 @@ class Executor:
                             {
                                 "props": props,
                                 "identifier": identifier,
+                                "expire_at": expire_at,
                             }
                         ),
                     )
+
+                    # If the func has a expire_after attribute, delete
+                    # old items in a queue
+                    if func._expire_after is not None:
+                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:
+                            # Get the length of the queue
+                            queue_length = self._redis_con.llen(queue_identifier)
+                            # If the queue length is greater than the
+                            # expire_after attribute, delete the oldest
+                            # (queue_length - expire_after) items
+                            if queue_length > func._expire_after:
+                                self._redis_con.ltrim(
+                                    queue_identifier,
+                                    queue_length - func._expire_after,
+                                    -1,
+                                )
+
+                        elif func._expire_policy == ExpirePolicy.SECONDS:
+                            # Need to delete items that are older than
+                            # expire_after seconds
+                            # Can just do this in the update task
+                            pass
 
         return route_hit
 
