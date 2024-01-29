@@ -174,7 +174,6 @@ class MTable:
                 identifier = self._prefix + "/" + identifier
 
             identifier = identifier + ".parquet"
-            print(identifier)
             pq.write_table(self.data, identifier, filesystem=self.filesystem)
             return {
                 "identifier": identifier,

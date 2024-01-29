@@ -24,6 +24,7 @@ import psutil
 import redis
 
 from motion.dicts import Properties, State
+from motion.discard_policy import DiscardPolicy
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
@@ -419,11 +420,21 @@ class Executor:
                             f"Update process is disabled. Cannot run update for {key}."
                         )
 
+                    func = self._update_routes[key][update_udf_name].udf
+
                     queue_identifier: str = self._get_queue_identifier(
                         key, update_udf_name
                     )
 
                     identifier = str(uuid4())
+
+                    # If the func has a discard_after attribute, expire_at
+                    # = current time + discard_after
+                    expire_at = (
+                        self._redis_con.time()[0] + func._discard_after  # type: ignore
+                        if func._discard_policy == DiscardPolicy.SECONDS  # type: ignore
+                        else None
+                    )  # type: ignore
 
                     # Add to update queue
                     self._redis_con.rpush(
@@ -432,9 +443,32 @@ class Executor:
                             {
                                 "props": props,
                                 "identifier": identifier,
+                                "expire_at": expire_at,
                             }
                         ),
                     )
+
+                    # If the func has a discard_after attribute, delete
+                    # old items in a queue
+                    if func._discard_after is not None:  # type: ignore
+                        if func._discard_policy == DiscardPolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
+                            # Get the length of the queue
+                            queue_length = self._redis_con.llen(queue_identifier)
+                            # If the queue length is greater than the
+                            # discard_after attribute, delete the oldest
+                            # (queue_length - discard_after) items
+                            if queue_length > func._discard_after:  # type: ignore
+                                self._redis_con.ltrim(
+                                    queue_identifier,
+                                    queue_length - func._discard_after,  # type: ignore
+                                    -1,
+                                )
+
+                        elif func._discard_policy == DiscardPolicy.SECONDS:  # type: ignore # noqa: E501
+                            # Need to delete items that are older than
+                            # discard_after seconds
+                            # Can just do this in the update task
+                            pass
 
         return route_hit
 
@@ -490,11 +524,20 @@ class Executor:
                             f"Update process is disabled. Cannot run update for {key}."
                         )
 
+                    func = self._update_routes[key][update_udf_name].udf
                     queue_identifier: str = self._get_queue_identifier(
                         key, update_udf_name
                     )
 
                     identifier = str(uuid4())
+
+                    # If the func has a discard_after attribute, expire_at
+                    # = current time + discard_after
+                    expire_at = (
+                        self._redis_con.time()[0] + func._discard_after  # type: ignore
+                        if func._discard_policy == DiscardPolicy.SECONDS  # type: ignore
+                        else None
+                    )
 
                     # Add to update queue
                     self._redis_con.rpush(
@@ -503,9 +546,32 @@ class Executor:
                             {
                                 "props": props,
                                 "identifier": identifier,
+                                "expire_at": expire_at,
                             }
                         ),
                     )
+
+                    # If the func has a discard_after attribute, delete
+                    # old items in a queue
+                    if func._discard_after is not None:  # type: ignore
+                        if func._discard_policy == DiscardPolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
+                            # Get the length of the queue
+                            queue_length = self._redis_con.llen(queue_identifier)
+                            # If the queue length is greater than the
+                            # discard_after attribute, delete the oldest
+                            # (queue_length - discard_after) items
+                            if queue_length > func._discard_after:  # type: ignore
+                                self._redis_con.ltrim(
+                                    queue_identifier,
+                                    queue_length - func._discard_after,  # type: ignore
+                                    -1,
+                                )
+
+                        elif func._discard_policy == DiscardPolicy.SECONDS:  # type: ignore # noqa: E501
+                            # Need to delete items that are older than
+                            # discard_after seconds
+                            # Can just do this in the update task
+                            pass
 
         return route_hit
 

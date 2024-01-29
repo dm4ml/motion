@@ -3,6 +3,7 @@ import os
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from motion.dicts import Params
+from motion.discard_policy import DiscardPolicy, validate_policy
 from motion.instance import ComponentInstance
 from motion.route import Route
 from motion.utils import (
@@ -381,7 +382,12 @@ class Component:
 
         return decorator
 
-    def update(self, keys: Union[str, List[str]]) -> Any:
+    def update(
+        self,
+        keys: Union[str, List[str]],
+        discard_policy: DiscardPolicy = DiscardPolicy.NONE,
+        discard_after: Optional[int] = None,
+    ) -> Any:
         """Decorator for any update operations for flows through the
         component. Takes in a string or list of strings that represents the
         flow key. If the decorator is called with a list of strings, each
@@ -398,6 +404,9 @@ class Component:
         Components can have multiple update ops, and the same key can also have
         multiple update ops. Update functions should return a dictionary
         of state updates to be merged with the current state.
+
+        See `DiscardPolicy` for more info on how to expire update operations if
+        you expect there to be backpressure for an update operation.
 
         Example Usage:
         ```python
@@ -439,6 +448,11 @@ class Component:
         Args:
             keys (Union[str, List[str]]): String or list of strings that
                 represent the input keyword(s) for the update flow.
+            discard_policy (DiscardPolicy, optional): Policy for expiring
+                update operations. Defaults to DiscardPolicy.NONE.
+            discard_after (Optional[int], optional): Number of updates
+                or seconds after which to expire the update operation.
+                Defaults to None.
 
         Returns:
             Callable: Decorated update function.
@@ -460,9 +474,12 @@ class Component:
                     + "`state` and `props`."
                 )
 
-            # func._input_key = key  # type: ignore
-            # func._batch_size = batch_size  # type: ignore
+            # Raises error if invalid expire policy
+            validate_policy(discard_policy, discard_after)
+
             func._op = "update"  # type: ignore
+            func._discard_policy = discard_policy  # type: ignore
+            func._discard_after = discard_after  # type: ignore
 
             for key in keys:
                 self.add_route(key, func._op, func)  # type: ignore
