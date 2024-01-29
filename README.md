@@ -70,9 +70,9 @@ async def update_genres(state, props):
 
 @BookRecommender.update("liked_book")
 async def update_liked_books(state, props):
-    all_books_positive_signal = state["liked_books"] + [props["liked_book"]]
-    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_books_positive_signal}")
-    return {"liked_books": props["liked_books"], "genres": new_genres}
+    all_liked_books = state["liked_books"] + [props["liked_book"]]
+    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_liked_books}")
+    return {"liked_books": all_liked_books, "genres": new_genres}
 ```
 
 In the above example, the `serve` operation recommends a book to the user based on a specified genre, and the `update` operation updates the context to be used in future recommendations (i.e., "rec" serve operations). `serve` operations execute first and cannot modify state, while `update` operations can modify state and execute after `serve` operations in the background.
