@@ -1,18 +1,33 @@
 # Motion Concepts
 
-Motion applications consist of _components_ that hold state and _operations_ that read and update state. Components and operations are connected by _flows_.
+Motion applications consist of _components_ that hold state and _operations_ that read and update state. Components and operations are connected by _flows_. Think of a component as representing the prompt and LLM pipeline(s) for a particular task, the state as the prompt sub-parts, and flows as the different ways to interact with the state (e.g., assemble the sub-parts into a prompt, update the sub-parts, etc).
 
 ## The Component Lifecycle
 
-When a component instance is first created, an `init` function initializes the component's state. The state is a dictionary of key-value pairs.
+When a component instance is first created, an `init` function initializes the component's state. The state is a dictionary of key-value pairs, representing the initial sub-parts you might want to include in your prompt. The state is persisted in a key-value store (Redis) and is loaded when the component instance is initialized again.
 
-Components can have multiple flows that read and update the state. A flow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
+Components can have multiple flows that read and update the state (i.e., prompt sub-parts). A flow is represented by a string _key_ and consists of two user-defined operations, which run back-to-back:
 
-- **serve**: a function that takes in (1) the current state dictionary, and (2) a user-defined ` props` dictionary (passed in at runtime), then returns a result back to the user.
+- **serve**: a function that takes in (1) a state dictionary that may not reflect all new information yet, and (2) a user-defined ` props` dictionary (passed in at runtime), then returns a result back to the user.
 
-- **update**: a function that runs in the background and takes in (1) the current state dictionary, and (2) the user-defined `props` dictionary, including the result of the serve op (accessed via `props.serve_result`). The `update` operation returns any updates to the state, which can be used in future operations. The `props` dictionary dies after the update operation for a flow.
+- **update**: a function that runs in the background and takes in (1) the current state dictionary, and (2) the user-defined `props` dictionary, including the result of the serve op (accessed via `props.serve_result`). The `update` operation returns any updates to the state, which can be used in future operations. The `props` dictionary dies after the update operation for a flow. We run update operations in the background because they may be expensive and we don't want to block the serves.
 
 Serve operations do not modify the state, while update operations do.
+
+## Concurrency and Consistency in Motion's Execution Engine
+
+Since serve operations do not modify the state, you can run multiple serve operations for the same component instance in parallel (e.g., in different Python processes). However, since update operations modify the state, Motion ensures that only one update operation is running at a time for a given component instance. This is done by maintaining queues of pending update operations and issuing exclusive write locks to update operations. Each component instance has its own lock and has a queue for each of its update operations. While update operations are running, serve operations can still run with low latency using stale state. The update queue is processed in a FIFO manner.
+
+### Backpressure in Processing Update Operations
+
+Motion's execution engine experiences backpressure if a queue of pending update operations grows faster than the rate at which its update operations are completed. For example, if an update operation calls an LLM for a long prompt and takes 10 seconds to complete, and new update operations are being added to the queue every second, the queue will grow by 10 operations every second. While this does not pose problems for serve operations because serve operations can read stale state, it can cause the component instance to fall behind in processing update operations.
+
+Our solution to limit queue growth is to offer a configurable `ExpirePolicy` parameter for each update operation. There are two options for `ExpirePolicy`:
+
+- `ExpirePolicy.SECONDS`: If more than `expire_after` seconds have passed since the update operation _u_ was added to the queue, _u_ is removed from the queue and the state is not updated with _u_'s results.
+- `ExpirePolicy.NUM_NEW_UPDATES`: If more than `expire_after` new update operations have been added to the queue since an update operation _u_ was added, _u_ is removed from the queue and the state is not updated with _u_'s results.
+
+See the [API docs](/motion/api/component/#motion.ExpirePolicy) for how to use `ExpirePolicy`.
 
 ## State vs Props
 
@@ -28,6 +43,7 @@ On the other hand, props are passed in at runtime and are only available to the 
 - Components can only have one serve operation per key.
 - The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
 - `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same flow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
+- `update` operations are processed sequentially in first-in-first-out (FIFO) order. This allows state to be updated incrementally. To handle backpressure, update operations can be configured to expire after a certain amount of time or after a certain number of new update operations have been added to the queue. See the [API docs](/motion/api/component/#motion.ExpirePolicy) for how to use `ExpirePolicy`.
 
 ## Example Component
 

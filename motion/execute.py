@@ -798,7 +798,7 @@ class Executor:
             update_events.add(update_udf_name, update_event)
 
             # Add to update queue
-            self._redis_con.lpush(
+            self._redis_con.rpush(
                 queue_identifier,
                 cloudpickle.dumps(
                     {

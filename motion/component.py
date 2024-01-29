@@ -405,6 +405,9 @@ class Component:
         multiple update ops. Update functions should return a dictionary
         of state updates to be merged with the current state.
 
+        See `ExpirePolicy` for more info on how to expire update operations if
+        you expect there to be backpressure for an update operation.
+
         Example Usage:
         ```python
         from motion import Component
@@ -445,6 +448,11 @@ class Component:
         Args:
             keys (Union[str, List[str]]): String or list of strings that
                 represent the input keyword(s) for the update flow.
+            expire_policy (ExpirePolicy, optional): Policy for expiring
+                update operations. Defaults to ExpirePolicy.NONE.
+            expire_after (Optional[int], optional): Number of updates
+                or seconds after which to expire the update operation.
+                Defaults to None.
 
         Returns:
             Callable: Decorated update function.
