@@ -10,7 +10,7 @@ from motion.utils import (
 from motion.instance import ComponentInstance
 from motion.migrate import StateMigrator
 from motion.copy_utils import copy_db
-from motion.expire_policy import ExpirePolicy
+from motion.discard_policy import DiscardPolicy
 
 __all__ = [
     "Component",
@@ -22,7 +22,7 @@ __all__ = [
     "get_instances",
     "copy_db",
     "RedisParams",
-    "ExpirePolicy",
+    "DiscardPolicy",
 ]
 
 # Conditionally import Application

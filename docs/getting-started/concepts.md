@@ -22,12 +22,12 @@ Since serve operations do not modify the state, you can run multiple serve opera
 
 Motion's execution engine experiences backpressure if a queue of pending update operations grows faster than the rate at which its update operations are completed. For example, if an update operation calls an LLM for a long prompt and takes 10 seconds to complete, and new update operations are being added to the queue every second, the queue will grow by 10 operations every second. While this does not pose problems for serve operations because serve operations can read stale state, it can cause the component instance to fall behind in processing update operations.
 
-Our solution to limit queue growth is to offer a configurable `ExpirePolicy` parameter for each update operation. There are two options for `ExpirePolicy`:
+Our solution to limit queue growth is to offer a configurable `DiscardPolicy` parameter for each update operation. There are two options for `DiscardPolicy`:
 
-- `ExpirePolicy.SECONDS`: If more than `expire_after` seconds have passed since the update operation _u_ was added to the queue, _u_ is removed from the queue and the state is not updated with _u_'s results.
-- `ExpirePolicy.NUM_NEW_UPDATES`: If more than `expire_after` new update operations have been added to the queue since an update operation _u_ was added, _u_ is removed from the queue and the state is not updated with _u_'s results.
+- `DiscardPolicy.SECONDS`: If more than `discard_after` seconds have passed since the update operation _u_ was added to the queue, _u_ is removed from the queue and the state is not updated with _u_'s results.
+- `DiscardPolicy.NUM_NEW_UPDATES`: If more than `discard_after` new update operations have been added to the queue since an update operation _u_ was added, _u_ is removed from the queue and the state is not updated with _u_'s results.
 
-See the [API docs](/motion/api/component/#motion.ExpirePolicy) for how to use `ExpirePolicy`.
+See the [API docs](/motion/api/component/#motion.DiscardPolicy) for how to use `DiscardPolicy`.
 
 ## State vs Props
 
@@ -42,8 +42,8 @@ On the other hand, props are passed in at runtime and are only available to the 
 - Components can have many flows, each with their own key, serve operation, and update operation(s).
 - Components can only have one serve operation per key.
 - The `serve` operation is run on the main thread, while the `update` operation is run in the background. You directly get access to `serve` results, but `update` results are not accessible unless you read values from the state dictionary.
-- `serve` results are cached, with a default expiration time of 24 hours. If you run a component twice on the same flow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
-- `update` operations are processed sequentially in first-in-first-out (FIFO) order. This allows state to be updated incrementally. To handle backpressure, update operations can be configured to expire after a certain amount of time or after a certain number of new update operations have been added to the queue. See the [API docs](/motion/api/component/#motion.ExpirePolicy) for how to use `ExpirePolicy`.
+- `serve` results are cached, with a default discard time of 24 hours. If you run a component twice on the same flow key-value pair, the second run will return the result of the first run. To override the caching behavior, see the [API docs](/motion/api/component-instance/#motion.instance.ComponentInstance.run).
+- `update` operations are processed sequentially in first-in-first-out (FIFO) order. This allows state to be updated incrementally. To handle backpressure, update operations can be configured to expire after a certain amount of time or after a certain number of new update operations have been added to the queue. See the [API docs](/motion/api/component/#motion.DiscardPolicy) for how to use `DiscardPolicy`.
 
 ## Example Component
 

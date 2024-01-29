@@ -1,33 +1,33 @@
 """
-This file contains expiration policies for update queues.
+This file contains discard policies for update queues.
 """
 
 from enum import Enum
 from typing import Optional
 
 
-class ExpirePolicy(Enum):
+class DiscardPolicy(Enum):
     """
-    Defines the policy for expiring items in an update operation's queue.
+    Defines the policy for discarding items in an update operation's queue.
     Each component instance has a queue for each update operation. Items in
     the queue are processed in first-in-first-out (FIFO) order, and items
-    in the queue can expire based on the expiration policy set by the
+    in the queue can delete based on the discard policy set by the
     developer.
 
     Attributes:
-        NONE: Indicates no expiration policy. Items in the queue do not expire.
-        NUM_NEW_UPDATES: Items expire based on the number of new updates. Once
+        NONE: Indicates no discard policy. Items in the queue do not delete.
+        NUM_NEW_UPDATES: Items delete based on the number of new updates. Once
             the number of new updates exceeds a certain threshold, the oldest
             items are removed.
-        SECONDS: Items expire based on time. Items older than a specified
-            number of seconds are removed.
+        SECONDS: Items delete based on time. Items older than a specified
+            number of seconds at the time of processing are removed.
 
-    Use the `expire_after` and `expire_policy` arguments in `Component.update`
-    decorator to set the expiration policy for an update operation.
+    Use the `discard_after` and `discard_policy` arguments in `Component.update`
+    decorator to set the discard policy for an update operation.
 
     Example Usage:
     ```python
-    from motion import Component, ExpirePolicy
+    from motion import Component, DiscardPolicy
 
     C = Component("C")
 
@@ -37,15 +37,15 @@ class ExpirePolicy(Enum):
 
     @C.update(
         "something",
-        expire_after=10,
-        expire_policy=ExpirePolicy.NUM_NEW_UPDATES
+        discard_after=10,
+        discard_policy=DiscardPolicy.NUM_NEW_UPDATES
     )
     def update_num_new(state, props):
         # Do an expensive operation that could take a while
         ...
         return {"some_value": state["some_value"] + props["value"]}
 
-    @C.update("something", expire_after=1, expire_policy=ExpirePolicy.SECONDS)
+    @C.update("something", discard_after=1, discard_policy=DiscardPolicy.SECONDS)
     def update_seconds(state, props):
         # Do an expensive operation that could take a while
         ...
@@ -78,38 +78,38 @@ class ExpirePolicy(Enum):
         c.shutdown()
     ```
 
-    1. The default policy is to not expire any items (ExpirePolicy.NONE), so
+    1. The default policy is to not delete any items (DiscardPolicy.NONE), so
     the value of `default_value` will be the sum of all the values passed to
     `run` (i.e., `sum(range(100))`).
 
-    2. The NUM_NEW_UPDATES policy will expire items in the queue once the
+    2. The NUM_NEW_UPDATES policy will delete items in the queue once the
     number of new updates exceeds a certain threshold. The threshold is set by
-    the `expire_after` argument in the `update` decorator. So the result will
-    be < 4950 because the NUM_NEW_UPDATES policy will have expired some items.
+    the `discard_after` argument in the `update` decorator. So the result will
+    be < 4950 because the NUM_NEW_UPDATES policy will have deleted some items.
 
-    3. This will be < 4950 because the SECONDS policy will have expired some
+    3. This will be < 4950 because the SECONDS policy will have deleted some
     items (only whatever updates could have been processed in the second after
     they were added to the queue).
     """
 
     NONE = 0
-    """ No expiration policy. """
+    """ No discard policy. Does not discard items in the queue. """
 
     NUM_NEW_UPDATES = 1
-    """ Expire items based on the number of new updates. """
+    """ Delete items based on the number of new updates enqueued. """
 
     SECONDS = 2
-    """ Expire items based on time (in seconds). """
+    """ Delete items based on time (in seconds). """
 
 
-def validate_policy(policy: ExpirePolicy, expire_after: Optional[int]) -> None:
-    if policy == ExpirePolicy.NONE:
-        if expire_after is not None:
-            raise ValueError("expire_after must be None for policy NONE")
+def validate_policy(policy: DiscardPolicy, discard_after: Optional[int]) -> None:
+    if policy == DiscardPolicy.NONE:
+        if discard_after is not None:
+            raise ValueError("discard_after must be None for policy NONE")
         return
 
-    if expire_after is None:
-        raise ValueError("expire_after must be set for policy != NONE")
+    if discard_after is None:
+        raise ValueError("discard_after must be set for policy != NONE")
 
-    if expire_after <= 0:
-        raise ValueError("expire_after must be > 0")
+    if discard_after <= 0:
+        raise ValueError("discard_after must be > 0")

@@ -24,7 +24,7 @@ import psutil
 import redis
 
 from motion.dicts import Properties, State
-from motion.expire_policy import ExpirePolicy
+from motion.discard_policy import DiscardPolicy
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
@@ -428,11 +428,11 @@ class Executor:
 
                     identifier = str(uuid4())
 
-                    # If the func has a expire_after attribute, expire_at
-                    # = current time + expire_after
+                    # If the func has a discard_after attribute, expire_at
+                    # = current time + discard_after
                     expire_at = (
-                        self._redis_con.time()[0] + func._expire_after  # type: ignore
-                        if func._expire_policy == ExpirePolicy.SECONDS  # type: ignore
+                        self._redis_con.time()[0] + func._discard_after  # type: ignore
+                        if func._discard_policy == DiscardPolicy.SECONDS  # type: ignore
                         else None
                     )  # type: ignore
 
@@ -448,25 +448,25 @@ class Executor:
                         ),
                     )
 
-                    # If the func has a expire_after attribute, delete
+                    # If the func has a discard_after attribute, delete
                     # old items in a queue
-                    if func._expire_after is not None:  # type: ignore
-                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
+                    if func._discard_after is not None:  # type: ignore
+                        if func._discard_policy == DiscardPolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
                             # Get the length of the queue
                             queue_length = self._redis_con.llen(queue_identifier)
                             # If the queue length is greater than the
-                            # expire_after attribute, delete the oldest
-                            # (queue_length - expire_after) items
-                            if queue_length > func._expire_after:  # type: ignore
+                            # discard_after attribute, delete the oldest
+                            # (queue_length - discard_after) items
+                            if queue_length > func._discard_after:  # type: ignore
                                 self._redis_con.ltrim(
                                     queue_identifier,
-                                    queue_length - func._expire_after,  # type: ignore
+                                    queue_length - func._discard_after,  # type: ignore
                                     -1,
                                 )
 
-                        elif func._expire_policy == ExpirePolicy.SECONDS:  # type: ignore # noqa: E501
+                        elif func._discard_policy == DiscardPolicy.SECONDS:  # type: ignore # noqa: E501
                             # Need to delete items that are older than
-                            # expire_after seconds
+                            # discard_after seconds
                             # Can just do this in the update task
                             pass
 
@@ -531,11 +531,11 @@ class Executor:
 
                     identifier = str(uuid4())
 
-                    # If the func has a expire_after attribute, expire_at
-                    # = current time + expire_after
+                    # If the func has a discard_after attribute, expire_at
+                    # = current time + discard_after
                     expire_at = (
-                        self._redis_con.time()[0] + func._expire_after  # type: ignore
-                        if func._expire_policy == ExpirePolicy.SECONDS  # type: ignore
+                        self._redis_con.time()[0] + func._discard_after  # type: ignore
+                        if func._discard_policy == DiscardPolicy.SECONDS  # type: ignore
                         else None
                     )
 
@@ -551,25 +551,25 @@ class Executor:
                         ),
                     )
 
-                    # If the func has a expire_after attribute, delete
+                    # If the func has a discard_after attribute, delete
                     # old items in a queue
-                    if func._expire_after is not None:  # type: ignore
-                        if func._expire_policy == ExpirePolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
+                    if func._discard_after is not None:  # type: ignore
+                        if func._discard_policy == DiscardPolicy.NUM_NEW_UPDATES:  # type: ignore # noqa: E501
                             # Get the length of the queue
                             queue_length = self._redis_con.llen(queue_identifier)
                             # If the queue length is greater than the
-                            # expire_after attribute, delete the oldest
-                            # (queue_length - expire_after) items
-                            if queue_length > func._expire_after:  # type: ignore
+                            # discard_after attribute, delete the oldest
+                            # (queue_length - discard_after) items
+                            if queue_length > func._discard_after:  # type: ignore
                                 self._redis_con.ltrim(
                                     queue_identifier,
-                                    queue_length - func._expire_after,  # type: ignore
+                                    queue_length - func._discard_after,  # type: ignore
                                     -1,
                                 )
 
-                        elif func._expire_policy == ExpirePolicy.SECONDS:  # type: ignore # noqa: E501
+                        elif func._discard_policy == DiscardPolicy.SECONDS:  # type: ignore # noqa: E501
                             # Need to delete items that are older than
-                            # expire_after seconds
+                            # discard_after seconds
                             # Can just do this in the update task
                             pass
 

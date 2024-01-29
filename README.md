@@ -58,15 +58,21 @@ async def get_rec(state, props):
     rec = await llm(f"I liked {state['liked_books']} and {genre_str} genres. What book would you recommend me to read in the {props['specified_genre']} genre?")
     return rec
 
-@BookRecommender.update("rec")
+@BookRecommender.update("rec", discard_policy=DiscardPolicy.SECONDS, discard_after=86400) # If the update wasn't processed within 24 hours (due to backpressure), discard it
 async def update_genres(state, props):
     recommended_books = state["recommended_books"] + props.serve_result
     all_books_positive_signal = state["liked_books"] + recommended_books
-    new_genres = llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_books_positive_signal}")
+    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_books_positive_signal}")
     return {
         "recommended_books": recommended_books,
         "genres": new_genres"
     }
+
+@BookRecommender.update("liked_book")
+async def update_liked_books(state, props):
+    all_books_positive_signal = state["liked_books"] + [props["liked_book"]]
+    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_books_positive_signal}")
+    return {"liked_books": props["liked_books"], "genres": new_genres}
 ```
 
 In the above example, the `serve` operation recommends a book to the user based on a specified genre, and the `update` operation updates the context to be used in future recommendations (i.e., "rec" serve operations). `serve` operations execute first and cannot modify state, while `update` operations can modify state and execute after `serve` operations in the background.
@@ -79,7 +85,12 @@ book_recommender = BookRecommender("some_user_id", init_state_params={"user_demo
 
 # Run the "rec" flow. Will return the result of the "rec" serve
 # operation, and queue the "rec" update operation to run in the background.
-rec = await book_recommender.arun("rec", {"specified_genre": "fantasy"})
+rec = await book_recommender.arun("rec", props={"specified_genre": "fantasy"})
+
+# Log a new liked book. There is no serve operation for the "liked_book" flow,
+# so nothing is returned. The "liked_book" update operation is queued to run in
+# the background.
+book_recommender.arun("liked_book", props={"liked_book": "Harry Potter and the Deathly Hallows"})
 ```
 
 After `rec` is returned, the `update` operation will run in the background and update the state of the component (for as long as the Python process is running). The state of the component instance is always committed to the key-value store after a flow is fully run, and is loaded from the key-value store when the component instance is initialized again.

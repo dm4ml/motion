@@ -3,7 +3,7 @@ import os
 from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from motion.dicts import Params
-from motion.expire_policy import ExpirePolicy, validate_policy
+from motion.discard_policy import DiscardPolicy, validate_policy
 from motion.instance import ComponentInstance
 from motion.route import Route
 from motion.utils import (
@@ -385,8 +385,8 @@ class Component:
     def update(
         self,
         keys: Union[str, List[str]],
-        expire_policy: ExpirePolicy = ExpirePolicy.NONE,
-        expire_after: Optional[int] = None,
+        discard_policy: DiscardPolicy = DiscardPolicy.NONE,
+        discard_after: Optional[int] = None,
     ) -> Any:
         """Decorator for any update operations for flows through the
         component. Takes in a string or list of strings that represents the
@@ -405,7 +405,7 @@ class Component:
         multiple update ops. Update functions should return a dictionary
         of state updates to be merged with the current state.
 
-        See `ExpirePolicy` for more info on how to expire update operations if
+        See `DiscardPolicy` for more info on how to expire update operations if
         you expect there to be backpressure for an update operation.
 
         Example Usage:
@@ -448,9 +448,9 @@ class Component:
         Args:
             keys (Union[str, List[str]]): String or list of strings that
                 represent the input keyword(s) for the update flow.
-            expire_policy (ExpirePolicy, optional): Policy for expiring
-                update operations. Defaults to ExpirePolicy.NONE.
-            expire_after (Optional[int], optional): Number of updates
+            discard_policy (DiscardPolicy, optional): Policy for expiring
+                update operations. Defaults to DiscardPolicy.NONE.
+            discard_after (Optional[int], optional): Number of updates
                 or seconds after which to expire the update operation.
                 Defaults to None.
 
@@ -475,11 +475,11 @@ class Component:
                 )
 
             # Raises error if invalid expire policy
-            validate_policy(expire_policy, expire_after)
+            validate_policy(discard_policy, discard_after)
 
             func._op = "update"  # type: ignore
-            func._expire_policy = expire_policy  # type: ignore
-            func._expire_after = expire_after  # type: ignore
+            func._discard_policy = discard_policy  # type: ignore
+            func._discard_after = discard_after  # type: ignore
 
             for key in keys:
                 self.add_route(key, func._op, func)  # type: ignore

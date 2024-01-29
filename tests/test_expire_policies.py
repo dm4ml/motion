@@ -1,9 +1,9 @@
 """
-This file tests the functionality to set expiration policies for update queues.
-We will test two expiration policies: NUM_NEW_UPDATES and SECONDS.
+This file tests the functionality to set discard policies for update queues.
+We will test two discard policies: NUM_NEW_UPDATES and SECONDS.
 We will test them in both sync and async functions.
 """
-from motion import Component, ExpirePolicy
+from motion import Component, DiscardPolicy
 import time
 import asyncio
 import pytest
@@ -16,7 +16,7 @@ def setup():
     return {"num_new_update_value": 0, "regular_value": 0, "seconds_value": 0}
 
 
-@C.update("sum", expire_after=10, expire_policy=ExpirePolicy.NUM_NEW_UPDATES)
+@C.update("sum", discard_after=10, discard_policy=DiscardPolicy.NUM_NEW_UPDATES)
 def update_sum_num_new(state, props):
     # Sleep for a bit so there's a real bottleneck in the update queue
     time.sleep(0.02)
@@ -28,13 +28,13 @@ def update_sum_default(state, props):
     return {"regular_value": state["regular_value"] + props["value"]}
 
 
-@C.update("sum", expire_after=1, expire_policy=ExpirePolicy.SECONDS)
+@C.update("sum", discard_after=1, discard_policy=DiscardPolicy.SECONDS)
 def update_sum_seconds(state, props):
     time.sleep(0.05)
     return {"seconds_value": state["seconds_value"] + props["value"]}
 
 
-@C.update("asum", expire_after=10, expire_policy=ExpirePolicy.NUM_NEW_UPDATES)
+@C.update("asum", discard_after=10, discard_policy=DiscardPolicy.NUM_NEW_UPDATES)
 async def aupdate_sum_num_new(state, props):
     # Sleep for a bit so there's a real bottleneck in the update queue
     await asyncio.sleep(0.01)
@@ -46,7 +46,7 @@ async def aupdate_sum_default(state, props):
     return {"regular_value": state["regular_value"] + props["value"]}
 
 
-@C.update("asum", expire_after=1, expire_policy=ExpirePolicy.SECONDS)
+@C.update("asum", discard_after=1, discard_policy=DiscardPolicy.SECONDS)
 async def aupdate_sum_seconds(state, props):
     await asyncio.sleep(0.05)
     return {"seconds_value": state["seconds_value"] + props["value"]}
@@ -66,11 +66,11 @@ def test_sync_num_new_updates():
     assert c.read_state("num_new_update_value") != 0
     assert c.read_state("seconds_value") != 0
 
-    # Assert that the num_new_update_value is not sum of 1..50 because there was the expiration policy
+    # Assert that the num_new_update_value is not sum of 1..50 because there was the discard policy
     assert c.read_state("num_new_update_value") != sum(range(50))
     assert c.read_state("seconds_value") != sum(range(50))
 
-    # Assert that regular_value is sum of 1..50 because there was no expiration policy
+    # Assert that regular_value is sum of 1..50 because there was no discard policy
     assert c.read_state("regular_value") == sum(range(50))
 
     c.shutdown()
@@ -94,11 +94,11 @@ async def test_async_num_new_updates():
     assert c.read_state("num_new_update_value") != 0
     assert c.read_state("seconds_value") != 0
 
-    # Assert that the num_new_update_value is not sum of 1..50 because there was the expiration policy
+    # Assert that the num_new_update_value is not sum of 1..50 because there was the discard policy
     assert c.read_state("num_new_update_value") != sum(range(50))
     assert c.read_state("seconds_value") != sum(range(50))
 
-    # Assert that regular_value is sum of 1..50 because there was no expiration policy
+    # Assert that regular_value is sum of 1..50 because there was no discard policy
     assert c.read_state("regular_value") == sum(range(50))
 
     c.shutdown()
