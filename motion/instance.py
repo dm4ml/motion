@@ -10,6 +10,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
 )
 
 from motion.execute import Executor
@@ -80,7 +81,7 @@ class ComponentInstance:
         if self.disable_update_task and self.flush_on_exit:
             raise ValueError("Cannot flush on exit if update task is disabled.")
 
-        self.flows_run = set()
+        self.flows_run: Set[str] = set()
 
         self._executor = Executor(
             self._instance_name,
