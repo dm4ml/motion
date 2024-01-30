@@ -497,6 +497,7 @@ class Component:
         disable_update_task: bool = False,
         redis_socket_timeout: int = 60,
         config_path: str = ".motionrc.yml",
+        flush_on_exit: bool = False,
     ) -> ComponentInstance:
         """Creates and returns a new instance of a Motion component.
         See `ComponentInstance` docs for more info.
@@ -560,6 +561,12 @@ class Component:
                 This means the redis connection will close if idle for 60 seconds.
             config_path (str, optional):
                 Path to config file of env vars. Defaults to ".motionrc.yml".
+            flush_on_exit (bool, optional):
+                Whether or not to flush the update queue on exit/shutdown.
+                This is useful when running flows in serverless environments,
+                where you want to make sure all updates are finished after the
+                result is returned, before the function exits. Defaults to
+                False.
         Returns:
             ComponentInstance: Component instance to run flows with.
         """
@@ -618,6 +625,7 @@ class Component:
                 disable_update_task=disable_update_task,
                 cache_ttl=self._cache_ttl,
                 redis_socket_timeout=redis_socket_timeout,
+                flush_on_exit=flush_on_exit,
             )
         except RuntimeError:
             raise RuntimeError(
