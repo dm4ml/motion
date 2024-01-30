@@ -179,7 +179,7 @@ class ComponentInstance:
         """
         return self._executor.version  # type: ignore
 
-    def write_state(self, state_update: Dict[str, Any], latest: bool = False) -> None:
+    def write_state(self, state_update: Dict[str, Any]) -> None:
         """Writes the state update to the component instance's state.
         If a update op is currently running, the state update will be
         applied after the update op is finished. Warning: this could
@@ -217,7 +217,7 @@ class ComponentInstance:
                 instance you connected to a while ago and might be
                 outdated. Defaults to False.
         """
-        self._executor._updateState(state_update, force_update=latest)
+        self._executor._updateState(state_update)
 
     def read_state(self, key: str, default_value: Optional[Any] = None) -> Any:
         """Gets the current value for the key in the component instance's state.

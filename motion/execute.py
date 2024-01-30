@@ -99,28 +99,30 @@ class Executor:
         self.running.value = True
 
         # Set up state
-        state, version = loadState(
-            self._redis_con, self._instance_name, self._load_state_func
-        )
+        self._state = None
+        self.version = None
+        # state, version = loadState(
+        #     self._redis_con, self._instance_name, self._load_state_func
+        # )
 
-        # If state does not exist, run setUp
-        if state is None:
-            with self._redis_con.lock(self.__queue_prefix, timeout=120):
-                state = State(
-                    instance_name.split("__")[0], instance_name.split("__")[1], {}
-                )
-                state.update(self.setUp(**self._init_state_params))
-                version = saveState(
-                    state,
-                    0,
-                    self._redis_con,
-                    self._instance_name,
-                    self._save_state_func,
-                )
-                assert version == 1, "Version should be 1 after saving state."
+        # # If state does not exist, run setUp
+        # if state is None:
+        #     with self._redis_con.lock(self.__queue_prefix, timeout=120):
+        #         state = State(
+        #             instance_name.split("__")[0], instance_name.split("__")[1], {}
+        #         )
+        #         state.update(self.setUp(**self._init_state_params))
+        #         version = saveState(
+        #             state,
+        #             0,
+        #             self._redis_con,
+        #             self._instance_name,
+        #             self._save_state_func,
+        #         )
+        #         assert version == 1, "Version should be 1 after saving state."
 
-        self._state = state
-        self.version = version
+        # self._state = state
+        # self.version = version
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -169,9 +171,26 @@ class Executor:
         if not redis_v:
             redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
         if not redis_v:
-            raise ValueError(
-                f"Error loading state for {self._instance_name}." + " No version found."
-            )
+            # # If state does not exist, run setUp
+            with self._redis_con.lock(self.__queue_prefix, timeout=120):
+                state = State(
+                    self._instance_name.split("__")[0],
+                    self._instance_name.split("__")[1],
+                    {},
+                )
+                state.update(self.setUp(**self._init_state_params))
+                version = saveState(
+                    state,
+                    0,
+                    self._redis_con,
+                    self._instance_name,
+                    self._save_state_func,
+                )
+                assert version == 1, "Version should be 1 after saving state."
+
+            self._state = state
+            self.version = version
+            return
 
         if self.version and self.version < int(redis_v):
             # Reload state
@@ -648,6 +667,7 @@ class Executor:
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
+                self._loadState()
                 serve_result = self._serve_routes[key].run(
                     state=self._state, props=props
                 )
@@ -732,6 +752,7 @@ class Executor:
             # If not in cache or value can't be hashed or
             # user wants to force refresh state, run route
             if not route_run:
+                self._loadState()
                 serve_result = self._serve_routes[key].run(
                     state=self._state, props=props
                 )
