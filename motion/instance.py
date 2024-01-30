@@ -46,6 +46,7 @@ class ComponentInstance:
         disable_update_task: bool = False,
         cache_ttl: int = DEFAULT_KEY_TTL,
         redis_socket_timeout: int = 60,
+        flush_on_exit: bool = False,
     ):
         """Creates a new instance of a Motion component.
 
@@ -74,6 +75,13 @@ class ComponentInstance:
 
         self.running = False
         self.disable_update_task = disable_update_task
+        self.flush_on_exit = flush_on_exit
+
+        if self.disable_update_task and self.flush_on_exit:
+            raise ValueError("Cannot flush on exit if update task is disabled.")
+
+        self.flows_run = set()
+
         self._executor = Executor(
             self._instance_name,
             cache_ttl=self._cache_ttl,
@@ -93,6 +101,11 @@ class ComponentInstance:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
+        # Flush the update queue
+        if self.flush_on_exit:
+            for flow_key in self.flows_run:
+                self.flush_update(flow_key)
+
         self.shutdown()
 
     def __del__(self) -> None:
@@ -375,6 +388,8 @@ class ComponentInstance:
         ):  # type: ignore
             yield elem
 
+        self.flows_run.add(flow_key)
+
     def run(
         self,
         # *,
@@ -530,6 +545,8 @@ class ComponentInstance:
             flush_update=flush_update,
         ):  # type: ignore
             yield elem
+
+        self.flows_run.add(flow_key)
 
     async def arun(
         self,
