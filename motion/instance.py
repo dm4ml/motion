@@ -101,11 +101,6 @@ class ComponentInstance:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
-        # Flush the update queue
-        if self.flush_on_exit:
-            for flow_key in self.flows_run:
-                self.flush_update(flow_key)
-
         self.shutdown()
 
     def __del__(self) -> None:
@@ -158,6 +153,11 @@ class ComponentInstance:
 
         if not self.running:
             return
+
+        # Flush the update queue
+        if self.flush_on_exit:
+            for flow_key in self.flows_run:
+                self.flush_update(flow_key)
 
         is_open = is_logger_open(logger)
 
