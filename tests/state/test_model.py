@@ -45,13 +45,9 @@ def finetune(state, props):
 def test_model_component():
     c_instance = c()
     first_run = c_instance.run("value", props={"value": 1}, flush_update=True)
-    assert first_run == c_instance.run(
-        "value", props={"value": 1}, flush_update=True
-    )
+    assert first_run == c_instance.run("value", props={"value": 1})
 
-    second_run = c_instance.run(
-        "value", props={"value": 1}, force_refresh=True
-    )
+    second_run = c_instance.run("value", props={"value": 1}, force_refresh=True)
 
     # The model should have been updated
     assert second_run != first_run
@@ -60,9 +56,7 @@ def test_model_component():
 def test_ignore_cache():
     c_instance = c()
     first_run = c_instance.run("value", props={"value": 1}, flush_update=True)
-    assert first_run == c_instance.run(
-        "value", props={"value": 1}, flush_update=True
-    )
+    assert first_run == c_instance.run("value", props={"value": 1}, flush_update=True)
 
     second_run = c_instance.run("value", props={"value": 1}, ignore_cache=True)
 

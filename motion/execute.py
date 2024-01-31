@@ -99,11 +99,16 @@ class Executor:
         self.running.value = True
 
         # Set up state
-        self._state = None
-        self.version = None
+        # self._state: Optional[State] = None
+        self.version: Optional[int] = None
         # state, version = loadState(
         #     self._redis_con, self._instance_name, self._load_state_func
         # )
+
+        # If version does not exist, load state
+        self._loadState(only_create=True)
+
+        # If version does not exist, load state
 
         # # If state does not exist, run setUp
         # if state is None:
@@ -162,49 +167,66 @@ class Executor:
         r = redis.Redis(**param_dict)
         return rp, r
 
-    def _loadState(self) -> None:
-        # If in dev mode, try loading dev state
+    def _loadVersion(self) -> Optional[int]:
+        # If in dev mode, try loading dev
         redis_v = None
         if os.getenv("MOTION_ENV", "dev") == "dev":
             redis_v = self._redis_con.get(f"MOTION_VERSION:DEV:{self._instance_name}")
 
         if not redis_v:
             redis_v = self._redis_con.get(f"MOTION_VERSION:{self._instance_name}")
+
+        return int(redis_v) if redis_v else None
+
+    def _loadState(self, only_create: bool = False) -> None:
+        # If in dev mode, try loading dev state
+        redis_v = self._loadVersion()
         if not redis_v:
-            # # If state does not exist, run setUp
+            # If state does not exist, run setUp
             with self._redis_con.lock(self.__queue_prefix, timeout=120):
-                state = State(
-                    self._instance_name.split("__")[0],
-                    self._instance_name.split("__")[1],
-                    {},
-                )
-                state.update(self.setUp(**self._init_state_params))
-                version = saveState(
-                    state,
-                    0,
-                    self._redis_con,
-                    self._instance_name,
-                    self._save_state_func,
-                )
-                assert version == 1, "Version should be 1 after saving state."
+                # If state was created while waiting for lock, don't do
+                # anything
+                redis_v = self._loadVersion()
+                loaded_state = False
 
-            self._state = state
-            self.version = version
-            return
+                if not redis_v:
+                    state = State(
+                        self._instance_name.split("__")[0],
+                        self._instance_name.split("__")[1],
+                        {},
+                    )
+                    state.update(self.setUp(**self._init_state_params))
+                    version = saveState(
+                        state,
+                        0,
+                        self._redis_con,
+                        self._instance_name,
+                        self._save_state_func,
+                    )
+                    assert version == 1, "Version should be 1 after saving state."
+                    loaded_state = True
 
-        if self.version and self.version < int(redis_v):
-            # Reload state
-            new_state, self.version = loadState(
-                self._redis_con, self._instance_name, self._load_state_func
-            )
-            if new_state is None:
-                raise ValueError(
-                    f"Error loading state for {self._instance_name}."
-                    + " State is None."
+            if loaded_state:
+                self._state = state
+                self.version = version
+                return
+
+        if not only_create:
+            if self.version is None or (self.version and self.version < redis_v):  # type: ignore # noqa: E501
+                # Reload state
+                new_state, self.version = loadState(
+                    self._redis_con, self._instance_name, self._load_state_func
                 )
-            self._state = new_state
+                if new_state is None:
+                    raise ValueError(
+                        f"Error loading state for {self._instance_name}."
+                        + " State is None."
+                    )
+                self._state = new_state
 
     def _saveState(self, new_state: State) -> None:
+        assert self.version is not None, "Version should not be None."
+
         # Save state to redis
         new_version = saveState(
             new_state,
@@ -605,7 +627,7 @@ class Executor:
         serve_result = None
 
         if force_refresh:
-            self._loadState()
+            self.flush_update()
 
         # If caching is disabled, return
         if self._cache_ttl == 0:
@@ -797,40 +819,53 @@ class Executor:
         if not is_generated:
             yield serve_result
 
-    def flush_update(self, flow_key: str) -> None:
+    def flush_update(self, flow_key: str = "*ALL*") -> None:
+        flow_keys: List[str] = []
+
+        # If flow_key is *ALL*, flush all update queues
+        if flow_key == "*ALL*":
+            flow_keys = list(self._update_routes.keys())
+
         # Check if key has update ops
-        if flow_key not in self._update_routes.keys():
+        elif flow_key not in self._update_routes.keys():
             return
 
+        else:
+            flow_keys = [flow_key]
+
         # Push a noop into the relevant queues
-        update_events = UpdateEventGroup(flow_key)
-        for update_udf_name in self._update_routes[flow_key].keys():
-            queue_identifier: str = self._get_queue_identifier(
-                flow_key, update_udf_name
-            )
-            channel_identifier: str = self._get_channel_identifier(
-                flow_key, update_udf_name
-            )
+        for flow_key in flow_keys:
+            update_events = UpdateEventGroup(flow_key)
+            for update_udf_name in self._update_routes[flow_key].keys():
+                queue_identifier: str = self._get_queue_identifier(
+                    flow_key, update_udf_name
+                )
+                channel_identifier: str = self._get_channel_identifier(
+                    flow_key, update_udf_name
+                )
 
-            identifier = "NOOP_" + str(uuid4())
+                identifier = "NOOP_" + str(uuid4())
 
-            # Add pubsub channel to listen to
-            update_event = UpdateEvent(self._redis_con, channel_identifier, identifier)
-            update_events.add(update_udf_name, update_event)
+                # Add pubsub channel to listen to
+                update_event = UpdateEvent(
+                    self._redis_con, channel_identifier, identifier
+                )
+                update_events.add(update_udf_name, update_event)
 
-            # Add to update queue
-            self._redis_con.rpush(
-                queue_identifier,
-                cloudpickle.dumps(
-                    {
-                        "value": None,
-                        "serve_result": None,
-                        "identifier": identifier,
-                    }
-                ),
-            )
+                # Add to update queue
+                self._redis_con.rpush(
+                    queue_identifier,
+                    cloudpickle.dumps(
+                        {
+                            "value": None,
+                            "serve_result": None,
+                            "identifier": identifier,
+                        }
+                    ),
+                )
 
-        # Wait for update result to finish
-        update_events.wait()
+            # Wait for update result to finish
+            update_events.wait()
+
         # Update state
         self._loadState()

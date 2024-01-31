@@ -38,7 +38,7 @@ async def test_async_serve():
 
     # Test that the user can call arun for regular functions
     result = await c.arun("sync_multiply", props={"value": 2})
-    assert result == 2
+    assert result == 4
 
 
 @pytest.mark.asyncio
@@ -55,8 +55,7 @@ async def test_gather():
     c = Counter(disable_update_task=True)
 
     tasks = [
-        c.arun("multiply", props={"value": i}, flush_update=True)
-        for i in range(100)
+        c.arun("multiply", props={"value": i}, flush_update=True) for i in range(100)
     ]
     # Run all tasks at the same time
     await asyncio.gather(*tasks)
