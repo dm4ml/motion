@@ -98,36 +98,9 @@ class Executor:
             )
         self.running.value = True
 
-        # Set up state
-        # self._state: Optional[State] = None
+        # If version does not exist, load state
         self.version: Optional[int] = None
-        # state, version = loadState(
-        #     self._redis_con, self._instance_name, self._load_state_func
-        # )
-
-        # If version does not exist, load state
         self._loadState(only_create=True)
-
-        # If version does not exist, load state
-
-        # # If state does not exist, run setUp
-        # if state is None:
-        #     with self._redis_con.lock(self.__queue_prefix, timeout=120):
-        #         state = State(
-        #             instance_name.split("__")[0], instance_name.split("__")[1], {}
-        #         )
-        #         state.update(self.setUp(**self._init_state_params))
-        #         version = saveState(
-        #             state,
-        #             0,
-        #             self._redis_con,
-        #             self._instance_name,
-        #             self._save_state_func,
-        #         )
-        #         assert version == 1, "Version should be 1 after saving state."
-
-        # self._state = state
-        # self.version = version
 
         # Set up routes
         self._serve_routes: Dict[str, Route] = serve_routes
@@ -135,9 +108,6 @@ class Executor:
             rkey: {route.udf.__name__: route for route in routes}
             for rkey, routes in update_routes.items()
         }
-
-        # Set up shutdown event
-        # self._shutdown_event = threading.Event()
 
         # Set up update queues, batch sizes, and threads
         self.disable_update_task = disable_update_task
