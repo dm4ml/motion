@@ -193,7 +193,7 @@ class ComponentInstance:
         """
         return self._executor.version  # type: ignore
 
-    def write_state(self, state_update: Dict[str, Any], latest: bool = False) -> None:
+    def write_state(self, state_update: Dict[str, Any]) -> None:
         """Writes the state update to the component instance's state.
         If a update op is currently running, the state update will be
         applied after the update op is finished. Warning: this could
@@ -231,7 +231,7 @@ class ComponentInstance:
                 instance you connected to a while ago and might be
                 outdated. Defaults to False.
         """
-        self._executor._updateState(state_update, force_update=latest)
+        self._executor._updateState(state_update)
 
     def read_state(self, key: str, default_value: Optional[Any] = None) -> Any:
         """Gets the current value for the key in the component instance's state.
@@ -362,10 +362,10 @@ class ComponentInstance:
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
-            force_refresh (bool, optional): Read the latest value of the
-                state before running an serve call, otherwise a stale
-                version of the state or a cached result may be used.
-                Defaults to False.
+            force_refresh (bool, optional): Whether to wait for all the pending
+                updates to finish processing, resulting in the most up-to-date
+                state, before running the serve op. Defaults to False, where a
+                stale version of the state or a cached result may be used.
             flush_update (bool, optional):
                 If True, waits for the update op to finish executing before
                 returning. If the update queue hasn't reached batch_size
@@ -426,16 +426,16 @@ class ComponentInstance:
             with C() as c: # Create instance of C
                 c.run("add", props={"value": 1}, flush_update=True) # (1)!
                 c.run("add", props={"value": 1}) # Returns 1
-                c.run("add", props={"value": 2}, flush_update=True) # (2)!
+                c.run("add", props={"value": 2}) # (2)!
 
                 c.run("add", props={"value": 3})
-                time.sleep(3) # Wait for the previous update op to finish
 
                 c.run("add", props={"value": 3}, force_refresh=True) # (3)!
 
         # 1. Waits for the update op to finish, then updates the state
         # 2. Returns 2, result state["value"] = 4
-        # 3. Force refreshes the state before running the flow, and
+        # 3. Force refreshes the state before running the flow by waiting
+        #    for all pending updates to finish processing. This
         #    reruns the serve op even though the result might be cached.
         ```
 
@@ -447,10 +447,10 @@ class ComponentInstance:
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
-            force_refresh (bool, optional): Read the latest value of the
-                state before running an serve call, otherwise a stale
-                version of the state or a cached result may be used.
-                Defaults to False.
+            force_refresh (bool, optional): Whether to wait for all the pending
+                updates to finish processing, resulting in the most up-to-date
+                state, before running the serve op. Defaults to False, where a
+                stale version of the state or a cached result may be used.
             flush_update (bool, optional):
                 If True, waits for the update op to finish executing before
                 returning. If the update queue hasn't reached batch_size
@@ -520,10 +520,10 @@ class ComponentInstance:
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
-            force_refresh (bool, optional): Read the latest value of the
-                state before running an serve call, otherwise a stale
-                version of the state or a cached result may be used.
-                Defaults to False.
+            force_refresh (bool, optional): Whether to wait for all the pending
+                updates to finish processing, resulting in the most up-to-date
+                state, before running the serve op. Defaults to False, where a
+                stale version of the state or a cached result may be used.
             flush_update (bool, optional):
                 If True, waits for the update op to finish executing before
                 returning. If the update queue hasn't reached batch_size
@@ -589,10 +589,10 @@ class ComponentInstance:
             ignore_cache (bool, optional):
                 If True, ignores the cache and runs the serve op. Does not
                 force refresh the state. Defaults to False.
-            force_refresh (bool, optional): Read the latest value of the
-                state before running an serve call, otherwise a stale
-                version of the state or a cached result may be used.
-                Defaults to False.
+            force_refresh (bool, optional): Whether to wait for all the pending
+                updates to finish processing, resulting in the most up-to-date
+                state, before running the serve op. Defaults to False, where a
+                stale version of the state or a cached result may be used.
             flush_update (bool, optional):
                 If True, waits for the update op to finish executing before
                 returning. If the update queue hasn't reached batch_size

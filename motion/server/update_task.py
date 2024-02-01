@@ -118,6 +118,8 @@ class BaseUpdateTask:
                         self.load_state_func,
                     )
                     if old_state is None:
+                        # Create new state
+                        # If state does not exist, run setUp
                         raise ValueError(f"State for {self.instance_name} not found.")
 
                     state_update = self.routes[queue_name].run(

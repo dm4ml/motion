@@ -27,6 +27,7 @@ def process_migration(
             **rp.dict(),
         )
         state, version = loadState(redis_con, instance_name, load_state_fn)
+
         new_state = migrate_func(state)
         assert isinstance(new_state, dict), (
             "Migration function must return a dict."
