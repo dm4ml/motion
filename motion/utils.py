@@ -375,7 +375,7 @@ def loadState(
     return state, version
 
 
-def writeState(instance_name, new_updates: Dict[str, Any]) -> None:
+def writeState(instance_name: str, new_updates: Dict[str, Any]) -> None:
     # Load state and version from redis
     # Establish a connection to the Redis server
     rp = get_redis_params()
