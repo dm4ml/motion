@@ -6,6 +6,7 @@ from datetime import datetime
 
 import click
 import redis
+import uvicorn
 import yaml
 from rich.console import Console
 
@@ -193,6 +194,22 @@ def list(component: str) -> None:
     click.echo(
         f"{checkmark} Listed all {len(instances)} instances for component {component}."
     )
+
+
+@motioncli.command("dashboard", epilog="Example usage:\n motion dashboard")
+def dashboard(*args, **kwargs) -> None:
+    """Starts a web server for the motion dashboard."""
+    from motion.dashboard import dashboard_app
+
+    # Find the frontend directory within the motion package
+    # with pkg_resources.path("motion", "frontend") as frontend_dir:
+    # frontend_dir = os.path.join(
+    #     "/Users/shreyashankar/Documents/projects/motion/ui", "build"
+    # )
+    # # Start the frontend server
+    # subprocess.Popen(["npm", "start", "--prefix", frontend_dir])
+    # Run the fastapi app with uvicorn with user\-specified args
+    uvicorn.run(dashboard_app, *args, **kwargs)
 
 
 if __name__ == "__main__":

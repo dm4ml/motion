@@ -4,32 +4,41 @@ import { Box, CssVarsProvider } from "@mui/joy";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import MainContent from "./components/MainContent";
+import axios from "axios";
+import theme from "./customTheme";
+
+axios.defaults.baseURL = "http://localhost:8000";
 
 function App() {
   const [components, setComponents] = useState([]);
 
   useEffect(() => {
-    // Simulate fetching data
-    const fetchedComponents = [
-      { name: "Component1", id: "component1" },
-      { name: "Component2", id: "component2" },
-      // Add more components as they are fetched
-    ];
-    setComponents(fetchedComponents);
+    axios
+      .get("/components") // Assuming the endpoint is '/components'
+      .then((response) => {
+        // Add id to each component in response.data
+        const componentsWithIds = response.data.map((component, index) => {
+          return { name: component, key: `component${index + 1}` };
+        });
+        setComponents(componentsWithIds);
+      })
+      .catch((error) => {
+        console.error("There was an error fetching the components", error);
+      });
   }, []);
 
   return (
-    <CssVarsProvider>
+    <CssVarsProvider theme={theme}>
       <Router>
-        <Header title="Motion" />
-        <Box sx={{ display: "flex", pt: "48px" }}>
+        <Header title="Motion State Editor" />
+        <Box sx={{ display: "flex", pt: "80px" }}>
           <Sidebar components={components} />
           <Box sx={{ flex: 1 }}>
             <Routes>
               {components.map((component) => (
                 <Route
-                  key={component.id}
-                  path={`/${component.id}`}
+                  key={component.key}
+                  path={`/${component.name}`}
                   element={<MainContent componentName={component.name} />}
                 />
               ))}

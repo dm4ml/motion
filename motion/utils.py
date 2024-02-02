@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import logging
 import os
@@ -93,6 +94,41 @@ def get_instances(component_name: str) -> List[str]:
     redis_con.close()
 
     return instance_ids
+
+
+def get_instances_with_last_accessed(component_name: str) -> List[Tuple[str, str]]:
+    """
+    Gets all instances of a component along with their estimated last accessed
+    timestamp.
+
+    Args:
+        component_name (str): Name of the component.
+
+    Returns:
+        List[Tuple[str, str]]: List of tuples containing instance ids and their
+            estimated last accessed timestamp.
+    """
+    rp = get_redis_params()
+    redis_con = redis.Redis(**rp.dict())
+
+    # Scan for all keys with prefix
+    prefix = f"MOTION_VERSION:{component_name}__*"
+    instance_info = []
+    for key in redis_con.scan_iter(prefix):
+        instance_id = key.decode("utf-8").split("__")[1]  # type: ignore
+        idle_time_seconds = redis_con.object("idletime", key)
+
+        # Calculate estimated last accessed timestamp
+        last_accessed_time = datetime.datetime.now() - datetime.timedelta(
+            seconds=idle_time_seconds
+        )
+        last_accessed_str = last_accessed_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        instance_info.append((instance_id, last_accessed_str))
+
+    redis_con.close()
+
+    return instance_info
 
 
 def clear_dev_instances() -> int:
@@ -235,6 +271,32 @@ def inspect_state(instance_name: str) -> Optional[State]:
     return state
 
 
+def get_components() -> List[str]:
+    """Lists all components in the Redis database.
+    TODO: Figure out a way to do this without scanning all keys.
+
+    Returns:
+        List[str]: List of all component names.
+    """
+
+    rp = get_redis_params()
+    redis_con = redis.Redis(
+        **rp.dict(),
+    )
+
+    # Scan for all keys with prefix
+    prefix = "MOTION_VERSION:*"
+    component_names = []
+    for key in redis_con.scan_iter(prefix):
+        first_part = key.decode("utf-8").split("__")[0]
+        first_part = first_part.replace("MOTION_VERSION:", "")
+        component_names.append(first_part)  # type: ignore
+
+    redis_con.close()
+
+    return list(set(component_names))
+
+
 def validate_args(parameters: Any, op: str) -> bool:
     if "state" not in parameters.keys():
         return False
@@ -311,6 +373,26 @@ def loadState(
         state.update(loaded_state)
 
     return state, version
+
+
+def writeState(instance_name, new_updates: Dict[str, Any]) -> None:
+    # Load state and version from redis
+    # Establish a connection to the Redis server
+    rp = get_redis_params()
+    redis_con = redis.Redis(**rp.dict())
+
+    state, version = loadState(redis_con, instance_name, None)
+    if state is None:
+        raise ValueError(f"Instance {instance_name} does not exist.")
+
+    # Update the state
+    state.update(new_updates)
+
+    # Save the state
+    saveState(state, version, redis_con, instance_name, None)
+
+    # Close the connection to the Redis server
+    redis_con.close()
 
 
 def saveState(

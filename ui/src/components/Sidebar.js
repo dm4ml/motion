@@ -24,19 +24,17 @@ const Sidebar = ({ components }) => {
         width: "250px",
         bgcolor: "background.paper",
         borderRight: "1px solid #ddd",
-        height: "100vh",
+        // height: "100vh",
       }}
     >
       <List>
         {components.map((component) => (
-          <ListItem key={component.id}>
+          <ListItem key={component.name}>
             <NavLink
-              to={`/${component.id}`}
+              to={`/${component.name}`}
               style={({ isActive }) => (isActive ? activeStyle : inactiveStyle)}
             >
-              <Typography color="primary" variant="body">
-                {component.name}
-              </Typography>
+              <Typography variant="body">{component.name}</Typography>
             </NavLink>
             <Divider />
           </ListItem>
