@@ -12,15 +12,24 @@ Motion is a system for defining and incrementally maintaining **reactive prompts
 
 ## Why Reactive Prompts?
 
-LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. Ideally, any new information about the user (e.g., a new purchase or browsing event) should be incorporated into the LLM pipeline's prompts as soon as possible; thus, we call them **reactive prompts**.
+LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. A **reactive prompt** could change over time by including LLM-generated insights from user interactions. For a concrete example of this, consider the following sequence of user interactions, where 1, 3, and 4 show prompts for event styling queries and 2 corresponds to user feedback:
+
+1. "What apparel items should I buy for `SIGMOD in Chile`?"
+2. _User `disliked "purple blazer"` and `liked "wide-leg jeans."`_
+3. "`I work in tech. I dress casually.` What apparel items should I buy for `hiking in the Bay Area`?"
+4. "`I work in tech and have an active lifestyle. I dress casually.` What apparel items should I buy for `coffee with a friend`?"
+
+In the above sequence, `phrases in backticks` are dynamically generated based on previous user-generated activity. The new context can improve the quality of responses.
 
 ### Why is it Hard to Use Reactive Prompts?
 
-Consider the e-commerce example above. The prompt might grow to be very long---so long that there's a bunch of redundant or event useless information in the prompt. So, we might want to summarize the user's past purchases and browsing history into a single prompt. However, summarizing the user's past purchases and browsing history every time we log a new purchase or browsing event, or whenever the user requests a new recommendation, **can take too long** and thus prohibitively increase end-to-end latency for getting a recommendation.
-
-In general, we may want to use LLMs or run some other expensive operation when incrementally processing new information, e.g., through summarization, extracting structured information, or generating new data. When there is a lot of information to process, the best LLMs can take upwards of 30 seconds. This can be unacceptable for production latency.
+Consider the e-commerce example above. The prompt might grow to be very long---so long that there's a bunch of redundant or event useless information in the prompt. So, we might want to summarize the user's past purchases and browsing history into a single prompt. However, summarizing the user's past purchases and browsing history every time we log a new purchase or browsing event, or whenever the user requests a new recommendation, **can take too long** (e.g., 30+ seconds) and thus prohibitively increase end-to-end latency for getting a recommendation.
 
 ## What is Motion?
+
+Motion allows LLM pipeline developers to define and incrementally maintain reactive prompts in Python. With Motion, developers define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to reactively update sub-parts in the background based on new information.
+
+Motion's execution engine serves cached prompt sub-parts for minimal real-time latency and handles concurrency and sub-part consistency when running flows that update sub-parts. All prompt sub-parts are backed by a key-value store. You can run Motion components anywhere and in any number of Python processes (e.g., in a notebook, in a serverless function, in a web server) at the same time for maximal availability.
 
 As LLM pipeline developers, we want a few things when building and using reactive prompts:
 
@@ -28,69 +37,49 @@ As LLM pipeline developers, we want a few things when building and using reactiv
 - **Availability**: We want there to always be some version of prompt sub-parts available, even if they are a little stale. This way we can minimize end-to-end latency.
 - **Freshness**: Prompts should incorporate as much of the latest information as possible. In the case where information arrives faster than we can process it, it may be desirable to ignore older information.
 
-Motion allows LLM pipeline developers to define and incrementally maintain reactive prompts in Python. With Motion, we define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to reactively update sub-parts in the background based on new information.
-
-Motion's execution engine serves cached prompt sub-parts for minimal real-time latency and handles concurrency and sub-part consistency when running flows that update sub-parts. All prompt sub-parts are backed by a key-value store. You can run Motion components anywhere and in any number of Python processes (e.g., in a notebook, in a serverless function, in a web server) at the same time for maximal availability.
-
 ## An Example Motion Component
 
 It's hard to understand Motion without an example. In Motion, you define components, which are stateful objects that can be updated incrementally with new data. A component has an `init_state` method that initializes the state of the component, and any number of **flows**, where each flow consists of a `serve` operation (state read-only) and an `update` operation (can read and write state). These operations are arbitrary user-defined Python functions.
 
-Here's an example of a component that recommends books to buy, personalized to each user:
+Here's an example of a component that recommends apparel to buy for an event, personalized to each user:
 
 ```python
 from motion import Component
 
-BookRecommender = Component("BookRecommender")
+ECommercePrompt = Component("E-Commerce")
 
-@BookRecommender.init_state
-def setup(user_demographics, liked_books):
-    return {
-        "user_demographics": user_demographics,
-        "liked_books": liked_books,
-        "recommended_books": [],
-        "genres": [],
-    }
+@ECommercePrompt.init_state
+def setup():
+  return {"query_summary": "No queries yet.", "preference_summary": "No preference information yet."}
 
-@BookRecommender.serve("rec")
-async def get_rec(state, props):
-    genre_str = ", ".join(state["genres"]) if state["genres"] else ""
-    rec = await llm(f"I liked {state['liked_books']} and {genre_str} genres. What book would you recommend me to read in the {props['specified_genre']} genre?")
-    return rec
+@ECommercePrompt.serve("styling_query")
+def generate_recs(state, props):
+    # Props = properties to this specific flow's execution
+    # First retrieve products from the catalog
+    catalog_products = retrieve(props['event'])
+    prompt = f"Consider the following lifestyle and preference information about me: {state['query_summary']}, {state['preference_summary']}. Suggest 3-5 apparel items for me to buy for {props['event']}, using the catalog: {catalog_products}."
+    return llm(prompt)
 
-@BookRecommender.update("rec", discard_policy=DiscardPolicy.SECONDS, discard_after=86400) # If the update wasn't processed within 24 hours (due to backpressure), discard it
-async def update_genres(state, props):
-    recommended_books = state["recommended_books"] + props.serve_result
-    all_books_positive_signal = state["liked_books"] + recommended_books
-    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_books_positive_signal}")
-    return {
-        "recommended_books": recommended_books,
-        "genres": new_genres"
-    }
-
-@BookRecommender.update("liked_book")
-async def update_liked_books(state, props):
-    all_liked_books = state["liked_books"] + [props["liked_book"]]
-    new_genres = await llm(f"Update my list of preferred genres {state['genres']} based on my book collection: {all_liked_books}")
-    return {"liked_books": all_liked_books, "genres": new_genres}
+@ECommercePrompt.update("styling_query")
+def query_summary(state, props):
+    # props.serve_result contains the result from the serve op
+    prompt = f"You recommended a user buy {props.serve_result} for {props['event']}. The information we currently have about them is: {state['query_summary']}. Based on their query history, give a new 3-sentence summary about their lifestyle."
+    query_summary = llm(prompt)
+    # Update state
+    return {"query_summary": query_summary}
 ```
 
-In the above example, the `serve` operation recommends a book to the user based on a specified genre, and the `update` operation updates the context to be used in future recommendations (i.e., "rec" serve operations). `serve` operations execute first and cannot modify state, while `update` operations can modify state and execute after `serve` operations in the background.
+In the above example, the `serve` operation recommends items to buy based on an event styling query, and the `update` operation updates the context to be used in future recommendations (i.e., "styling_query" serve operations). `serve` operations execute first and cannot modify state, while `update` operations can modify state and execute after `serve` operations in the background.
 
 You can run a flow by calling `run` or `arun` (async version of `run`) on the component:
 
 ```python
 # Initialize component instance
-book_recommender = BookRecommender("some_user_id", init_state_params={"user_demographics": "some_user_demographics", "liked_books": ["book1", "book2"]})
+instance = ECommercePrompt(user_id) # Some user_id
 
-# Run the "rec" flow. Will return the result of the "rec" serve
-# operation, and queue the "rec" update operation to run in the background.
-rec = await book_recommender.arun("rec", props={"specified_genre": "fantasy"})
-
-# Log a new liked book. There is no serve operation for the "liked_book" flow,
-# so nothing is returned. The "liked_book" update operation is queued to run in
-# the background.
-book_recommender.arun("liked_book", props={"liked_book": "Harry Potter and the Deathly Hallows"})
+# Run the "styling_query" flow. Will return the result of the "styling_query" serve
+# operation, and queue the "styling_query" update operation to run in the background.
+rec = await instance.arun("styling_query", props={"event": "sightseeing in Santiago, Chile"})
 ```
 
 After `rec` is returned, the `update` operation will run in the background and update the state of the component (for as long as the Python process is running). The state of the component instance is always committed to the key-value store after a flow is fully run, and is loaded from the key-value store when the component instance is initialized again.
