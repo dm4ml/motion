@@ -1,4 +1,4 @@
-.PHONY: tests lint install mypy update docs
+.PHONY: tests lint install mypy update docs build
 
 tests:
 	poetry run pytest
@@ -18,3 +18,9 @@ update:
 
 docs:
 	poetry run mkdocs serve
+
+build:
+	cd ui && npm run build
+	cd ..
+	cp -r ui/build motion/static
+	poetry install --all-extras

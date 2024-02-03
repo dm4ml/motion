@@ -5,7 +5,7 @@ any component instance and edit the state of any component instance.
 """
 
 
-import os
+from importlib import resources
 from typing import List, Union
 
 from fastapi import FastAPI, HTTPException, Response
@@ -189,16 +189,17 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
     return state_serialized
 
 
-# Determine the path to the frontend build directory
-# frontend_build_folder = pkg_resources.files("motion").joinpath("frontend/build")
-# TODO: fix this
+def get_frontend_build_folder():
+    # Determine the package directory
+    package_dir = resources.files("motion")
 
-# Current parent's parent + ui/build
-frontend_build_folder = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "ui", "build"
-)
+    # Construct the path to the static files
+    frontend_build_folder = package_dir / "static"
+
+    return frontend_build_folder
+
 
 # Mount the static files
 dashboard_app.mount(
-    "/", StaticFiles(directory=frontend_build_folder, html=True), name="static"
+    "/", StaticFiles(directory=get_frontend_build_folder(), html=True), name="static"
 )

@@ -40,6 +40,7 @@ jobs:
       - name: Build and publish
         run: |
           poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
+          make build
           poetry build
           poetry publish
           git add pyproject.toml
