@@ -64,22 +64,22 @@ class Executor:
         self._save_state_func = save_state_func
         self.__lock_prefix = (
             f"MOTION_LOCK:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_LOCK:{self._instance_name}"
         )
         self.__queue_prefix = (
             f"MOTION_QUEUE:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_QUEUE:{self._instance_name}"
         )
         self.__channel_prefix = (
             f"MOTION_CHANNEL:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_CHANNEL:{self._instance_name}"
         )
         self.__cache_result_prefix = (
             f"MOTION_RESULT:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_RESULT:{self._instance_name}"
         )
 
@@ -117,6 +117,11 @@ class Executor:
 
         self.tp = ThreadPoolExecutor(max_workers=2)
 
+        # Add component name to set of components if we are not in dev mode
+        if os.getenv("MOTION_ENV", "prod") != "dev":
+            component_name = self._instance_name.split("__")[0]
+            self._redis_con.sadd("MOTION_COMPONENTS", component_name)
+
     def _setRedis(self, cache_result_key: str, props: Any) -> None:
         """Method to set value in Redis."""
         self._redis_con.set(
@@ -140,7 +145,7 @@ class Executor:
     def _loadVersion(self) -> Optional[int]:
         # If in dev mode, try loading dev
         redis_v = None
-        if os.getenv("MOTION_ENV", "dev") == "dev":
+        if os.getenv("MOTION_ENV", "prod") == "dev":
             redis_v = self._redis_con.get(f"MOTION_VERSION:DEV:{self._instance_name}")
 
         if not redis_v:

@@ -15,12 +15,7 @@ from pydantic import BaseModel
 
 from motion.df import MDataFrame
 from motion.mtable import MTable
-from motion.utils import (
-    get_components,
-    get_instances_with_last_accessed,
-    inspect_state,
-    writeState,
-)
+from motion.utils import get_components, get_instances, inspect_state, writeState
 
 dashboard_app = FastAPI()
 
@@ -31,11 +26,6 @@ dashboard_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-class InstanceResult(BaseModel):
-    id: str
-    lastAccessed: str
 
 
 class EditableStateKV(BaseModel):
@@ -65,28 +55,25 @@ def list_components() -> List[str]:
 
 
 @dashboard_app.get("/instances/{component}")
-def list_instances(component: str) -> List[InstanceResult]:
+def list_instances(component: str) -> List[str]:
     """Lists all instances of a component."""
-    instances = get_instances_with_last_accessed(component)
-    instances = [
-        InstanceResult(id=instance, lastAccessed=last_accessed)
-        for instance, last_accessed in instances
-    ]
-
-    return instances
+    return get_instances(component)
 
 
 @dashboard_app.get("/instances/{component}/{search}")
-def filter_instances(component: str, search: str = "") -> List[InstanceResult]:
+def filter_instances(component: str, search: str = "") -> List[str]:
     """Lists all instances of a component."""
-    instances = get_instances_with_last_accessed(component)
-    instances = [
-        InstanceResult(id=instance, lastAccessed=last_accessed)
-        for instance, last_accessed in instances
-        if search in instance
-    ]
+    instances = get_instances(component)
+    instances = [instance for instance in instances if search in instance]
 
     return instances
+
+
+@dashboard_app.get("/results/{component}/{instance_id}")
+def retrieve_result_status(component: str, instance_id: str) -> List[str]:
+    """Retrieves all results for a component instance: success, failure, or pending."""
+    # TODO: fill this in
+    return ["success"] * 100
 
 
 @dashboard_app.post("/instance/{component}/{instance}")

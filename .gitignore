@@ -22,3 +22,4 @@ motionstate*
 *.so
 target*
 .motionenv*
+*motionrc*

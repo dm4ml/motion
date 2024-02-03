@@ -15,10 +15,16 @@ import {
   DialogActions,
   Button,
   CardActions,
+  AccordionGroup,
+  AccordionDetails,
   Divider,
 } from "@mui/joy";
 import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
 import DynamicTable from "./DynamicTable";
+import Accordion, { accordionClasses } from "@mui/joy/Accordion";
+import AccordionSummary, {
+  accordionSummaryClasses,
+} from "@mui/joy/AccordionSummary";
 
 const MainContent = ({ componentName }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,6 +33,8 @@ const MainContent = ({ componentName }) => {
   const [instances, setInstances] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [expanded, setExpanded] = useState([]);
+  const [accordionData, setAccordionData] = useState({});
 
   useEffect(() => {
     if (componentName) {
@@ -44,7 +52,7 @@ const MainContent = ({ componentName }) => {
   const handleCardClick = (item) => {
     // Fetch detailed information for the clicked instance
     axios
-      .get(`/instance/${componentName}/${item.id}`) // Replace with your actual API endpoint
+      .get(`/instance/${componentName}/${item}`)
       .then((response) => {
         const detailedInfo = response.data;
         setDetailedInfo(detailedInfo);
@@ -52,7 +60,7 @@ const MainContent = ({ componentName }) => {
         setIsModalOpen(true);
       })
       .catch((error) => {
-        console.error("Error fetching details for instance", item.id, error);
+        console.error("Error fetching details for instance", item, error);
       });
   };
 
@@ -62,7 +70,7 @@ const MainContent = ({ componentName }) => {
 
     // Send the updated detailedInfo to the backend
     axios
-      .post(`/instance/${componentName}/${item.id}`, detailedInfo)
+      .post(`/instance/${componentName}/${item}`, detailedInfo)
       .then((response) => {
         // Handle the response
 
@@ -105,6 +113,32 @@ const MainContent = ({ componentName }) => {
       });
   };
 
+  const handleAccordionChange = (item) => {
+    setExpanded((prevExpanded) => {
+      if (prevExpanded.includes(item)) {
+        return prevExpanded.filter((i) => i !== item); // Collapse this item
+      } else {
+        fetchAccordionData(item); // Fetch data when expanding
+        return [...prevExpanded, item]; // Expand this item
+      }
+    });
+  };
+
+  const fetchAccordionData = (item) => {
+    axios
+      .get(`/results/${componentName}/${item}`)
+      .then((response) => {
+        setAccordionData((prevData) => ({
+          ...prevData,
+          [item]: response.data,
+        }));
+      })
+      .catch((error) => {
+        console.error("Error fetching data:", error);
+        setAccordionData((prevData) => ({ ...prevData, [item]: "Error" }));
+      });
+  };
+
   return (
     <Box sx={{ p: 2 }}>
       <Typography level="h3">{componentName}</Typography>
@@ -119,27 +153,43 @@ const MainContent = ({ componentName }) => {
         }}
         sx={{ mb: 2, mt: 2 }}
       />
-      <Stack spacing={2}>
+      <AccordionGroup>
         {instances.map((item, index) => (
-          <Card
+          <Accordion
             key={index}
-            variant="outlined"
-            onClick={() => handleCardClick(item)}
-            sx={{ cursor: "pointer", bgcolor: "primary.50" }}
+            expanded={expanded.includes(item)}
+            onChange={() => handleAccordionChange(item)}
+            sx={{
+              [`& .${accordionSummaryClasses.indicator}`]: {
+                transition: "0.2s",
+              },
+              [`& [aria-expanded="true"] .${accordionSummaryClasses.indicator}`]:
+                {
+                  transform: "rotate(45deg)",
+                },
+            }}
           >
-            <CardContent>
-              <Typography sx={{ fontFamily: "monospace" }}>
-                {item.id}
-              </Typography>
-            </CardContent>
-            <CardActions>
-              <Chip variant="soft" color="neutral" sx={{ marginLeft: "auto" }}>
-                Last accessed: {item.lastAccessed}
-              </Chip>
-            </CardActions>
-          </Card>
+            <AccordionSummary>
+              <Typography sx={{ fontFamily: "monospace" }}>{item}</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              {expanded.includes(item) && accordionData[item] && (
+                <div>
+                  {/* Render your data here */}
+                  {accordionData[item]}
+                </div>
+              )}
+              <Button
+                variant="plain"
+                onClick={() => handleCardClick(item)}
+                sx={{ mt: 2 }}
+              >
+                Edit state
+              </Button>
+            </AccordionDetails>
+          </Accordion>
         ))}
-      </Stack>
+      </AccordionGroup>
 
       {selectedItem && (
         <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
@@ -148,7 +198,7 @@ const MainContent = ({ componentName }) => {
               <WarningRoundedIcon />
               {"Edit state for instance "}
               <Typography sx={{ fontFamily: "monospace" }}>
-                {selectedItem.id}
+                {selectedItem}
               </Typography>
             </DialogTitle>
             <DialogContent>

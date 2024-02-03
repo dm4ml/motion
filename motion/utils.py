@@ -1,4 +1,3 @@
-import datetime
 import hashlib
 import logging
 import os
@@ -69,6 +68,7 @@ class RedisParams(BaseModel, extra="allow"):
 
 
 def get_redis_params() -> RedisParams:
+    import_config()
     rp = RedisParams()
     return rp
 
@@ -85,50 +85,14 @@ def get_instances(component_name: str) -> List[str]:
     rp = get_redis_params()
     redis_con = redis.Redis(**rp.dict())
 
-    # Scan for all keys with prefix
-    prefix = f"MOTION_VERSION:{component_name}__*"
-    instance_ids = []
-    for key in redis_con.scan_iter(prefix):
-        instance_ids.append(key.decode("utf-8").split("__")[1])  # type: ignore
+    instance_ids = redis_con.keys(f"MOTION_VERSION:{component_name}__*")
+    instance_ids = [
+        instance_id.decode("utf-8").split("__")[1] for instance_id in instance_ids
+    ]
 
     redis_con.close()
 
     return instance_ids
-
-
-def get_instances_with_last_accessed(component_name: str) -> List[Tuple[str, str]]:
-    """
-    Gets all instances of a component along with their estimated last accessed
-    timestamp.
-
-    Args:
-        component_name (str): Name of the component.
-
-    Returns:
-        List[Tuple[str, str]]: List of tuples containing instance ids and their
-            estimated last accessed timestamp.
-    """
-    rp = get_redis_params()
-    redis_con = redis.Redis(**rp.dict())
-
-    # Scan for all keys with prefix
-    prefix = f"MOTION_VERSION:{component_name}__*"
-    instance_info = []
-    for key in redis_con.scan_iter(prefix):
-        instance_id = key.decode("utf-8").split("__")[1]  # type: ignore
-        idle_time_seconds = redis_con.object("idletime", key)
-
-        # Calculate estimated last accessed timestamp
-        last_accessed_time = datetime.datetime.now() - datetime.timedelta(
-            seconds=idle_time_seconds
-        )
-        last_accessed_str = last_accessed_time.strftime("%Y-%m-%d %H:%M:%S")
-
-        instance_info.append((instance_id, last_accessed_str))
-
-    redis_con.close()
-
-    return instance_info
 
 
 def clear_dev_instances() -> int:
@@ -273,7 +237,6 @@ def inspect_state(instance_name: str) -> Optional[State]:
 
 def get_components() -> List[str]:
     """Lists all components in the Redis database.
-    TODO: Figure out a way to do this without scanning all keys.
 
     Returns:
         List[str]: List of all component names.
@@ -284,17 +247,13 @@ def get_components() -> List[str]:
         **rp.dict(),
     )
 
-    # Scan for all keys with prefix
-    prefix = "MOTION_VERSION:*"
-    component_names = []
-    for key in redis_con.scan_iter(prefix):
-        first_part = key.decode("utf-8").split("__")[0]
-        first_part = first_part.replace("MOTION_VERSION:", "")
-        component_names.append(first_part)  # type: ignore
+    component_names = [
+        name.decode("utf-8") for name in redis_con.smembers("MOTION_COMPONENTS")
+    ]
 
     redis_con.close()
 
-    return list(set(component_names))
+    return component_names
 
 
 def validate_args(parameters: Any, op: str) -> bool:
@@ -345,7 +304,7 @@ def loadState(
     # If dev mode, load with diff prefix
     loaded_state = None
     version = None
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         loaded_state = redis_con.get(f"MOTION_STATE:DEV:{instance_name}")
         if loaded_state:
             v_identifier = f"MOTION_VERSION:DEV:{instance_name}"
@@ -404,7 +363,7 @@ def saveState(
 ) -> int:
     # If the version in redis is greater than this version, drop the save
     redis_v = None
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         redis_con.get(f"MOTION_VERSION:DEV:{instance_name}")
 
     if not redis_v:
@@ -421,7 +380,7 @@ def saveState(
 
     state_pickled = cloudpickle.dumps(state_to_save)
 
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         redis_con.set(f"MOTION_STATE:DEV:{instance_name}", state_pickled)
         redis_con.set(f"MOTION_VERSION:DEV:{instance_name}", version + 1)
 
