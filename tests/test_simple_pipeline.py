@@ -1,4 +1,5 @@
 from motion import Component
+from motion.utils import get_component_instance_usage
 
 # Test a pipeline with multiple components
 a = Component("ComponentA")
@@ -40,8 +41,8 @@ def update_message(state, props):
 
 
 def test_simple_pipeline():
-    a_instance = a()
-    b_instance = b()
+    a_instance = a("my_instance_a")
+    b_instance = b("my_instance_b")
     add_result = a_instance.run("add", props={"value": 1}, flush_update=True)
     assert add_result == 1
 
@@ -56,3 +57,10 @@ def test_simple_pipeline():
         "concat", props={"str_to_concat": str(add_result_2)}
     )
     assert concat_result_2 == " 1 3"
+
+    # Check that the logs show results
+    a_instance.shutdown()
+    b_instance.shutdown()
+
+    usage = get_component_instance_usage("ComponentA", "my_instance_a")
+    assert usage.keys() == {"version", "resultsByFlow", "allResults"}

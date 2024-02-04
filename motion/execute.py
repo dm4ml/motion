@@ -1,9 +1,11 @@
 import asyncio
 import inspect
+import json
 import logging
 import multiprocessing
 import os
 import threading
+import time
 import types
 from concurrent.futures import ThreadPoolExecutor
 from typing import (
@@ -28,6 +30,7 @@ from motion.discard_policy import DiscardPolicy
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
+    FlowOpStatus,
     RedisParams,
     UpdateEvent,
     UpdateEventGroup,
@@ -56,7 +59,10 @@ class Executor:
         redis_socket_timeout: int = 60,
     ):
         self._instance_name = instance_name
+        self._component_name = instance_name.split("__")[0]
+        self._instance_id = instance_name.split("__")[1]
         self._cache_ttl = cache_ttl
+        self._num_messages = 100
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -119,13 +125,32 @@ class Executor:
 
         # Add component name to set of components if we are not in dev mode
         if os.getenv("MOTION_ENV", "prod") != "dev":
-            component_name = self._instance_name.split("__")[0]
-            self._redis_con.sadd("MOTION_COMPONENTS", component_name)
+            self._redis_con.sadd("MOTION_COMPONENTS", self._component_name)
 
     def _setRedis(self, cache_result_key: str, props: Any) -> None:
         """Method to set value in Redis."""
         self._redis_con.set(
             cache_result_key, cloudpickle.dumps(props), ex=self._cache_ttl
+        )
+
+    def _enqueueRedisLogMessage(
+        self, flow_key: str, status: FlowOpStatus, exception: Optional[str]
+    ) -> None:
+        """Method to enqueue a log message in Redis."""
+        log_message = {
+            "timestamp": int(time.time()),
+            "status": status.value,
+            "exception": exception,
+        }
+        self._redis_con.lpush(
+            f"MOTION_LOG_STATUS:{self._instance_name}/{flow_key}",
+            json.dumps(log_message),
+        )
+        # Trim the queue to the last 100 messages
+        self._redis_con.ltrim(
+            f"MOTION_LOG_STATUS:{self._instance_name}/{flow_key}",
+            0,
+            self._num_messages - 1,
         )
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
@@ -345,7 +370,7 @@ class Executor:
                 self.worker_task.join()  # type: ignore
 
         # Shut down threadpool for writing to Redis
-        self.tp.shutdown(wait=False)
+        self.tp.shutdown(wait=True)
 
         self._redis_con.close()
 
@@ -534,7 +559,6 @@ class Executor:
 
                 else:
                     # Enqueue update
-
                     if self.disable_update_task:
                         raise RuntimeError(
                             f"Update process is disabled. Cannot run update for {key}."
@@ -635,82 +659,100 @@ class Executor:
         force_refresh: bool,
         flush_update: bool,
     ) -> Generator[Any, None, None]:
-        route_hit = False
-        serve_result = None
-        is_generated = False
-        props = Properties(props)
+        try:
+            route_hit = False
+            serve_result = None
+            is_generated = False
+            props = Properties(props)
 
-        # Run the serve route
-        if key in self._serve_routes.keys():
-            route_hit = True
-            (
-                route_run,
-                serve_result,
-                props,
-                value_hash,
-            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+            # Run the serve route
+            if key in self._serve_routes.keys():
+                route_hit = True
+                (
+                    route_run,
+                    serve_result,
+                    props,
+                    value_hash,
+                ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
-            # If route is run and serve result is not None and self.
-            # _serve_routes[key].udf is a generator, iterate through the serve
-            # result
-            if route_run and inspect.isgeneratorfunction(self._serve_routes[key].udf):
-                is_generated = True
-
-                # Process each item yielded by the generator
-                if serve_result is not None:
-                    for item in serve_result:
-                        yield item
-
-            # If not in cache or value can't be hashed or
-            # user wants to force refresh state, run route
-            if not route_run:
-                self._loadState()
-                serve_result = self._serve_routes[key].run(
-                    state=self._state, props=props
-                )
-
-                # Check if the serve_result is a generator (streaming result)
-                if isinstance(serve_result, types.GeneratorType):
-                    # Accumulate items from generator
+                # If route is run and serve result is not None and self.
+                # _serve_routes[key].udf is a generator, iterate through the serve
+                # result
+                if route_run and inspect.isgeneratorfunction(
+                    self._serve_routes[key].udf
+                ):
                     is_generated = True
-                    accumulated_result = []
 
                     # Process each item yielded by the generator
-                    for item in serve_result:
-                        accumulated_result.append(item)
-                        yield item  # Yield the item for streaming
+                    if serve_result is not None:
+                        for item in serve_result:
+                            yield item
 
-                    serve_result = accumulated_result
-
-                props._serve_result = serve_result
-
-                # Check that serve_result is not an awaitable
-                if asyncio.iscoroutine(serve_result):
-                    raise TypeError(
-                        f"Route {key} returned an awaitable. "
-                        + "Call `await instance.arun(...)` instead."
+                # If not in cache or value can't be hashed or
+                # user wants to force refresh state, run route
+                if not route_run:
+                    self._loadState()
+                    serve_result = self._serve_routes[key].run(
+                        state=self._state, props=props
                     )
 
-                # Cache result
-                if value_hash:
-                    cache_result_key = (
-                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
-                    )
-                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # Check if the serve_result is a generator (streaming result)
+                    if isinstance(serve_result, types.GeneratorType):
+                        # Accumulate items from generator
+                        is_generated = True
+                        accumulated_result = []
 
-        # Run the update routes
-        # Enqueue results into update queues
-        route_hit = self._enqueue_and_trigger_update(
-            key, props, flush_update, route_hit
-        )
+                        # Process each item yielded by the generator
+                        for item in serve_result:
+                            accumulated_result.append(item)
+                            yield item  # Yield the item for streaming
 
-        if not route_hit:
-            raise KeyError(
-                f"Key {key} not in routes for component {self._instance_name}."
+                        serve_result = accumulated_result
+
+                    props._serve_result = serve_result
+
+                    # Check that serve_result is not an awaitable
+                    if asyncio.iscoroutine(serve_result):
+                        raise TypeError(
+                            f"Route {key} returned an awaitable. "
+                            + "Call `await instance.arun(...)` instead."
+                        )
+
+                    # Cache result
+                    if value_hash:
+                        cache_result_key = (
+                            f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                        )
+                        self.tp.submit(self._setRedis, cache_result_key, props)
+
+            # Run the update routes
+            # Enqueue results into update queues
+            route_hit = self._enqueue_and_trigger_update(
+                key, props, flush_update, route_hit
             )
 
-        if not is_generated:
-            yield serve_result
+            if not route_hit:
+                raise KeyError(
+                    f"Key {key} not in routes for component {self._instance_name}."
+                )
+
+            if not is_generated:
+                yield serve_result
+
+            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+                self.tp.submit(
+                    self._enqueueRedisLogMessage, key, FlowOpStatus.SUCCESS, None
+                )
+                # self._enqueueRedisLogMessage(key, FlowOpStatus.SUCCESS, None)
+
+        except Exception as e:
+            # Log if os.getenv("MOTION_LOG_STATUS", "false") == "true"
+            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+                self.tp.submit(
+                    self._enqueueRedisLogMessage, key, FlowOpStatus.FAILURE, str(e)
+                )
+
+            raise e
 
     async def arun(
         self,
@@ -720,79 +762,96 @@ class Executor:
         force_refresh: bool,
         flush_update: bool,
     ) -> AsyncGenerator[Any, None]:
-        route_hit = False
-        serve_result = None
-        props = Properties(props)
+        try:
+            route_hit = False
+            serve_result = None
+            props = Properties(props)
 
-        # Run the serve route
-        is_generated = False
-        if key in self._serve_routes.keys():
-            route_hit = True
-            (
-                route_run,
-                serve_result,
-                props,
-                value_hash,
-            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+            # Run the serve route
+            is_generated = False
+            if key in self._serve_routes.keys():
+                route_hit = True
+                (
+                    route_run,
+                    serve_result,
+                    props,
+                    value_hash,
+                ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
-            # If route is run and serve result is not None and self.
-            # _serve_routes[key].udf is a generator, iterate through the serve
-            # result
-            if route_run and inspect.isasyncgenfunction(self._serve_routes[key].udf):
-                is_generated = True
-
-                # Process each item yielded by the generator
-                if serve_result is not None:
-                    for item in serve_result:
-                        yield item
-
-            # If not in cache or value can't be hashed or
-            # user wants to force refresh state, run route
-            if not route_run:
-                self._loadState()
-                serve_result = self._serve_routes[key].run(
-                    state=self._state, props=props
-                )
-                # Check if the serve_result is an async generator (streaming result)
-                if isinstance(serve_result, types.AsyncGeneratorType):
-                    # Accumulate items from generator
+                # If route is run and serve result is not None and self.
+                # _serve_routes[key].udf is a generator, iterate through the serve
+                # result
+                if route_run and inspect.isasyncgenfunction(
+                    self._serve_routes[key].udf
+                ):
                     is_generated = True
-                    accumulated_result = []
 
                     # Process each item yielded by the generator
-                    # but don't trigger a "return statement with value is
-                    # not allowed in an async generator" error
-                    async for item in serve_result:
-                        accumulated_result.append(item)
-                        yield item
+                    if serve_result is not None:
+                        for item in serve_result:
+                            yield item
 
-                    serve_result = accumulated_result
-
-                elif asyncio.iscoroutine(serve_result):
-                    serve_result = await serve_result
-
-                props._serve_result = serve_result
-
-                # Cache result
-                if value_hash:
-                    cache_result_key = (
-                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                # If not in cache or value can't be hashed or
+                # user wants to force refresh state, run route
+                if not route_run:
+                    self._loadState()
+                    serve_result = self._serve_routes[key].run(
+                        state=self._state, props=props
                     )
-                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # Check if the serve_result is an async generator (streaming result)
+                    if isinstance(serve_result, types.AsyncGeneratorType):
+                        # Accumulate items from generator
+                        is_generated = True
+                        accumulated_result = []
 
-        # Run the update routes
-        # Enqueue results into update queues
-        route_hit = await self._async_enqueue_and_trigger_update(
-            key, props, flush_update, route_hit
-        )
+                        # Process each item yielded by the generator
+                        # but don't trigger a "return statement with value is
+                        # not allowed in an async generator" error
+                        async for item in serve_result:
+                            accumulated_result.append(item)
+                            yield item
 
-        if not route_hit:
-            raise KeyError(
-                f"Key {key} not in routes for component {self._instance_name}."
+                        serve_result = accumulated_result
+
+                    elif asyncio.iscoroutine(serve_result):
+                        serve_result = await serve_result
+
+                    props._serve_result = serve_result
+
+                    # Cache result
+                    if value_hash:
+                        cache_result_key = (
+                            f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                        )
+                        self.tp.submit(self._setRedis, cache_result_key, props)
+
+            # Run the update routes
+            # Enqueue results into update queues
+            route_hit = await self._async_enqueue_and_trigger_update(
+                key, props, flush_update, route_hit
             )
 
-        if not is_generated:
-            yield serve_result
+            if not route_hit:
+                raise KeyError(
+                    f"Key {key} not in routes for component {self._instance_name}."
+                )
+
+            if not is_generated:
+                yield serve_result
+
+            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+                self.tp.submit(
+                    self._enqueueRedisLogMessage, key, FlowOpStatus.SUCCESS, None
+                )
+
+        except Exception as e:
+            # Log if os.getenv("MOTION_LOG_STATUS", "false") == "true"
+            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+                self.tp.submit(
+                    self._enqueueRedisLogMessage, key, FlowOpStatus.FAILURE, str(e)
+                )
+
+            raise e
 
     def flush_update(self, flow_key: str = "*ALL*") -> None:
         flow_keys: List[str] = []

@@ -15,7 +15,14 @@ from pydantic import BaseModel
 
 from motion.df import MDataFrame
 from motion.mtable import MTable
-from motion.utils import get_components, get_instances, inspect_state, writeState
+from motion.utils import (
+    FlowOpStatus,
+    get_component_instance_usage,
+    get_components,
+    get_instances,
+    inspect_state,
+    writeState,
+)
 
 dashboard_app = FastAPI()
 
@@ -39,6 +46,22 @@ class EditableStateKV(BaseModel):
 class UpdateInstanceRquest(BaseModel):
     key: str
     value: str
+
+
+class StatusTracker(BaseModel):
+    color: str
+    tooltip: str
+
+
+class BarListType(BaseModel):
+    name: str
+    value: int
+
+
+class ComponentInstanceUsage(BaseModel):
+    statuses: List[StatusTracker]
+    version: int
+    resultsByFlow: List[BarListType]
 
 
 @dashboard_app.get("/components")
@@ -70,10 +93,59 @@ def filter_instances(component: str, search: str = "") -> List[str]:
 
 
 @dashboard_app.get("/results/{component}/{instance_id}")
-def retrieve_result_status(component: str, instance_id: str) -> List[str]:
+def retrieve_result_status(component: str, instance_id: str) -> ComponentInstanceUsage:
     """Retrieves all results for a component instance: success, failure, or pending."""
-    # TODO: fill this in
-    return ["success"] * 100
+
+    # Get the usage of the component instance
+    usage = get_component_instance_usage(component, instance_id)
+    version = usage["version"]
+    resultsByFlow = [{"flow": k, "count": v} for k, v in usage["resultsByFlow"].items()]
+
+    # Order by descending value
+    resultsByFlow = sorted(resultsByFlow, key=lambda x: x["count"], reverse=True)
+
+    resultsByFlow = [
+        BarListType(name=flow["flow"], value=flow["count"]) for flow in resultsByFlow
+    ]
+
+    # statuses will be a list of StatusTracker objects for usage["allResults"]
+    # Each element in usage["allResults"] will be a dictionary with the
+    # following keys: "status", "flow", "timestamp", "exception"
+    all_results = usage["allResults"]
+
+    # Sort by timestamp and take the maximal 100
+    all_results = sorted(all_results, key=lambda x: x["timestamp"], reverse=True)[:100]
+
+    statuses = []
+    for result in all_results:
+        if result["status"] == FlowOpStatus.SUCCESS.value:
+            statuses.append(
+                StatusTracker(
+                    color="emerald",
+                    tooltip=result["flow"] + ": " + FlowOpStatus.SUCCESS.value,
+                )
+            )
+        elif result["status"] == FlowOpStatus.FAILURE.value:
+            statuses.append(
+                StatusTracker(
+                    color="red",
+                    tooltip=result["flow"]
+                    + ": "
+                    + FlowOpStatus.FAILURE.value
+                    + f": {result['exception']}",
+                )
+            )
+        elif result["status"] == FlowOpStatus.CACHE_HIT.value:
+            statuses.append(
+                StatusTracker(
+                    color="emerald",
+                    tooltip=result["flow"] + ": " + FlowOpStatus.CACHE_HIT.value,
+                )
+            )
+
+    return ComponentInstanceUsage(
+        statuses=statuses, version=version, resultsByFlow=resultsByFlow
+    )
 
 
 @dashboard_app.post("/instance/{component}/{instance}")

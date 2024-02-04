@@ -1,7 +1,9 @@
 import hashlib
+import json
 import logging
 import os
 import random
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -126,7 +128,45 @@ def clear_dev_instances() -> int:
     pipeline.execute()
     pipeline.close()
 
+    redis_con.close()
+
     return num_keys_deleted
+
+
+def get_component_instance_usage(
+    component_name: str, instance_id: str, num_results: int = 100
+) -> Dict[str, Any]:
+    rp = get_redis_params()
+    redis_con = redis.Redis(**rp.dict())
+
+    result_keys = redis_con.keys(f"MOTION_LOG_STATUS:{component_name}__{instance_id}/*")
+
+    # Group result keys by flow
+    results_by_flow = {}
+    all_results = []
+    for result_key in result_keys:
+        flow = result_key.decode("utf-8").split("/")[-1]
+
+        # Peek at the first num_results results
+        results = redis_con.lrange(result_key, 0, num_results - 1)
+
+        # Count the number of successes, errors, and cache hits
+        results = [json.loads(result.decode("utf-8")) for result in results]
+        results_by_flow[flow] = len(results)
+
+        # Add results to all_results but include a new key in each result
+        # that indicates the flow
+        for result in results:
+            result["flow"] = flow
+            all_results.append(result)
+
+    version = int(redis_con.get(f"MOTION_VERSION:{component_name}__{instance_id}"))
+
+    return {
+        "version": version,
+        "resultsByFlow": results_by_flow,
+        "allResults": all_results,
+    }
 
 
 def clear_instance(instance_name: str) -> bool:
@@ -490,3 +530,10 @@ def random_passphrase(num_words: int = 3) -> str:
     ]
     words = [wordlist[roll] for roll in dice_rolls]
     return "-".join(words)
+
+
+# Status Enum
+class FlowOpStatus(Enum):
+    SUCCESS = "Success"
+    FAILURE = "Failure"
+    CACHE_HIT = "Cache hit"

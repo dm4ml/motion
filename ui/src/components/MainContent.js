@@ -5,7 +5,7 @@ import {
   Input,
   Typography,
   Stack,
-  Card,
+  //   Card,
   CardContent,
   Chip,
   Modal,
@@ -18,6 +18,7 @@ import {
   AccordionGroup,
   AccordionDetails,
   Divider,
+  ButtonGroup,
 } from "@mui/joy";
 import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
 import DynamicTable from "./DynamicTable";
@@ -25,6 +26,7 @@ import Accordion, { accordionClasses } from "@mui/joy/Accordion";
 import AccordionSummary, {
   accordionSummaryClasses,
 } from "@mui/joy/AccordionSummary";
+import { Tracker, BarList } from "@tremor/react";
 
 const MainContent = ({ componentName }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -36,12 +38,43 @@ const MainContent = ({ componentName }) => {
   const [expanded, setExpanded] = useState([]);
   const [accordionData, setAccordionData] = useState({});
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+  const totalPages = Math.ceil(instances.length / itemsPerPage);
+
+  const handleNextPage = () => {
+    setCurrentPage((prevPage) => Math.min(prevPage + 1, totalPages));
+  };
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prevPage) => Math.max(prevPage - 1, 1));
+  };
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = instances.slice(indexOfFirstItem, indexOfLastItem);
+
   useEffect(() => {
     if (componentName) {
       axios
         .get(`/instances/${componentName}`)
         .then((response) => {
           setInstances(response.data);
+
+          // Set current page to 1 when the component changes
+          setCurrentPage(1);
+
+          // Set expanded to empty array when the component changes
+          setExpanded([]);
+
+          // Set selected item to null when the component changes
+          setSelectedItem(null);
+
+          // Set detailed info to empty array when the component changes
+          setDetailedInfo([]);
+
+          // Set accordion data to empty object when the component changes
+          setAccordionData({});
         })
         .catch((error) => {
           console.error("Error fetching instances for", componentName, error);
@@ -128,6 +161,7 @@ const MainContent = ({ componentName }) => {
     axios
       .get(`/results/${componentName}/${item}`)
       .then((response) => {
+        console.log("Fetched data for", item, response.data);
         setAccordionData((prevData) => ({
           ...prevData,
           [item]: response.data,
@@ -154,7 +188,7 @@ const MainContent = ({ componentName }) => {
         sx={{ mb: 2, mt: 2 }}
       />
       <AccordionGroup>
-        {instances.map((item, index) => (
+        {currentItems.map((item, index) => (
           <Accordion
             key={index}
             expanded={expanded.includes(item)}
@@ -174,22 +208,70 @@ const MainContent = ({ componentName }) => {
             </AccordionSummary>
             <AccordionDetails>
               {expanded.includes(item) && accordionData[item] && (
-                <div>
-                  {/* Render your data here */}
-                  {accordionData[item]}
-                </div>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                  }}
+                >
+                  <Box sx={{ flexGrow: 1 }}>
+                    {" "}
+                    {/* Content container */}
+                    {accordionData[item].resultsByFlow && (
+                      <BarList data={accordionData[item].resultsByFlow} />
+                    )}
+                    <Tracker
+                      data={accordionData[item].statuses}
+                      className="mt-2"
+                    />
+                  </Box>
+
+                  <Box
+                    sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}
+                  >
+                    {" "}
+                    {/* Button container */}
+                    <Button
+                      variant="plain"
+                      onClick={() => handleCardClick(item)}
+                    >
+                      Edit state
+                    </Button>
+                    <Chip variant="soft" sx={{ ml: 1 }}>
+                      {`v${accordionData[item].version}`}{" "}
+                    </Chip>
+                  </Box>
+                </Box>
               )}
-              <Button
-                variant="plain"
-                onClick={() => handleCardClick(item)}
-                sx={{ mt: 2 }}
-              >
-                Edit state
-              </Button>
             </AccordionDetails>
           </Accordion>
         ))}
       </AccordionGroup>
+
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          marginTop: 2,
+        }}
+      >
+        <ButtonGroup variant="plain" color="primary">
+          <Button onClick={handlePreviousPage} disabled={currentPage === 1}>
+            Previous
+          </Button>
+          <Button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages}
+          >
+            Next
+          </Button>
+        </ButtonGroup>
+        <Typography variant="body1" sx={{ marginLeft: 2 }}>
+          Page {currentPage} of {totalPages}
+        </Typography>
+      </Box>
 
       {selectedItem && (
         <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
@@ -263,7 +345,7 @@ const MainContent = ({ componentName }) => {
                   )}
                 </React.Fragment>
               ))}
-              <Button onClick={addNewKeyValuePair}>
+              <Button onClick={addNewKeyValuePair} variant="soft">
                 Add New Key-Value Pair
               </Button>
             </DialogContent>
