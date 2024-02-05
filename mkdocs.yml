@@ -21,9 +21,10 @@ nav:
       - Application: api/application.md
       - StateMigrator: api/state-migrator.md
   - Helpful Tools:
-      - Component Visualization: tools/vis.md
+      - Component Dashboard: tools/dashboard.md
       - CLI: tools/cli.md
       - State Migrator: tools/migrator.md
+      - Component Flow Visualization: tools/vis.md
 
 theme:
   name: material

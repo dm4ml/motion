@@ -168,6 +168,8 @@ def update_instance(
 
             if isinstance(original_value, int):
                 update_dict[key] = int(value)
+            elif isinstance(original_value, bool):
+                update_dict[key] = bool(value)
             elif isinstance(original_value, float):
                 update_dict[key] = float(value)
             elif isinstance(original_value, str):
@@ -215,10 +217,12 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
         # types (str, int, float)
         if (
             isinstance(value, list)
-            and all(isinstance(item, (str, int, float)) for item in value)
+            and all(isinstance(item, (str, int, float, bool)) for item in value)
         ) or (
             isinstance(value, dict)
-            and all(isinstance(item, (str, int, float)) for item in value.values())
+            and all(
+                isinstance(item, (str, int, float, bool)) for item in value.values()
+            )
         ):
             # Process list or dict of primitives as editable
             state_serialized.append(
@@ -228,7 +232,7 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
             )
 
         # If type is a string, int, or float, it is editable
-        elif isinstance(value, (str, int, float)):
+        elif isinstance(value, (str, int, float, bool)):
             # Get the type of the value
             t = type(value)
 
@@ -239,6 +243,8 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
                 t = "int"
             elif t == float:
                 t = "float"
+            elif t == bool:
+                t = "bool"
             else:
                 t = type(value).__name__
 
