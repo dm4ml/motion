@@ -43,7 +43,7 @@ class EditableStateKV(BaseModel):
     type: str
 
 
-class UpdateInstanceRquest(BaseModel):
+class UpdateInstanceRequest(BaseModel):
     key: str
     value: str
 
@@ -150,7 +150,7 @@ def retrieve_result_status(component: str, instance_id: str) -> ComponentInstanc
 
 @dashboard_app.post("/instance/{component}/{instance}")
 def update_instance(
-    component: str, instance: str, update: List[UpdateInstanceRquest]
+    component: str, instance: str, update: List[UpdateInstanceRequest]
 ) -> Response:
     """Updates the state of a component instance."""
     # Convert update to a dictionary
@@ -159,29 +159,46 @@ def update_instance(
     # Load the state and make sure types are compatible
     state = inspect_state(f"{component}__{instance}")
 
-    for key, value in update_dict.items():
-        if key in state:
-            # If the type of the value is different from the type of the state,
-            # convert the value to the type of the state
-            try:
-                if isinstance(state[key], int):
-                    update_dict[key] = int(value)
-                elif isinstance(state[key], float):
-                    update_dict[key] = float(value)
-                elif isinstance(state[key], str):
-                    update_dict[key] = str(value)
-                else:
-                    raise ValueError(
-                        f"Type for key `{key}` is not compatible with existing state."  # noqa: E501
-                    )
-            except ValueError:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Type for key `{key}` is not compatible with existing state.",  # noqa: E501
+    try:
+        for key, value in update_dict.items():
+            if key not in state:
+                continue  # Skip keys that are not in the state
+
+            original_value = state[key]
+
+            if isinstance(original_value, int):
+                update_dict[key] = int(value)
+            elif isinstance(original_value, float):
+                update_dict[key] = float(value)
+            elif isinstance(original_value, str):
+                update_dict[key] = str(value)
+            elif isinstance(original_value, list):
+                # Convert value to a list and check if all elements
+                # are of the correct type
+                update_list = eval(value)  # Ensure value is a list
+                if not isinstance(update_list, list):
+                    raise TypeError("Value is not a list")
+                update_dict[key] = update_list
+            elif isinstance(original_value, dict):
+                # Convert value to a dict and check if all values
+                # are of the correct type
+                update_dict_obj = eval(value)  # Ensure value is a dict
+                if not isinstance(update_dict_obj, dict):
+                    raise TypeError("Value is not a dict")
+                update_dict[key] = update_dict_obj
+            else:
+                raise ValueError(
+                    f"Type for key `{key}` is not compatible with existing state."
                 )
 
-    # Now write the new state
-    writeState(f"{component}__{instance}", update_dict)
+        # Now write the new state
+        writeState(f"{component}__{instance}", update_dict)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
 
     return Response(status_code=200)
 
@@ -194,8 +211,24 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
     state_serialized = []
 
     for key, value in state.items():
+        # Check if value is of type list or dict and contains only primitive
+        # types (str, int, float)
+        if (
+            isinstance(value, list)
+            and all(isinstance(item, (str, int, float)) for item in value)
+        ) or (
+            isinstance(value, dict)
+            and all(isinstance(item, (str, int, float)) for item in value.values())
+        ):
+            # Process list or dict of primitives as editable
+            state_serialized.append(
+                EditableStateKV(
+                    key=key, value=str(value), editable=True, type=type(value).__name__
+                )
+            )
+
         # If type is a string, int, or float, it is editable
-        if isinstance(value, (str, int, float)):
+        elif isinstance(value, (str, int, float)):
             # Get the type of the value
             t = type(value)
 
@@ -207,7 +240,7 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
             elif t == float:
                 t = "float"
             else:
-                t = str(t)
+                t = type(value).__name__
 
             state_serialized.append(
                 EditableStateKV(key=key, value=str(value), editable=True, type=t)
@@ -241,7 +274,7 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
         else:
             state_serialized.append(
                 EditableStateKV(
-                    key=key, value=str(value), editable=False, type=str(type(value))
+                    key=key, value=str(value), editable=False, type=type(value).__name__
                 )
             )
 
