@@ -2107,6 +2107,21 @@ pyyaml = ">=5.1"
 virtualenv = ">=20.10.0"
 
 [[package]]
+name = "prometheus-client"
+version = "0.19.0"
+description = "Python client for the Prometheus monitoring system."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "prometheus_client-0.19.0-py3-none-any.whl", hash = "sha256:c88b1e6ecf6b41cd8fb5731c7ae919bf66df6ec6fafa555cd6c0e16ca169ae92"},
+    {file = "prometheus_client-0.19.0.tar.gz", hash = "sha256:4585b0d1223148c27a225b10dbec5ae9bc4c81a99a3fa80774fa6209935324e1"},
+]
+
+[package.extras]
+twisted = ["twisted"]
+
+[[package]]
 name = "psutil"
 version = "5.9.6"
 description = "Cross-platform lib for process and system monitoring in Python."
@@ -3703,4 +3718,4 @@ table = ["fastvs", "pandas", "pyarrow"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "309d1e779ce245abec9a0f940143c20b06aebcdbe63e554cd691b203d8ad1fff"
+content-hash = "1998f45ff015ad3a886ca8362bbf91d6a1f6b2cf63747a25050979ac12ee4038"

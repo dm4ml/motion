@@ -23,6 +23,7 @@ pandas = { version = "^2.1.0", optional = true }
 pyjwt = { version = "^2.8.0", optional = true }
 fastapi = { version = "^0.108.0", optional = true }
 pydantic = "^2.5.3"
+prometheus-client = "^0.19.0"
 
 [tool.poetry.extras]
 application = ["pyjwt", "fastapi"]

@@ -13,16 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from motion.df import MDataFrame
-from motion.mtable import MTable
-from motion.utils import (
-    FlowOpStatus,
+from motion.dashboard_utils import (
     get_component_instance_usage,
-    get_components,
-    get_instances,
-    inspect_state,
+    get_component_usage,
     writeState,
 )
+from motion.df import MDataFrame
+from motion.mtable import MTable
+from motion.utils import FlowOpStatus, get_components, inspect_state
 
 dashboard_app = FastAPI()
 
@@ -64,6 +62,11 @@ class ComponentInstanceUsage(BaseModel):
     resultsByFlow: List[BarListType]
 
 
+class ComponentUsage(BaseModel):
+    numInstances: int
+    instanceIds: List[str]
+
+
 @dashboard_app.get("/components")
 def list_components() -> List[str]:
     """Lists all components."""
@@ -78,18 +81,23 @@ def list_components() -> List[str]:
 
 
 @dashboard_app.get("/instances/{component}")
-def list_instances(component: str) -> List[str]:
+def list_instances(component: str) -> ComponentUsage:
     """Lists all instances of a component."""
-    return get_instances(component)
+    component_usage = get_component_usage(component)
+    cu = ComponentUsage(**component_usage)
+    return cu
 
 
 @dashboard_app.get("/instances/{component}/{search}")
-def filter_instances(component: str, search: str = "") -> List[str]:
+def filter_instances(component: str, search: str = "") -> ComponentUsage:
     """Lists all instances of a component."""
-    instances = get_instances(component)
-    instances = [instance for instance in instances if search in instance]
+    component_usage = get_component_usage(component)
+    instances = [
+        instance for instance in component_usage["instanceIds"] if search in instance
+    ]
+    cu = ComponentUsage(numInstances=len(instances), instanceIds=instances)
 
-    return instances
+    return cu
 
 
 @dashboard_app.get("/results/{component}/{instance_id}")

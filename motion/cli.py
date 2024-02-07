@@ -36,7 +36,6 @@ def init() -> None:
         "MOTION_REDIS_PASSWORD": os.getenv("MOTION_REDIS_PASSWORD"),
         "MOTION_REDIS_SSL": os.getenv("MOTION_REDIS_SSL", False),
         "MOTION_ENV": os.getenv("MOTION_ENV", "prod"),
-        "MOTION_LOG_STATUS": os.getenv("MOTION_LOG_STATUS", "true"),
     }
 
     # Creates an .motionrc.yml file

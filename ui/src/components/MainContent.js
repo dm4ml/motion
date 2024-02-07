@@ -5,7 +5,7 @@ import {
   Input,
   Typography,
   Stack,
-  //   Card,
+  Card,
   CardContent,
   Chip,
   Modal,
@@ -33,6 +33,7 @@ const MainContent = ({ componentName }) => {
   const [detailedInfo, setDetailedInfo] = useState([]); // Holds the detailed info as a list of key-value pairs
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [instances, setInstances] = useState([]);
+  const [numInstances, setNumInstances] = useState(0);
   const [selectedItem, setSelectedItem] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [expanded, setExpanded] = useState([]);
@@ -59,7 +60,12 @@ const MainContent = ({ componentName }) => {
       axios
         .get(`/instances/${componentName}`)
         .then((response) => {
-          setInstances(response.data);
+          // Get instanceIds and number of instances
+          const instanceIds = response.data.instanceIds;
+          const numInstances = response.data.numInstances;
+
+          setInstances(instanceIds);
+          setNumInstances(numInstances);
 
           // Set current page to 1 when the component changes
           setCurrentPage(1);
@@ -175,7 +181,13 @@ const MainContent = ({ componentName }) => {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography level="h3">{componentName}</Typography>
+      <Card variant="plain" sx={{ mb: 4 }}>
+        <CardContent>
+          <Typography level="h4">{componentName}</Typography>
+          <Typography>Number of Instances: {numInstances}</Typography>
+          {/* Include other information you want to display about the component here */}
+        </CardContent>
+      </Card>
       <Input
         placeholder="Search..."
         value={searchTerm}

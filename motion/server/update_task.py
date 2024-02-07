@@ -1,4 +1,6 @@
 import asyncio
+import os
+import time
 import traceback
 from multiprocessing import Process
 from threading import Thread
@@ -7,8 +9,12 @@ from typing import Any, Callable, Dict, List, Optional
 import cloudpickle
 import redis
 
+from motion.dashboard_utils import create_prometheus_metrics
 from motion.route import Route
-from motion.utils import loadState, logger, saveState
+from motion.utils import FlowOpStatus, loadState, logger, saveState
+
+if os.getenv("MOTION_VICTORIAMETRICS_URL"):
+    from prometheus_client import CollectorRegistry, push_to_gateway
 
 
 class BaseUpdateTask:
@@ -24,11 +30,25 @@ class BaseUpdateTask:
         lock_identifier: str,
         redis_params: Dict[str, Any],
         running: Any,
+        victoriametrics_url: Optional[str] = None,
     ):
         super().__init__()
         self.task_type = task_type
         self.name = f"UpdateTask-{task_type}-{instance_name}"
         self.instance_name = instance_name
+
+        self._component_name, self._instance_id = instance_name.split("__")
+        if victoriametrics_url is not None:
+            (
+                self.op_duration,
+                self.op_success,
+                self.op_failure,
+            ) = create_prometheus_metrics(victoriametrics_url)
+
+        self.victoriametrics_url = victoriametrics_url
+
+        self.registry = CollectorRegistry() if victoriametrics_url else None
+
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
 
@@ -42,6 +62,43 @@ class BaseUpdateTask:
 
         self.redis_params = redis_params
         self.redis_con: Optional[redis.Redis] = None
+
+    def _logMessage(
+        self,
+        flow_key: str,
+        status: FlowOpStatus,
+        duration: float,
+        func_name: str = "",
+    ) -> None:
+        """Method to log a message."""
+
+        # Log to VictoriaMetrics
+        if status == FlowOpStatus.SUCCESS:
+            self.op_success.labels(
+                component_name=self._component_name,
+                instance_id=self._instance_id,
+                op_name=f"{flow_key}/{func_name}",
+                op_type="update",
+            ).inc()
+
+        else:
+            self.op_failure.labels(
+                component_name=self._component_name,
+                instance_id=self._instance_id,
+                op_name=f"{flow_key}/{func_name}",
+                op_type="update",
+            ).inc()
+
+        # Log duration
+        self.op_duration.labels(
+            component_name=self._component_name,
+            instance_id=self._instance_id,
+            op_name=f"{flow_key}/{func_name}",
+            op_type="update",
+        ).set(duration)
+
+        # Push to gateway
+        push_to_gateway(self.victoriametrics_url, job=self.name, registry=self.registry)
 
     def __del__(self) -> None:
         if self.redis_con is not None:
@@ -111,6 +168,7 @@ class BaseUpdateTask:
 
             # Run update op
             try:
+                start_time = time.time()
                 with redis_con.lock(self.lock_identifier, timeout=120):
                     old_state, version = loadState(
                         redis_con,
@@ -144,9 +202,12 @@ class BaseUpdateTask:
                             self.instance_name,
                             self.save_state_func,
                         )
+
             except Exception:
                 logger.error(traceback.format_exc())
                 exception_str = str(traceback.format_exc())
+
+            duration = time.time() - start_time
 
             redis_con.publish(
                 self.channel_identifiers[queue_name],
@@ -157,6 +218,24 @@ class BaseUpdateTask:
                     }
                 ),
             )
+
+            # Log to VictoriaMetrics
+            if self.victoriametrics_url:
+                try:
+                    flow_key = queue_name.split("/")[-2]
+                    udf_name = queue_name.split("/")[-1]
+                    self._logMessage(
+                        flow_key,
+                        FlowOpStatus.SUCCESS
+                        if not exception_str
+                        else FlowOpStatus.FAILURE,
+                        duration,
+                        udf_name,
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error logging to VictoriaMetrics: {e}", exc_info=True
+                    )
 
 
 class UpdateProcess(Process):

@@ -1,6 +1,5 @@
 import asyncio
 import inspect
-import json
 import logging
 import multiprocessing
 import os
@@ -25,6 +24,7 @@ import cloudpickle
 import psutil
 import redis
 
+from motion.dashboard_utils import create_prometheus_metrics
 from motion.dicts import Properties, State
 from motion.discard_policy import DiscardPolicy
 from motion.route import Route
@@ -39,6 +39,10 @@ from motion.utils import (
     loadState,
     saveState,
 )
+
+# Check if the environment variable is set
+if os.getenv("MOTION_VICTORIAMETRICS_URL"):
+    from prometheus_client import CollectorRegistry, push_to_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,11 @@ class Executor:
         self._instance_id = instance_name.split("__")[1]
         self._cache_ttl = cache_ttl
         self._num_messages = 100
+
+        # VictoriaMetrics Configuration
+        self.victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")
+        if self.victoria_metrics_url:
+            self.initialize_victoria_metrics()
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -127,30 +136,55 @@ class Executor:
         if os.getenv("MOTION_ENV", "prod") != "dev":
             self._redis_con.sadd("MOTION_COMPONENTS", self._component_name)
 
+    def initialize_metrics(self):
+        # Initialize Prometheus metrics
+        self.op_duration, self.op_success, self.op_failure = create_prometheus_metrics()
+        self.registry = CollectorRegistry()
+
     def _setRedis(self, cache_result_key: str, props: Any) -> None:
         """Method to set value in Redis."""
         self._redis_con.set(
             cache_result_key, cloudpickle.dumps(props), ex=self._cache_ttl
         )
 
-    def _enqueueRedisLogMessage(
-        self, flow_key: str, status: FlowOpStatus, exception: Optional[str]
+    def _logMessage(
+        self,
+        flow_key: str,
+        op_type: str,
+        status: FlowOpStatus,
+        duration: float,
+        func_name: str = "",
     ) -> None:
-        """Method to enqueue a log message in Redis."""
-        log_message = {
-            "timestamp": int(time.time()),
-            "status": status.value,
-            "exception": exception,
-        }
-        self._redis_con.lpush(
-            f"MOTION_LOG_STATUS:{self._instance_name}/{flow_key}",
-            json.dumps(log_message),
-        )
-        # Trim the queue to the last 100 messages
-        self._redis_con.ltrim(
-            f"MOTION_LOG_STATUS:{self._instance_name}/{flow_key}",
-            0,
-            self._num_messages - 1,
+        """Method to log a message."""
+
+        # Log to VictoriaMetrics
+        if status == FlowOpStatus.SUCCESS:
+            self.op_success.labels(
+                component_name=self._component_name,
+                instance_id=self._instance_id,
+                op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
+                op_type=op_type,
+            ).inc()
+
+        else:
+            self.op_failure.labels(
+                component_name=self._component_name,
+                instance_id=self._instance_id,
+                op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
+                op_type=op_type,
+            ).inc()
+
+        # Log duration
+        self.op_duration.labels(
+            component_name=self._component_name,
+            instance_id=self._instance_id,
+            op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
+            op_type=op_type,
+        ).set(duration)
+
+        # Push to gateway
+        push_to_gateway(
+            self.victoriametrics_url, job=self._instance_name, registry=self.registry
         )
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
@@ -429,6 +463,7 @@ class Executor:
                     route = self._update_routes[key][update_udf_name]
 
                     # Hold lock
+                    start_time = time.time()
 
                     with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
@@ -448,7 +483,30 @@ class Executor:
                                     force_update=False,
                                     use_lock=False,
                                 )
+
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.SUCCESS,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                         except Exception as e:
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.FAILURE,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                             raise RuntimeError(
                                 "Error running update route in main process: " + str(e)
                             )
@@ -531,6 +589,8 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
+                    start_time = time.time()
+
                     with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
@@ -552,7 +612,30 @@ class Executor:
                                     force_update=False,
                                     use_lock=False,
                                 )
+
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.SUCCESS,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                         except Exception as e:
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.FAILURE,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                             raise RuntimeError(
                                 "Error running update route in main process: " + str(e)
                             )
@@ -666,6 +749,7 @@ class Executor:
             props = Properties(props)
 
             # Run the serve route
+            start_time = time.time()
             if key in self._serve_routes.keys():
                 route_hit = True
                 (
@@ -736,20 +820,22 @@ class Executor:
                     f"Key {key} not in routes for component {self._instance_name}."
                 )
 
+            duration = time.time() - start_time
+
             if not is_generated:
                 yield serve_result
 
-            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+            if self.victoria_metrics_url:
                 self.tp.submit(
-                    self._enqueueRedisLogMessage, key, FlowOpStatus.SUCCESS, None
+                    self._logMessage, key, "serve", FlowOpStatus.SUCCESS, duration
                 )
-                # self._enqueueRedisLogMessage(key, FlowOpStatus.SUCCESS, None)
 
         except Exception as e:
-            # Log if os.getenv("MOTION_LOG_STATUS", "false") == "true"
-            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+            duration = time.time() - start_time
+
+            if self.victoria_metrics_url:
                 self.tp.submit(
-                    self._enqueueRedisLogMessage, key, FlowOpStatus.FAILURE, str(e)
+                    self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
                 )
 
             raise e
@@ -769,6 +855,7 @@ class Executor:
 
             # Run the serve route
             is_generated = False
+            start_time = time.time()
             if key in self._serve_routes.keys():
                 route_hit = True
                 (
@@ -836,19 +923,21 @@ class Executor:
                     f"Key {key} not in routes for component {self._instance_name}."
                 )
 
+            duration = time.time() - start_time
+
             if not is_generated:
                 yield serve_result
 
-            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+            if self.victoria_metrics_url:
                 self.tp.submit(
-                    self._enqueueRedisLogMessage, key, FlowOpStatus.SUCCESS, None
+                    self._logMessage, key, "serve", FlowOpStatus.SUCCESS, duration
                 )
 
         except Exception as e:
-            # Log if os.getenv("MOTION_LOG_STATUS", "false") == "true"
-            if os.getenv("MOTION_LOG_STATUS", "false") == "true":
+            duration = time.time() - start_time
+            if self.victoria_metrics_url:
                 self.tp.submit(
-                    self._enqueueRedisLogMessage, key, FlowOpStatus.FAILURE, str(e)
+                    self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
                 )
 
             raise e

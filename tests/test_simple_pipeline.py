@@ -1,5 +1,5 @@
 from motion import Component
-from motion.utils import get_component_instance_usage
+from motion.dashboard_utils import get_component_instance_usage
 
 # Test a pipeline with multiple components
 a = Component("ComponentA")
