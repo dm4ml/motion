@@ -64,3 +64,6 @@ def test_simple_pipeline():
 
     usage = get_component_instance_usage("ComponentA", "my_instance_a")
     assert usage.keys() == {"version", "flowCounts", "statusBarData", "fractionUptime"}
+
+    # Assert that the flowCounts are not empty
+    assert len(usage["flowCounts"]) > 0
