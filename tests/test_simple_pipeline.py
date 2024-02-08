@@ -1,5 +1,5 @@
 from motion import Component
-from motion.dashboard_utils import get_component_instance_usage
+from motion.dashboard_utils import get_component_instance_usage, get_component_usage
 
 # Test a pipeline with multiple components
 a = Component("ComponentA")
@@ -62,8 +62,28 @@ def test_simple_pipeline():
     a_instance.shutdown()
     b_instance.shutdown()
 
+    component_usage = get_component_usage("ComponentA")
+    assert component_usage.keys() == {
+        "numInstances",
+        "instanceIds",
+        "flowCounts",
+        "statusCounts",
+        "statusChanges",
+        "statusBarData",
+        "fractionUptime",
+    }
+
+    # Assert that flowCounts statusCounts statusBarData fractionUptime are not empty
+    assert len(component_usage["flowCounts"]) > 0
+    assert len(component_usage["statusCounts"]) > 0
+    assert len(component_usage["statusBarData"]) > 0
+    assert component_usage["fractionUptime"] is not None
+
     usage = get_component_instance_usage("ComponentA", "my_instance_a")
     assert usage.keys() == {"version", "flowCounts", "statusBarData", "fractionUptime"}
 
     # Assert that the flowCounts are not empty
+    assert usage["version"] > 0
     assert len(usage["flowCounts"]) > 0
+    assert len(usage["statusBarData"]) > 0
+    assert usage["fractionUptime"] is not None
