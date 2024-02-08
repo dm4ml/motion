@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { Box, CssVarsProvider } from "@mui/joy";
+import { Box, CssVarsProvider, Sheet } from "@mui/joy";
 import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
+import MotionHeader from "./components/MotionHeader";
 import MainContent from "./components/MainContent";
 import axios from "axios";
 import theme from "./customTheme";
@@ -28,10 +28,21 @@ function App() {
   }, []);
 
   return (
-    <CssVarsProvider theme={theme}>
+    <CssVarsProvider
+      // defaultMode={mode}
+      disableNestedContext
+      modeStorageKey="motion-dark-mode"
+    >
       <Router>
-        <Header title="Motion Dashboard" />
-        <Box sx={{ display: "flex", pt: "80px" }}>
+        <Sheet
+          sx={{
+            display: "flex",
+            pt: "80px",
+            bgcolor: "background.paper",
+            height: "100vh",
+          }}
+        >
+          <MotionHeader title="Motion Dashboard" />
           <Sidebar components={components} />
           <Box sx={{ flex: 1 }}>
             <Routes>
@@ -44,7 +55,7 @@ function App() {
               ))}
             </Routes>
           </Box>
-        </Box>
+        </Sheet>
       </Router>
     </CssVarsProvider>
   );

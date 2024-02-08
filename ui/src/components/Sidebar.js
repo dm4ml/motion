@@ -1,43 +1,33 @@
 import React from "react";
-import { Box, List, ListItem, Typography } from "@mui/joy";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
+import { Box, List, ListItemButton, ListSubheader, Typography } from "@mui/joy";
 import Divider from "@mui/joy/Divider";
 
 const Sidebar = ({ components }) => {
-  // Define your active style
-  const activeStyle = {
-    textDecoration: "none",
-    width: "100%",
-    display: "block",
-    backgroundColor: "#f0f0f0", // A light background color for active link
-  };
-
-  const inactiveStyle = {
-    textDecoration: "none",
-    color: "inherit",
-    display: "block",
-  };
+  const location = useLocation();
 
   return (
     <Box
       sx={{
         width: "250px",
         bgcolor: "background.paper",
-        borderRight: "1px solid #ddd",
-        // height: "100vh",
+        // borderRight: "1px solid #ddd",
+        overflowY: "auto", // Makes the sidebar scrollable
       }}
     >
-      <List>
+      <List component="nav" variant="plain">
+        <ListSubheader sticky>Components</ListSubheader>
         {components.map((component) => (
-          <ListItem key={component.name}>
-            <NavLink
+          <React.Fragment key={component.name}>
+            <ListItemButton
+              component={NavLink}
               to={`/${component.name}`}
-              style={({ isActive }) => (isActive ? activeStyle : inactiveStyle)}
+              selected={location.pathname === `/${component.name}`}
             >
-              <Typography variant="body">{component.name}</Typography>
-            </NavLink>
+              <Typography>{component.name}</Typography>
+            </ListItemButton>
             <Divider />
-          </ListItem>
+          </React.Fragment>
         ))}
       </List>
     </Box>
