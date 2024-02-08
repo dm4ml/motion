@@ -360,7 +360,7 @@ class Executor:
         """Gets the channel identifier for a given route key and UDF name."""
         return f"{self.__channel_prefix}/{route_key}/{udf_name}"
 
-    def shutdown(self, is_open: bool) -> None:
+    def shutdown(self, is_open: bool, wait_for_logging_threads: bool) -> None:
         if self.disable_update_task:
             if self._redis_con:
                 self._redis_con.close()
@@ -388,8 +388,8 @@ class Executor:
             if self.worker_task and self.worker_task.is_alive():  # type: ignore
                 self.worker_task.join()  # type: ignore
 
-        # Shut down threadpool for writing to Redis
-        self.tp.shutdown(wait=True)
+        # Shut down threadpool for writing to Redis and logging
+        self.tp.shutdown(wait=wait_for_logging_threads)
 
         self._redis_con.close()
 

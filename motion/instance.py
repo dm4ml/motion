@@ -121,7 +121,7 @@ class ComponentInstance:
         or a user-defined ID."""
         return self._instance_name.split("__")[-1]
 
-    def shutdown(self) -> None:
+    def shutdown(self, wait_for_logging_threads: bool = False) -> None:
         """Shuts down a Motion component instance, saving state.
         Automatically called when the instance is garbage collected.
 
@@ -165,7 +165,9 @@ class ComponentInstance:
         if is_open:
             logger.debug(f"Shutting down {self._instance_name}...")
 
-        self._executor.shutdown(is_open=is_open)
+        self._executor.shutdown(
+            is_open=is_open, wait_for_logging_threads=wait_for_logging_threads
+        )
 
         self.running = False
 
