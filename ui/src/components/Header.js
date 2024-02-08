@@ -7,7 +7,7 @@ const Header = ({ title }) => {
   return (
     <Box
       sx={{
-        bgcolor: "primary.200",
+        bgcolor: "primary.300",
         p: 2,
         width: "100%", // Changed from 100vw to 100%
         position: "fixed",
@@ -26,14 +26,14 @@ const Header = ({ title }) => {
       <Box>
         <IconButton
           component="a"
-          href="https://github.com/your-username/your-repo"
+          href="https://github.com/dm4ml/motion"
           target="_blank"
         >
           <GitHubIcon />
         </IconButton>
         <IconButton
           component="a"
-          href="https://link-to-your-docs"
+          href="https://dm4ml.github.io/motion/"
           target="_blank"
         >
           <ArticleIcon />

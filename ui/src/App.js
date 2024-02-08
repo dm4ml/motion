@@ -30,7 +30,7 @@ function App() {
   return (
     <CssVarsProvider theme={theme}>
       <Router>
-        <Header title="Motion State Editor" />
+        <Header title="Motion Dashboard" />
         <Box sx={{ display: "flex", pt: "80px" }}>
           <Sidebar components={components} />
           <Box sx={{ flex: 1 }}>

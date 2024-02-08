@@ -6,7 +6,7 @@ any component instance and edit the state of any component instance.
 
 
 from importlib import resources
-from typing import List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,7 @@ from motion.dashboard_utils import (
 )
 from motion.df import MDataFrame
 from motion.mtable import MTable
-from motion.utils import FlowOpStatus, get_components, inspect_state
+from motion.utils import get_components, inspect_state
 
 dashboard_app = FastAPI()
 
@@ -57,14 +57,20 @@ class BarListType(BaseModel):
 
 
 class ComponentInstanceUsage(BaseModel):
-    statuses: List[StatusTracker]
     version: int
-    resultsByFlow: List[BarListType]
+    flowCounts: List[BarListType]
+    statusBarData: List[StatusTracker]
+    fractionUptime: Optional[float]
 
 
 class ComponentUsage(BaseModel):
     numInstances: int
     instanceIds: List[str]
+    flowCounts: List[BarListType]
+    statusCounts: Dict[str, int]
+    statusChanges: Dict[str, Dict[str, Any]]
+    statusBarData: List[StatusTracker]
+    fractionUptime: Optional[float]
 
 
 @dashboard_app.get("/components")
@@ -84,7 +90,23 @@ def list_components() -> List[str]:
 def list_instances(component: str) -> ComponentUsage:
     """Lists all instances of a component."""
     component_usage = get_component_usage(component)
-    cu = ComponentUsage(**component_usage)
+
+    flowCounts = [
+        BarListType(name=elem["flow"], value=elem["count"])
+        for elem in component_usage["flowCounts"]
+    ]
+    cu = ComponentUsage(
+        numInstances=component_usage["numInstances"],
+        instanceIds=component_usage["instanceIds"],
+        flowCounts=flowCounts,
+        statusCounts=component_usage["statusCounts"],
+        statusChanges=component_usage["statusChanges"],
+        statusBarData=[
+            StatusTracker(color=elem["color"], tooltip=elem["tooltip"])
+            for elem in component_usage["statusBarData"]
+        ],
+        fractionUptime=component_usage["fractionUptime"],
+    )
     return cu
 
 
@@ -95,7 +117,22 @@ def filter_instances(component: str, search: str = "") -> ComponentUsage:
     instances = [
         instance for instance in component_usage["instanceIds"] if search in instance
     ]
-    cu = ComponentUsage(numInstances=len(instances), instanceIds=instances)
+    flowCounts = [
+        BarListType(name=elem["flow"], value=elem["count"])
+        for elem in component_usage["flowCounts"]
+    ]
+    cu = ComponentUsage(
+        numInstances=len(instances),
+        instanceIds=instances,
+        flowCounts=flowCounts,
+        statusCounts=component_usage["statusCounts"],
+        statusChanges=component_usage["statusChanges"],
+        statusBarData=[
+            StatusTracker(color=elem["color"], tooltip=elem["tooltip"])
+            for elem in component_usage["statusBarData"]
+        ],
+        fractionUptime=component_usage["fractionUptime"],
+    )
 
     return cu
 
@@ -107,52 +144,21 @@ def retrieve_result_status(component: str, instance_id: str) -> ComponentInstanc
     # Get the usage of the component instance
     usage = get_component_instance_usage(component, instance_id)
     version = usage["version"]
-    resultsByFlow = [{"flow": k, "count": v} for k, v in usage["resultsByFlow"].items()]
 
-    # Order by descending value
-    resultsByFlow = sorted(resultsByFlow, key=lambda x: x["count"], reverse=True)
-
-    resultsByFlow = [
-        BarListType(name=flow["flow"], value=flow["count"]) for flow in resultsByFlow
+    flowCounts = [
+        BarListType(name=elem["flow"], value=elem["count"])
+        for elem in usage["flowCounts"]
+    ]
+    statusBarData = [
+        StatusTracker(color=elem["color"], tooltip=elem["tooltip"])
+        for elem in usage["statusBarData"]
     ]
 
-    # statuses will be a list of StatusTracker objects for usage["allResults"]
-    # Each element in usage["allResults"] will be a dictionary with the
-    # following keys: "status", "flow", "timestamp", "exception"
-    all_results = usage["allResults"]
-
-    # Sort by timestamp and take the maximal 100
-    all_results = sorted(all_results, key=lambda x: x["timestamp"], reverse=True)[:100]
-
-    statuses = []
-    for result in all_results:
-        if result["status"] == FlowOpStatus.SUCCESS.value:
-            statuses.append(
-                StatusTracker(
-                    color="emerald",
-                    tooltip=result["flow"] + ": " + FlowOpStatus.SUCCESS.value,
-                )
-            )
-        elif result["status"] == FlowOpStatus.FAILURE.value:
-            statuses.append(
-                StatusTracker(
-                    color="red",
-                    tooltip=result["flow"]
-                    + ": "
-                    + FlowOpStatus.FAILURE.value
-                    + f": {result['exception']}",
-                )
-            )
-        elif result["status"] == FlowOpStatus.CACHE_HIT.value:
-            statuses.append(
-                StatusTracker(
-                    color="emerald",
-                    tooltip=result["flow"] + ": " + FlowOpStatus.CACHE_HIT.value,
-                )
-            )
-
     return ComponentInstanceUsage(
-        statuses=statuses, version=version, resultsByFlow=resultsByFlow
+        version=version,
+        flowCounts=flowCounts,
+        statusBarData=statusBarData,
+        fractionUptime=usage["fractionUptime"],
     )
 
 

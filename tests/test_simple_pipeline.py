@@ -63,4 +63,4 @@ def test_simple_pipeline():
     b_instance.shutdown()
 
     usage = get_component_instance_usage("ComponentA", "my_instance_a")
-    assert usage.keys() == {"version", "resultsByFlow", "allResults"}
+    assert usage.keys() == {"version", "flowCounts", "statusBarData", "fractionUptime"}

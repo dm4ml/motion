@@ -23,8 +23,8 @@ from uuid import uuid4
 import cloudpickle
 import psutil
 import redis
+import requests
 
-from motion.dashboard_utils import create_prometheus_metrics
 from motion.dicts import Properties, State
 from motion.discard_policy import DiscardPolicy
 from motion.route import Route
@@ -39,10 +39,6 @@ from motion.utils import (
     loadState,
     saveState,
 )
-
-# Check if the environment variable is set
-if os.getenv("MOTION_VICTORIAMETRICS_URL"):
-    from prometheus_client import CollectorRegistry, push_to_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +66,6 @@ class Executor:
 
         # VictoriaMetrics Configuration
         self.victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")
-        if self.victoria_metrics_url:
-            self.initialize_victoria_metrics()
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -136,11 +130,6 @@ class Executor:
         if os.getenv("MOTION_ENV", "prod") != "dev":
             self._redis_con.sadd("MOTION_COMPONENTS", self._component_name)
 
-    def initialize_metrics(self):
-        # Initialize Prometheus metrics
-        self.op_duration, self.op_success, self.op_failure = create_prometheus_metrics()
-        self.registry = CollectorRegistry()
-
     def _setRedis(self, cache_result_key: str, props: Any) -> None:
         """Method to set value in Redis."""
         self._redis_con.set(
@@ -154,38 +143,33 @@ class Executor:
         status: FlowOpStatus,
         duration: float,
         func_name: str = "",
-    ) -> None:
-        """Method to log a message."""
+    ):
+        """Method to log a message directly to VictoriaMetrics using InfluxDB
+        line protocol."""
+        if self.victoria_metrics_url:
+            timestamp = int(
+                time.time() * 1000000000
+            )  # Nanoseconds for InfluxDB line protocol
+            status_label = "success" if status == FlowOpStatus.SUCCESS else "failure"
 
-        # Log to VictoriaMetrics
-        if status == FlowOpStatus.SUCCESS:
-            self.op_success.labels(
-                component_name=self._component_name,
-                instance_id=self._instance_id,
-                op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
-                op_type=op_type,
-            ).inc()
+            # Format the metric in InfluxDB line protocol
+            metric_data = f"motion_operation_duration_seconds,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type},status={status_label} value={duration} {timestamp}"  # noqa: E501
 
-        else:
-            self.op_failure.labels(
-                component_name=self._component_name,
-                instance_id=self._instance_id,
-                op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
-                op_type=op_type,
-            ).inc()
+            # Format the counter metrics for success and failure
+            success_counter = f"motion_operation_success_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'success' else 0} {timestamp}"  # noqa: E501
+            failure_counter = f"motion_operation_failure_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'failure' else 0} {timestamp}"  # noqa: E501
 
-        # Log duration
-        self.op_duration.labels(
-            component_name=self._component_name,
-            instance_id=self._instance_id,
-            op_name=f"{flow_key}/{func_name}" if op_type == "update" else flow_key,
-            op_type=op_type,
-        ).set(duration)
+            # Combine metrics into a single payload with newline character
+            payload = "\n".join([metric_data, success_counter, failure_counter])
 
-        # Push to gateway
-        push_to_gateway(
-            self.victoriametrics_url, job=self._instance_name, registry=self.registry
-        )
+            try:
+                # Send HTTP POST request with the combined metric data
+                response = requests.post(
+                    self.victoria_metrics_url + "/write", data=payload
+                )
+                response.raise_for_status()  # Raise an exception for HTTP errors
+            except requests.RequestException as e:
+                logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
         rp = get_redis_params()
@@ -321,6 +305,7 @@ class Executor:
                 lock_identifier=self.__lock_prefix,
                 redis_params=self._redis_params.dict(),
                 running=self.running,
+                victoria_metrics_url=self.victoria_metrics_url,
             )
             self.worker_task.start()  # type: ignore
 
@@ -833,7 +818,7 @@ class Executor:
         except Exception as e:
             duration = time.time() - start_time
 
-            if self.victoria_metrics_url:
+            if self.victoria_metrics_url and key in self._serve_routes.keys():
                 self.tp.submit(
                     self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
                 )
@@ -935,7 +920,7 @@ class Executor:
 
         except Exception as e:
             duration = time.time() - start_time
-            if self.victoria_metrics_url:
+            if self.victoria_metrics_url and key in self._serve_routes.keys():
                 self.tp.submit(
                     self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
                 )

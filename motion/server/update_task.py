@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 import traceback
 from multiprocessing import Process
@@ -8,13 +7,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
 import redis
+import requests
 
-from motion.dashboard_utils import create_prometheus_metrics
 from motion.route import Route
 from motion.utils import FlowOpStatus, loadState, logger, saveState
-
-if os.getenv("MOTION_VICTORIAMETRICS_URL"):
-    from prometheus_client import CollectorRegistry, push_to_gateway
 
 
 class BaseUpdateTask:
@@ -30,7 +26,7 @@ class BaseUpdateTask:
         lock_identifier: str,
         redis_params: Dict[str, Any],
         running: Any,
-        victoriametrics_url: Optional[str] = None,
+        victoria_metrics_url: Optional[str] = None,
     ):
         super().__init__()
         self.task_type = task_type
@@ -38,16 +34,8 @@ class BaseUpdateTask:
         self.instance_name = instance_name
 
         self._component_name, self._instance_id = instance_name.split("__")
-        if victoriametrics_url is not None:
-            (
-                self.op_duration,
-                self.op_success,
-                self.op_failure,
-            ) = create_prometheus_metrics(victoriametrics_url)
 
-        self.victoriametrics_url = victoriametrics_url
-
-        self.registry = CollectorRegistry() if victoriametrics_url else None
+        self.victoria_metrics_url = victoria_metrics_url
 
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
@@ -66,39 +54,36 @@ class BaseUpdateTask:
     def _logMessage(
         self,
         flow_key: str,
+        op_type: str,
         status: FlowOpStatus,
         duration: float,
-        func_name: str = "",
-    ) -> None:
-        """Method to log a message."""
+        func_name,
+    ):
+        """Method to log a message directly to VictoriaMetrics using InfluxDB
+        line protocol."""
+        if self.victoria_metrics_url:
+            timestamp = int(
+                time.time() * 1000000000
+            )  # Nanoseconds for InfluxDB line protocol
+            status_label = "success" if status == FlowOpStatus.SUCCESS else "failure"
 
-        # Log to VictoriaMetrics
-        if status == FlowOpStatus.SUCCESS:
-            self.op_success.labels(
-                component_name=self._component_name,
-                instance_id=self._instance_id,
-                op_name=f"{flow_key}/{func_name}",
-                op_type="update",
-            ).inc()
+            # Format the metric in InfluxDB line protocol
+            metric_data = f"motion_operation_duration_seconds,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type},status={status_label} value={duration} {timestamp}"  # noqa: E501
+            # Format the counter metrics for success and failure
+            success_counter = f"motion_operation_success_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'success' else 0} {timestamp}"  # noqa: E501
+            failure_counter = f"motion_operation_failure_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'failure' else 0} {timestamp}"  # noqa: E501
 
-        else:
-            self.op_failure.labels(
-                component_name=self._component_name,
-                instance_id=self._instance_id,
-                op_name=f"{flow_key}/{func_name}",
-                op_type="update",
-            ).inc()
+            # Combine metrics into a single payload with newline character
+            payload = "\n".join([metric_data, success_counter, failure_counter])
 
-        # Log duration
-        self.op_duration.labels(
-            component_name=self._component_name,
-            instance_id=self._instance_id,
-            op_name=f"{flow_key}/{func_name}",
-            op_type="update",
-        ).set(duration)
-
-        # Push to gateway
-        push_to_gateway(self.victoriametrics_url, job=self.name, registry=self.registry)
+            try:
+                # Send HTTP POST request with the combined metric data
+                response = requests.post(
+                    self.victoria_metrics_url + "/write", data=payload
+                )
+                response.raise_for_status()  # Raise an exception for HTTP errors
+            except requests.RequestException as e:
+                logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
 
     def __del__(self) -> None:
         if self.redis_con is not None:
@@ -220,12 +205,13 @@ class BaseUpdateTask:
             )
 
             # Log to VictoriaMetrics
-            if self.victoriametrics_url:
+            if self.victoria_metrics_url:
                 try:
                     flow_key = queue_name.split("/")[-2]
                     udf_name = queue_name.split("/")[-1]
                     self._logMessage(
                         flow_key,
+                        "update",
                         FlowOpStatus.SUCCESS
                         if not exception_str
                         else FlowOpStatus.FAILURE,
