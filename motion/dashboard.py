@@ -4,7 +4,6 @@ The dashboard is a web interface that allows users to inspect the state of
 any component instance and edit the state of any component instance.
 """
 
-
 from importlib import resources
 from typing import Any, Dict, List, Optional, Union
 

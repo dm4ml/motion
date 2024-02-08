@@ -5,6 +5,7 @@ state.
 
 It is a wrapper around a pyarrow table.
 """
+
 import os
 import secrets
 from typing import Any, List, Optional, Union

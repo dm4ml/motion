@@ -1,10 +1,10 @@
 import React from "react";
-import { Box, Typography, IconButton, Button, Sheet } from "@mui/joy";
+import { Box, Typography, IconButton, Sheet } from "@mui/joy";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import ArticleIcon from "@mui/icons-material/Article";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
-import { useColorScheme, useTheme } from "@mui/joy/styles";
+import { useColorScheme } from "@mui/joy/styles";
 
 function ModeSwitcher() {
   const { mode, setMode } = useColorScheme();

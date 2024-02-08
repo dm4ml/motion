@@ -4,8 +4,6 @@ import {
   Box,
   Input,
   Typography,
-  Stack,
-  CardContent,
   Chip,
   Modal,
   ModalDialog,
@@ -13,12 +11,10 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  CardActions,
   AccordionGroup,
   AccordionDetails,
   Divider,
   ButtonGroup,
-  Card,
   Tabs,
   Tab,
   TabPanel,
@@ -156,8 +152,8 @@ const MainContent = ({ componentName }) => {
   const handleDetailChange = (index, key, value) => {
     setDetailedInfo((prevDetails) =>
       prevDetails.map((detail, idx) =>
-        idx === index ? { ...detail, [key]: value } : detail
-      )
+        idx === index ? { ...detail, [key]: value } : detail,
+      ),
     );
   };
 
@@ -178,7 +174,7 @@ const MainContent = ({ componentName }) => {
         console.error(
           "Error fetching instances for search term",
           searchTerm,
-          error
+          error,
         );
       });
   };

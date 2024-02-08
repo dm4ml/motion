@@ -212,9 +212,11 @@ class BaseUpdateTask:
                     self._logMessage(
                         flow_key,
                         "update",
-                        FlowOpStatus.SUCCESS
-                        if not exception_str
-                        else FlowOpStatus.FAILURE,
+                        (
+                            FlowOpStatus.SUCCESS
+                            if not exception_str
+                            else FlowOpStatus.FAILURE
+                        ),
                         duration,
                         udf_name,
                     )

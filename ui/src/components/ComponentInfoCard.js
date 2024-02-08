@@ -6,7 +6,6 @@ import {
   Title,
   Flex,
   Text,
-  Bold,
   Metric,
   BadgeDelta,
   Card as TremorCard,

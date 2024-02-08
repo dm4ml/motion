@@ -2,6 +2,7 @@
 This file contains the props class, which is used to store
 properties of a flow.
 """
+
 from typing import Any, Optional
 
 
