@@ -22,22 +22,11 @@ import {
 } from "@mui/joy";
 import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
 import DynamicTable from "./DynamicTable";
-import Accordion, { accordionClasses } from "@mui/joy/Accordion";
+import Accordion from "@mui/joy/Accordion";
 import AccordionSummary, {
   accordionSummaryClasses,
 } from "@mui/joy/AccordionSummary";
-import {
-  Tracker,
-  BarList,
-  Title,
-  Flex,
-  Text,
-  Bold,
-  Metric,
-  BadgeDelta,
-  Card as TremorCard,
-  Grid,
-} from "@tremor/react";
+import { Tracker, BarList, Title, Flex, Text } from "@tremor/react";
 import ComponentInfoCard from "./ComponentInfoCard";
 
 const MainContent = ({ componentName }) => {

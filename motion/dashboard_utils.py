@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 import redis
 import requests
@@ -8,7 +8,7 @@ import requests
 from motion.utils import get_redis_params, loadState, saveState
 
 
-def query_victoriametrics(victoria_metrics_url, query):
+def query_victoriametrics(victoria_metrics_url: str, query: str) -> Any:
     """Query VictoriaMetrics using the given PromQL query."""
     params = {
         "query": query,
@@ -18,20 +18,24 @@ def query_victoriametrics(victoria_metrics_url, query):
     return response.json()
 
 
-def query_victoriametrics_with_ts(victoria_metrics_url, query, start, end, step):
+def query_victoriametrics_with_ts(
+    victoria_metrics_url: str, query: str, start: int, end: int, step: int
+) -> Any:
     """Query VictoriaMetrics using the given PromQL query."""
     params = {"query": query, "start": start, "end": end, "step": step}
-    response = requests.get(f"{victoria_metrics_url}/api/v1/query_range", params=params)
+    response = requests.get(f"{victoria_metrics_url}/api/v1/query_range", params=params)  # type: ignore
     return response.json()
 
 
-def calculate_percentage_change(old, new):
+def calculate_percentage_change(old: int, new: int) -> float:
     if old == 0:
         return 0 if new == 0 else 100
     return ((new - old) / old) * 100
 
 
-def calculate_color_and_tooltip(success_count, total_count):
+def calculate_color_and_tooltip(
+    success_count: float, total_count: float
+) -> Tuple[str, str]:
     if total_count == 0:
         return "gray", "Inactive"
     success_rate = success_count / total_count
@@ -43,7 +47,9 @@ def calculate_color_and_tooltip(success_count, total_count):
         return "rose", "Downtime"
 
 
-def get_interval_data(victoria_metrics_url, component_name, instance_id=None):
+def get_interval_data(
+    victoria_metrics_url: str, component_name: str, instance_id: Optional[str] = None
+) -> Tuple[List[Dict[str, Any]], Optional[float]]:
     # Define time range
     end_time = datetime.now()
     start_time = end_time - timedelta(hours=24)
@@ -72,10 +78,10 @@ def get_interval_data(victoria_metrics_url, component_name, instance_id=None):
     failure_result = response.get("data", {}).get("result", [])
 
     success_interval_counts = {
-        timestamp: 0 for timestamp in range(start_ts, end_ts, 1800)
+        timestamp: 0.0 for timestamp in range(start_ts, end_ts, 1800)
     }
     failure_interval_counts = {
-        timestamp: 0 for timestamp in range(start_ts, end_ts, 1800)
+        timestamp: 0.0 for timestamp in range(start_ts, end_ts, 1800)
     }
 
     # Assuming there's only one series in the result
@@ -132,7 +138,7 @@ def get_component_usage(component_name: str) -> Dict[str, Any]:
         "success": {"value": float("inf"), "deltaType": "increase"},
         "failure": {"value": float("inf"), "deltaType": "increase"},
     }
-    status_bar_data = []
+    status_bar_data: List[Dict[str, Any]] = []
     fraction_uptime = None
     victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")
     if victoria_metrics_url:
@@ -212,12 +218,16 @@ def get_component_instance_usage(
     rp = get_redis_params()
     redis_con = redis.Redis(**rp.dict())
 
-    version = int(redis_con.get(f"MOTION_VERSION:{component_name}__{instance_id}"))
+    try:
+        version = int(redis_con.get(f"MOTION_VERSION:{component_name}__{instance_id}"))  # type: ignore
+    except TypeError:
+        raise ValueError(f"Instance {component_name}__{instance_id} does not exist.")
+
     redis_con.close()
 
     # Get the results by flow using the component name and instance id
     flowCounts = []
-    statusBarData = []
+    statusBarData: List[Dict[str, Any]] = []
     fraction_uptime = None
 
     victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")

@@ -5,7 +5,6 @@ import Sidebar from "./components/Sidebar";
 import MotionHeader from "./components/MotionHeader";
 import MainContent from "./components/MainContent";
 import axios from "axios";
-import theme from "./customTheme";
 
 axios.defaults.baseURL = "http://localhost:8000";
 

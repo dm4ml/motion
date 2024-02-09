@@ -167,10 +167,16 @@ def update_instance(
 ) -> Response:
     """Updates the state of a component instance."""
     # Convert update to a dictionary
-    update_dict = {kv.key: kv.value for kv in update}
+    update_dict: Dict[str, Any] = {kv.key: kv.value for kv in update}
 
     # Load the state and make sure types are compatible
     state = inspect_state(f"{component}__{instance}")
+
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Instance `{instance}` of component `{component}` does not exist.",
+        )
 
     try:
         for key, value in update_dict.items():
@@ -223,6 +229,12 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
     """Inspects the state of a component instance."""
     state = inspect_state(f"{component}__{instance}")
 
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Instance `{instance}` of component `{component}` does not exist.",
+        )
+
     state_serialized = []
 
     for key, value in state.items():
@@ -248,21 +260,20 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
         elif isinstance(value, (str, int, float, bool)):
             # Get the type of the value
             t = type(value)
+            t_str = t.__name__
 
             # Convert to a readable string
             if t == str:
-                t = "string"
+                t_str = "string"
             elif t == int:
-                t = "int"
+                t_str = "int"
             elif t == float:
-                t = "float"
+                t_str = "float"
             elif t == bool:
-                t = "bool"
-            else:
-                t = type(value).__name__
+                t_str = "bool"
 
             state_serialized.append(
-                EditableStateKV(key=key, value=str(value), editable=True, type=t)
+                EditableStateKV(key=key, value=str(value), editable=True, type=t_str)
             )
 
         # If type is an MDataframe or MTable, it is not editable,
@@ -300,14 +311,14 @@ def inspect_instance(component: str, instance: str) -> List[EditableStateKV]:
     return state_serialized
 
 
-def get_frontend_build_folder():
+def get_frontend_build_folder() -> str:
     # Determine the package directory
     package_dir = resources.files("motion")
 
     # Construct the path to the static files
     frontend_build_folder = package_dir / "static"
 
-    return frontend_build_folder
+    return str(frontend_build_folder)
 
 
 # Mount the static files

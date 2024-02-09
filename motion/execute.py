@@ -143,7 +143,7 @@ class Executor:
         status: FlowOpStatus,
         duration: float,
         func_name: str = "",
-    ):
+    ) -> None:
         """Method to log a message directly to VictoriaMetrics using InfluxDB
         line protocol."""
         if self.victoria_metrics_url:
