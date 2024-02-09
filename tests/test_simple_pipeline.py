@@ -1,5 +1,6 @@
 from motion import Component
 from motion.dashboard_utils import get_component_instance_usage, get_component_usage
+import os
 
 # Test a pipeline with multiple components
 a = Component("ComponentA")
@@ -87,3 +88,29 @@ def test_simple_pipeline():
     assert len(usage["flowCounts"]) > 0
     assert len(usage["statusBarData"]) > 0
     assert usage["fractionUptime"] is not None
+
+
+def test_without_victoriametrics():
+    # No victoriametrics
+    old_url = os.environ["MOTION_VICTORIAMETRICS_URL"]
+    del os.environ["MOTION_VICTORIAMETRICS_URL"]
+
+    a_instance = a("my_instance_a_no_vm")
+    add_result = a_instance.run("add", props={"value": 1}, flush_update=True)
+    assert add_result == 1
+
+    add_result_2 = a_instance.run("add", props={"value": 2})
+    assert add_result_2 == 3
+
+    # Check that the logs for this instance are empty
+    a_instance.shutdown()
+    usage = get_component_instance_usage("ComponentA", "my_instance_a_no_vm")
+    assert usage.keys() == {"version", "flowCounts", "statusBarData", "fractionUptime"}
+
+    # Assert that the flowCounts are not empty
+    assert usage["version"] > 0
+    assert len(usage["flowCounts"]) == 0
+    assert len(usage["statusBarData"]) == 0
+    assert usage["fractionUptime"] is None
+
+    os.environ["MOTION_VICTORIAMETRICS_URL"] = old_url
