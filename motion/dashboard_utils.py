@@ -142,6 +142,8 @@ def get_component_usage(component_name: str) -> Dict[str, Any]:
     fraction_uptime = None
     victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")
     if victoria_metrics_url:
+        print("HERE")
+
         # Count logs by flow
         promql_query = f'count(motion_operation_duration_seconds_value{{component="{component_name}"}}[24h]) by (flow)'  # noqa: E501
 
