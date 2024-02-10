@@ -32,6 +32,15 @@ jobs:
             sleep 1
           done
 
+      - name: Check VictoriaMetrics readiness
+        run: |
+          retries=5
+          until curl --silent --fail http://localhost:8428/health || [[ $retries == 0 ]]; do
+            echo "Waiting for VictoriaMetrics to be ready..."
+            ((retries--))
+            sleep 2
+          done
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
