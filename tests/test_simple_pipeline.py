@@ -60,8 +60,8 @@ def test_simple_pipeline():
     assert concat_result_2 == " 1 3"
 
     # Check that the logs show results
-    a_instance.shutdown()
-    b_instance.shutdown()
+    a_instance.shutdown(wait_for_logging_threads=True)
+    b_instance.shutdown(wait_for_logging_threads=True)
 
     component_usage = get_component_usage("ComponentA")
     assert component_usage.keys() == {
@@ -103,7 +103,7 @@ def test_without_victoriametrics():
     assert add_result_2 == 3
 
     # Check that the logs for this instance are empty
-    a_instance.shutdown()
+    a_instance.shutdown(wait_for_logging_threads=True)
     usage = get_component_instance_usage("ComponentA", "my_instance_a_no_vm")
     assert usage.keys() == {"version", "flowCounts", "statusBarData", "fractionUptime"}
 
