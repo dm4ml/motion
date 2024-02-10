@@ -20,6 +20,7 @@ docs:
 	poetry run mkdocs serve
 
 build:
+	rm -rf motion/static
 	cd ui && npm run build
 	cd ..
 	cp -r ui/build motion/static
