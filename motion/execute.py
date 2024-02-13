@@ -164,7 +164,6 @@ class Executor:
 
             try:
                 # Send HTTP POST request with the combined metric data
-                print(payload)
                 response = requests.post(
                     self.victoria_metrics_url + "/write", data=payload
                 )
