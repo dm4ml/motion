@@ -17,7 +17,7 @@
         show_source: false
         show_signature_annotations: true
 
-::: motion.UpdateDiscardPolicy
+::: motion.DiscardPolicy
     handler: python
     options:
         show_root_full_path: false
