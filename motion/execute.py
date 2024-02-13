@@ -164,10 +164,10 @@ class Executor:
 
             try:
                 # Send HTTP POST request with the combined metric data
+                print(payload)
                 response = requests.post(
                     self.victoria_metrics_url + "/write", data=payload
                 )
-                print(f"Logging response: {response}")
                 response.raise_for_status()  # Raise an exception for HTTP errors
             except requests.RequestException as e:
                 logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
