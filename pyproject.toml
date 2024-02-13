@@ -5,6 +5,7 @@ description = "A trigger-based framework for creating and executing ML pipelines
 authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
 readme = "README.md"
 packages = [{include = "motion"}]
+include = ["static/**/*"]
 
 [tool.poetry.dependencies]
 python = "^3.9"

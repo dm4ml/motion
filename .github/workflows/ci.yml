@@ -15,6 +15,11 @@ jobs:
         image: redis
         ports:
           - 6381:6379
+      victoriametrics:
+        image: victoriametrics/victoria-metrics
+        ports:
+          - 8428:8428 # Default port for VictoriaMetrics
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -25,6 +30,15 @@ jobs:
           until redis-cli -p 6381 ping || [[ $retries == 0 ]]; do
             ((retries--))
             sleep 1
+          done
+
+      - name: Check VictoriaMetrics readiness
+        run: |
+          retries=5
+          until curl --silent --fail http://localhost:8428/health || [[ $retries == 0 ]]; do
+            echo "Waiting for VictoriaMetrics to be ready..."
+            ((retries--))
+            sleep 2
           done
 
       - name: Set up Python

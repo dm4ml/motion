@@ -22,3 +22,5 @@ motionstate*
 *.so
 target*
 .motionenv*
+*motionrc*
+example_dashboard.py

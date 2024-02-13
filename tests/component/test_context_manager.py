@@ -6,7 +6,7 @@ CounterCM = Component("CounterCM")
 
 @CounterCM.init_state
 def setUp():
-    return {"value": 0}
+    return {"value": 0, "list_val": [1, 2, 3], "dict_val": {"a": 1, "b": 2}}
 
 
 @CounterCM.serve("number")

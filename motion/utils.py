@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import random
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -68,6 +69,7 @@ class RedisParams(BaseModel, extra="allow"):
 
 
 def get_redis_params() -> RedisParams:
+    import_config()
     rp = RedisParams()
     return rp
 
@@ -84,11 +86,10 @@ def get_instances(component_name: str) -> List[str]:
     rp = get_redis_params()
     redis_con = redis.Redis(**rp.dict())
 
-    # Scan for all keys with prefix
-    prefix = f"MOTION_VERSION:{component_name}__*"
-    instance_ids = []
-    for key in redis_con.scan_iter(prefix):
-        instance_ids.append(key.decode("utf-8").split("__")[1])  # type: ignore
+    instance_ids = redis_con.keys(f"MOTION_VERSION:{component_name}__*")
+    instance_ids = [
+        instance_id.decode("utf-8").split("__")[1] for instance_id in instance_ids
+    ]
 
     redis_con.close()
 
@@ -125,6 +126,8 @@ def clear_dev_instances() -> int:
 
     pipeline.execute()
     pipeline.close()
+
+    redis_con.close()
 
     return num_keys_deleted
 
@@ -235,6 +238,27 @@ def inspect_state(instance_name: str) -> Optional[State]:
     return state
 
 
+def get_components() -> List[str]:
+    """Lists all components in the Redis database.
+
+    Returns:
+        List[str]: List of all component names.
+    """
+
+    rp = get_redis_params()
+    redis_con = redis.Redis(
+        **rp.dict(),
+    )
+
+    component_names = [
+        name.decode("utf-8") for name in redis_con.smembers("MOTION_COMPONENTS")
+    ]
+
+    redis_con.close()
+
+    return component_names
+
+
 def validate_args(parameters: Any, op: str) -> bool:
     if "state" not in parameters.keys():
         return False
@@ -283,7 +307,7 @@ def loadState(
     # If dev mode, load with diff prefix
     loaded_state = None
     version = None
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         loaded_state = redis_con.get(f"MOTION_STATE:DEV:{instance_name}")
         if loaded_state:
             v_identifier = f"MOTION_VERSION:DEV:{instance_name}"
@@ -322,7 +346,7 @@ def saveState(
 ) -> int:
     # If the version in redis is greater than this version, drop the save
     redis_v = None
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         redis_con.get(f"MOTION_VERSION:DEV:{instance_name}")
 
     if not redis_v:
@@ -339,7 +363,7 @@ def saveState(
 
     state_pickled = cloudpickle.dumps(state_to_save)
 
-    if os.getenv("MOTION_ENV", "dev") == "dev":
+    if os.getenv("MOTION_ENV", "prod") == "dev":
         redis_con.set(f"MOTION_STATE:DEV:{instance_name}", state_pickled)
         redis_con.set(f"MOTION_VERSION:DEV:{instance_name}", version + 1)
 
@@ -449,3 +473,9 @@ def random_passphrase(num_words: int = 3) -> str:
     ]
     words = [wordlist[roll] for roll in dice_rolls]
     return "-".join(words)
+
+
+# Status Enum
+class FlowOpStatus(Enum):
+    SUCCESS = "Success"
+    FAILURE = "Failure"

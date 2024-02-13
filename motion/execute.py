@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import os
 import threading
+import time
 import types
 from concurrent.futures import ThreadPoolExecutor
 from typing import (
@@ -22,12 +23,14 @@ from uuid import uuid4
 import cloudpickle
 import psutil
 import redis
+import requests
 
 from motion.dicts import Properties, State
 from motion.discard_policy import DiscardPolicy
 from motion.route import Route
 from motion.server.update_task import UpdateProcess, UpdateThread
 from motion.utils import (
+    FlowOpStatus,
     RedisParams,
     UpdateEvent,
     UpdateEventGroup,
@@ -56,7 +59,13 @@ class Executor:
         redis_socket_timeout: int = 60,
     ):
         self._instance_name = instance_name
+        self._component_name = instance_name.split("__")[0]
+        self._instance_id = instance_name.split("__")[1]
         self._cache_ttl = cache_ttl
+        self._num_messages = 100
+
+        # VictoriaMetrics Configuration
+        self.victoria_metrics_url = os.getenv("MOTION_VICTORIAMETRICS_URL")
 
         self._init_state_func = init_state_func
         self._init_state_params = init_state_params
@@ -64,22 +73,22 @@ class Executor:
         self._save_state_func = save_state_func
         self.__lock_prefix = (
             f"MOTION_LOCK:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_LOCK:{self._instance_name}"
         )
         self.__queue_prefix = (
             f"MOTION_QUEUE:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_QUEUE:{self._instance_name}"
         )
         self.__channel_prefix = (
             f"MOTION_CHANNEL:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_CHANNEL:{self._instance_name}"
         )
         self.__cache_result_prefix = (
             f"MOTION_RESULT:DEV:{self._instance_name}"
-            if os.getenv("MOTION_ENV", "dev") == "dev"
+            if os.getenv("MOTION_ENV", "prod") == "dev"
             else f"MOTION_RESULT:{self._instance_name}"
         )
 
@@ -117,11 +126,50 @@ class Executor:
 
         self.tp = ThreadPoolExecutor(max_workers=2)
 
+        # Add component name to set of components if we are not in dev mode
+        if os.getenv("MOTION_ENV", "prod") != "dev":
+            self._redis_con.sadd("MOTION_COMPONENTS", self._component_name)
+
     def _setRedis(self, cache_result_key: str, props: Any) -> None:
         """Method to set value in Redis."""
         self._redis_con.set(
             cache_result_key, cloudpickle.dumps(props), ex=self._cache_ttl
         )
+
+    def _logMessage(
+        self,
+        flow_key: str,
+        op_type: str,
+        status: FlowOpStatus,
+        duration: float,
+        func_name: str = "",
+    ) -> None:
+        """Method to log a message directly to VictoriaMetrics using InfluxDB
+        line protocol."""
+        if self.victoria_metrics_url:
+            timestamp = int(
+                time.time() * 1000000000
+            )  # Nanoseconds for InfluxDB line protocol
+            status_label = "success" if status == FlowOpStatus.SUCCESS else "failure"
+
+            # Format the metric in InfluxDB line protocol
+            metric_data = f"motion_operation_duration_seconds,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type},status={status_label} value={duration} {timestamp}"  # noqa: E501
+
+            # Format the counter metrics for success and failure
+            success_counter = f"motion_operation_success_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'success' else 0} {timestamp}"  # noqa: E501
+            failure_counter = f"motion_operation_failure_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'failure' else 0} {timestamp}"  # noqa: E501
+
+            # Combine metrics into a single payload with newline character
+            payload = "\n".join([metric_data, success_counter, failure_counter])
+
+            try:
+                # Send HTTP POST request with the combined metric data
+                response = requests.post(
+                    self.victoria_metrics_url + "/write", data=payload
+                )
+                response.raise_for_status()  # Raise an exception for HTTP errors
+            except requests.RequestException as e:
+                logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
 
     def _connectToRedis(self) -> Tuple[RedisParams, redis.Redis]:
         rp = get_redis_params()
@@ -140,7 +188,7 @@ class Executor:
     def _loadVersion(self) -> Optional[int]:
         # If in dev mode, try loading dev
         redis_v = None
-        if os.getenv("MOTION_ENV", "dev") == "dev":
+        if os.getenv("MOTION_ENV", "prod") == "dev":
             redis_v = self._redis_con.get(f"MOTION_VERSION:DEV:{self._instance_name}")
 
         if not redis_v:
@@ -257,6 +305,7 @@ class Executor:
                 lock_identifier=self.__lock_prefix,
                 redis_params=self._redis_params.dict(),
                 running=self.running,
+                victoria_metrics_url=self.victoria_metrics_url,
             )
             self.worker_task.start()  # type: ignore
 
@@ -311,7 +360,7 @@ class Executor:
         """Gets the channel identifier for a given route key and UDF name."""
         return f"{self.__channel_prefix}/{route_key}/{udf_name}"
 
-    def shutdown(self, is_open: bool) -> None:
+    def shutdown(self, is_open: bool, wait_for_logging_threads: bool) -> None:
         if self.disable_update_task:
             if self._redis_con:
                 self._redis_con.close()
@@ -339,8 +388,8 @@ class Executor:
             if self.worker_task and self.worker_task.is_alive():  # type: ignore
                 self.worker_task.join()  # type: ignore
 
-        # Shut down threadpool for writing to Redis
-        self.tp.shutdown(wait=False)
+        # Shut down threadpool for writing to Redis and logging
+        self.tp.shutdown(wait=wait_for_logging_threads)
 
         self._redis_con.close()
 
@@ -399,6 +448,7 @@ class Executor:
                     route = self._update_routes[key][update_udf_name]
 
                     # Hold lock
+                    start_time = time.time()
 
                     with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
@@ -418,7 +468,30 @@ class Executor:
                                     force_update=False,
                                     use_lock=False,
                                 )
+
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.SUCCESS,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                         except Exception as e:
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.FAILURE,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                             raise RuntimeError(
                                 "Error running update route in main process: " + str(e)
                             )
@@ -501,6 +574,8 @@ class Executor:
                 if flush_update:
                     route = self._update_routes[key][update_udf_name]
 
+                    start_time = time.time()
+
                     with self._redis_con.lock(self.__lock_prefix, timeout=120):
                         try:
                             self._loadState()
@@ -522,14 +597,36 @@ class Executor:
                                     force_update=False,
                                     use_lock=False,
                                 )
+
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.SUCCESS,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                         except Exception as e:
+                            # Log message
+                            if self.victoria_metrics_url:
+                                self.tp.submit(
+                                    self._logMessage,
+                                    key,
+                                    "update",
+                                    FlowOpStatus.FAILURE,
+                                    time.time() - start_time,
+                                    route.udf.__name__,
+                                )
+
                             raise RuntimeError(
                                 "Error running update route in main process: " + str(e)
                             )
 
                 else:
                     # Enqueue update
-
                     if self.disable_update_task:
                         raise RuntimeError(
                             f"Update process is disabled. Cannot run update for {key}."
@@ -630,82 +727,103 @@ class Executor:
         force_refresh: bool,
         flush_update: bool,
     ) -> Generator[Any, None, None]:
-        route_hit = False
-        serve_result = None
-        is_generated = False
-        props = Properties(props)
+        try:
+            route_hit = False
+            serve_result = None
+            is_generated = False
+            props = Properties(props)
 
-        # Run the serve route
-        if key in self._serve_routes.keys():
-            route_hit = True
-            (
-                route_run,
-                serve_result,
-                props,
-                value_hash,
-            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+            # Run the serve route
+            start_time = time.time()
+            if key in self._serve_routes.keys():
+                route_hit = True
+                (
+                    route_run,
+                    serve_result,
+                    props,
+                    value_hash,
+                ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
-            # If route is run and serve result is not None and self.
-            # _serve_routes[key].udf is a generator, iterate through the serve
-            # result
-            if route_run and inspect.isgeneratorfunction(self._serve_routes[key].udf):
-                is_generated = True
-
-                # Process each item yielded by the generator
-                if serve_result is not None:
-                    for item in serve_result:
-                        yield item
-
-            # If not in cache or value can't be hashed or
-            # user wants to force refresh state, run route
-            if not route_run:
-                self._loadState()
-                serve_result = self._serve_routes[key].run(
-                    state=self._state, props=props
-                )
-
-                # Check if the serve_result is a generator (streaming result)
-                if isinstance(serve_result, types.GeneratorType):
-                    # Accumulate items from generator
+                # If route is run and serve result is not None and self.
+                # _serve_routes[key].udf is a generator, iterate through the serve
+                # result
+                if route_run and inspect.isgeneratorfunction(
+                    self._serve_routes[key].udf
+                ):
                     is_generated = True
-                    accumulated_result = []
 
                     # Process each item yielded by the generator
-                    for item in serve_result:
-                        accumulated_result.append(item)
-                        yield item  # Yield the item for streaming
+                    if serve_result is not None:
+                        for item in serve_result:
+                            yield item
 
-                    serve_result = accumulated_result
-
-                props._serve_result = serve_result
-
-                # Check that serve_result is not an awaitable
-                if asyncio.iscoroutine(serve_result):
-                    raise TypeError(
-                        f"Route {key} returned an awaitable. "
-                        + "Call `await instance.arun(...)` instead."
+                # If not in cache or value can't be hashed or
+                # user wants to force refresh state, run route
+                if not route_run:
+                    self._loadState()
+                    serve_result = self._serve_routes[key].run(
+                        state=self._state, props=props
                     )
 
-                # Cache result
-                if value_hash:
-                    cache_result_key = (
-                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
-                    )
-                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # Check if the serve_result is a generator (streaming result)
+                    if isinstance(serve_result, types.GeneratorType):
+                        # Accumulate items from generator
+                        is_generated = True
+                        accumulated_result = []
 
-        # Run the update routes
-        # Enqueue results into update queues
-        route_hit = self._enqueue_and_trigger_update(
-            key, props, flush_update, route_hit
-        )
+                        # Process each item yielded by the generator
+                        for item in serve_result:
+                            accumulated_result.append(item)
+                            yield item  # Yield the item for streaming
 
-        if not route_hit:
-            raise KeyError(
-                f"Key {key} not in routes for component {self._instance_name}."
+                        serve_result = accumulated_result
+
+                    props._serve_result = serve_result
+
+                    # Check that serve_result is not an awaitable
+                    if asyncio.iscoroutine(serve_result):
+                        raise TypeError(
+                            f"Route {key} returned an awaitable. "
+                            + "Call `await instance.arun(...)` instead."
+                        )
+
+                    # Cache result
+                    if value_hash:
+                        cache_result_key = (
+                            f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                        )
+                        self.tp.submit(self._setRedis, cache_result_key, props)
+
+            # Run the update routes
+            # Enqueue results into update queues
+            route_hit = self._enqueue_and_trigger_update(
+                key, props, flush_update, route_hit
             )
 
-        if not is_generated:
-            yield serve_result
+            if not route_hit:
+                raise KeyError(
+                    f"Key {key} not in routes for component {self._instance_name}."
+                )
+
+            duration = time.time() - start_time
+
+            if not is_generated:
+                yield serve_result
+
+            if self.victoria_metrics_url:
+                self.tp.submit(
+                    self._logMessage, key, "serve", FlowOpStatus.SUCCESS, duration
+                )
+
+        except Exception as e:
+            duration = time.time() - start_time
+
+            if self.victoria_metrics_url and key in self._serve_routes.keys():
+                self.tp.submit(
+                    self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
+                )
+
+            raise e
 
     async def arun(
         self,
@@ -715,79 +833,99 @@ class Executor:
         force_refresh: bool,
         flush_update: bool,
     ) -> AsyncGenerator[Any, None]:
-        route_hit = False
-        serve_result = None
-        props = Properties(props)
+        try:
+            route_hit = False
+            serve_result = None
+            props = Properties(props)
 
-        # Run the serve route
-        is_generated = False
-        if key in self._serve_routes.keys():
-            route_hit = True
-            (
-                route_run,
-                serve_result,
-                props,
-                value_hash,
-            ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
+            # Run the serve route
+            is_generated = False
+            start_time = time.time()
+            if key in self._serve_routes.keys():
+                route_hit = True
+                (
+                    route_run,
+                    serve_result,
+                    props,
+                    value_hash,
+                ) = self._try_cached_serve(key, props, ignore_cache, force_refresh)
 
-            # If route is run and serve result is not None and self.
-            # _serve_routes[key].udf is a generator, iterate through the serve
-            # result
-            if route_run and inspect.isasyncgenfunction(self._serve_routes[key].udf):
-                is_generated = True
-
-                # Process each item yielded by the generator
-                if serve_result is not None:
-                    for item in serve_result:
-                        yield item
-
-            # If not in cache or value can't be hashed or
-            # user wants to force refresh state, run route
-            if not route_run:
-                self._loadState()
-                serve_result = self._serve_routes[key].run(
-                    state=self._state, props=props
-                )
-                # Check if the serve_result is an async generator (streaming result)
-                if isinstance(serve_result, types.AsyncGeneratorType):
-                    # Accumulate items from generator
+                # If route is run and serve result is not None and self.
+                # _serve_routes[key].udf is a generator, iterate through the serve
+                # result
+                if route_run and inspect.isasyncgenfunction(
+                    self._serve_routes[key].udf
+                ):
                     is_generated = True
-                    accumulated_result = []
 
                     # Process each item yielded by the generator
-                    # but don't trigger a "return statement with value is
-                    # not allowed in an async generator" error
-                    async for item in serve_result:
-                        accumulated_result.append(item)
-                        yield item
+                    if serve_result is not None:
+                        for item in serve_result:
+                            yield item
 
-                    serve_result = accumulated_result
-
-                elif asyncio.iscoroutine(serve_result):
-                    serve_result = await serve_result
-
-                props._serve_result = serve_result
-
-                # Cache result
-                if value_hash:
-                    cache_result_key = (
-                        f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                # If not in cache or value can't be hashed or
+                # user wants to force refresh state, run route
+                if not route_run:
+                    self._loadState()
+                    serve_result = self._serve_routes[key].run(
+                        state=self._state, props=props
                     )
-                    self.tp.submit(self._setRedis, cache_result_key, props)
+                    # Check if the serve_result is an async generator (streaming result)
+                    if isinstance(serve_result, types.AsyncGeneratorType):
+                        # Accumulate items from generator
+                        is_generated = True
+                        accumulated_result = []
 
-        # Run the update routes
-        # Enqueue results into update queues
-        route_hit = await self._async_enqueue_and_trigger_update(
-            key, props, flush_update, route_hit
-        )
+                        # Process each item yielded by the generator
+                        # but don't trigger a "return statement with value is
+                        # not allowed in an async generator" error
+                        async for item in serve_result:
+                            accumulated_result.append(item)
+                            yield item
 
-        if not route_hit:
-            raise KeyError(
-                f"Key {key} not in routes for component {self._instance_name}."
+                        serve_result = accumulated_result
+
+                    elif asyncio.iscoroutine(serve_result):
+                        serve_result = await serve_result
+
+                    props._serve_result = serve_result
+
+                    # Cache result
+                    if value_hash:
+                        cache_result_key = (
+                            f"{self.__cache_result_prefix}/{key}/{value_hash}"
+                        )
+                        self.tp.submit(self._setRedis, cache_result_key, props)
+
+            # Run the update routes
+            # Enqueue results into update queues
+            route_hit = await self._async_enqueue_and_trigger_update(
+                key, props, flush_update, route_hit
             )
 
-        if not is_generated:
-            yield serve_result
+            if not route_hit:
+                raise KeyError(
+                    f"Key {key} not in routes for component {self._instance_name}."
+                )
+
+            duration = time.time() - start_time
+
+            if not is_generated:
+                yield serve_result
+
+            if self.victoria_metrics_url:
+                self.tp.submit(
+                    self._logMessage, key, "serve", FlowOpStatus.SUCCESS, duration
+                )
+
+        except Exception as e:
+            duration = time.time() - start_time
+            if self.victoria_metrics_url and key in self._serve_routes.keys():
+                self.tp.submit(
+                    self._logMessage, key, "serve", FlowOpStatus.FAILURE, duration
+                )
+
+            raise e
 
     def flush_update(self, flow_key: str = "*ALL*") -> None:
         flow_keys: List[str] = []

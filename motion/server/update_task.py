@@ -1,4 +1,5 @@
 import asyncio
+import time
 import traceback
 from multiprocessing import Process
 from threading import Thread
@@ -6,9 +7,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 import cloudpickle
 import redis
+import requests
 
 from motion.route import Route
-from motion.utils import loadState, logger, saveState
+from motion.utils import FlowOpStatus, loadState, logger, saveState
 
 
 class BaseUpdateTask:
@@ -24,11 +26,17 @@ class BaseUpdateTask:
         lock_identifier: str,
         redis_params: Dict[str, Any],
         running: Any,
+        victoria_metrics_url: Optional[str] = None,
     ):
         super().__init__()
         self.task_type = task_type
         self.name = f"UpdateTask-{task_type}-{instance_name}"
         self.instance_name = instance_name
+
+        self._component_name, self._instance_id = instance_name.split("__")
+
+        self.victoria_metrics_url = victoria_metrics_url
+
         self.save_state_func = save_state_func
         self.load_state_func = load_state_func
 
@@ -42,6 +50,40 @@ class BaseUpdateTask:
 
         self.redis_params = redis_params
         self.redis_con: Optional[redis.Redis] = None
+
+    def _logMessage(
+        self,
+        flow_key: str,
+        op_type: str,
+        status: FlowOpStatus,
+        duration: float,
+        func_name: str,
+    ) -> None:
+        """Method to log a message directly to VictoriaMetrics using InfluxDB
+        line protocol."""
+        if self.victoria_metrics_url:
+            timestamp = int(
+                time.time() * 1000000000
+            )  # Nanoseconds for InfluxDB line protocol
+            status_label = "success" if status == FlowOpStatus.SUCCESS else "failure"
+
+            # Format the metric in InfluxDB line protocol
+            metric_data = f"motion_operation_duration_seconds,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type},status={status_label} value={duration} {timestamp}"  # noqa: E501
+            # Format the counter metrics for success and failure
+            success_counter = f"motion_operation_success_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'success' else 0} {timestamp}"  # noqa: E501
+            failure_counter = f"motion_operation_failure_count,component={self._component_name},instance={self._instance_id},flow={flow_key},op_type={op_type} value={1 if status_label == 'failure' else 0} {timestamp}"  # noqa: E501
+
+            # Combine metrics into a single payload with newline character
+            payload = "\n".join([metric_data, success_counter, failure_counter])
+
+            try:
+                # Send HTTP POST request with the combined metric data
+                response = requests.post(
+                    self.victoria_metrics_url + "/write", data=payload
+                )
+                response.raise_for_status()  # Raise an exception for HTTP errors
+            except requests.RequestException as e:
+                logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
 
     def __del__(self) -> None:
         if self.redis_con is not None:
@@ -111,6 +153,7 @@ class BaseUpdateTask:
 
             # Run update op
             try:
+                start_time = time.time()
                 with redis_con.lock(self.lock_identifier, timeout=120):
                     old_state, version = loadState(
                         redis_con,
@@ -144,9 +187,12 @@ class BaseUpdateTask:
                             self.instance_name,
                             self.save_state_func,
                         )
+
             except Exception:
                 logger.error(traceback.format_exc())
                 exception_str = str(traceback.format_exc())
+
+            duration = time.time() - start_time
 
             redis_con.publish(
                 self.channel_identifiers[queue_name],
@@ -157,6 +203,27 @@ class BaseUpdateTask:
                     }
                 ),
             )
+
+            # Log to VictoriaMetrics
+            if self.victoria_metrics_url:
+                try:
+                    flow_key = queue_name.split("/")[-2]
+                    udf_name = queue_name.split("/")[-1]
+                    self._logMessage(
+                        flow_key,
+                        "update",
+                        (
+                            FlowOpStatus.SUCCESS
+                            if not exception_str
+                            else FlowOpStatus.FAILURE
+                        ),
+                        duration,
+                        udf_name,
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error logging to VictoriaMetrics: {e}", exc_info=True
+                    )
 
 
 class UpdateProcess(Process):
