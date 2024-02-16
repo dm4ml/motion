@@ -25,6 +25,14 @@
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+    <!-- Include Pyodide -->
+    <script type="module">
+      window.loadPyodide = async () => {
+        await import(
+          "https://cdn.jsdelivr.net/pyodide/v0.18.1/full/pyodide.js"
+        );
+      };
+    </script>
     <div id="root"></div>
     <!--
       This HTML file is a template.

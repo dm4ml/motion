@@ -5,6 +5,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import { useColorScheme } from "@mui/joy/styles";
+import MainDrawer from "./MainDrawer";
 
 function ModeSwitcher() {
   const { mode, setMode } = useColorScheme();
@@ -55,6 +56,7 @@ const MotionHeader = ({ title }) => {
         boxSizing: "border-box", // Ensure padding is included in the width
       }}
     >
+      <MainDrawer />
       <Typography level="h2" sx={{ fontWeight: "bold" }}>
         {title}
       </Typography>
