@@ -29,7 +29,7 @@ nav:
 theme:
   name: material
   icon:
-    logo: material/motion-outline
+    logo: material/fast-forward-outline
     repo: fontawesome/brands/git-alt
   favicon: images/logo.png
   extra_files:
