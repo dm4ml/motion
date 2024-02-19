@@ -8,6 +8,7 @@ on:
       - "motion/**"
       - "poetry.lock"
       - "pyproject.toml"
+      - ".github/workflows/publish.yml"
 
 jobs:
   publish-to-pypi:
