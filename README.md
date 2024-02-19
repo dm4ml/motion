@@ -8,11 +8,11 @@
 [![GitHub tag](https://img.shields.io/github/tag/dm4ml/motion?include_prereleases=&sort=semver&color=blue)](https://github.com/dm4ml/motion/releases/)
 [![PyPI version](https://badge.fury.io/py/motion-python.svg?branch=main&kill_cache=1)](https://badge.fury.io/py/motion-python)
 
-Motion is a system for defining and incrementally maintaining **reactive prompts** in Python.
+Motion is a system for defining and incrementally maintaining **self-updating prompts** in Python.
 
-## Why Reactive Prompts?
+## Why Self-Updating Prompts?
 
-LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. A **reactive prompt** could change over time by including LLM-generated insights from user interactions. For a concrete example of this, consider the following sequence of user interactions, where 1, 3, and 4 show prompts for event styling queries and 2 corresponds to user feedback:
+LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. A **self-updating prompt** could change over time by including LLM-generated insights from user interactions. For a concrete example of this, consider the following sequence of user interactions, where 1, 3, and 4 show prompts for event styling queries and 2 corresponds to user feedback:
 
 1. "What apparel items should I buy for `SIGMOD in Chile`?"
 2. _User `disliked "purple blazer"` and `liked "wide-leg jeans."`_
@@ -21,19 +21,19 @@ LLM accuracy often significantly improves with more context. Consider an e-comme
 
 In the above sequence, `phrases in backticks` are dynamically generated based on previous user-generated activity. The new context can improve the quality of responses.
 
-### Why is it Hard to Use Reactive Prompts?
+### Why is it Hard to Use Self-Updating Prompts?
 
 Consider the e-commerce example above. The prompt might grow to be very long---so long that there's a bunch of redundant or event useless information in the prompt. So, we might want to summarize the user's past purchases and browsing history into a single prompt. However, summarizing the user's past purchases and browsing history every time we log a new purchase or browsing event, or whenever the user requests a new recommendation, **can take too long** (e.g., 30+ seconds) and thus prohibitively increase end-to-end latency for getting a recommendation.
 
 ## What is Motion?
 
-Motion allows LLM pipeline developers to define and incrementally maintain reactive prompts in Python. With Motion, developers define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to reactively update sub-parts in the background based on new information.
+Motion allows LLM pipeline developers to define and incrementally maintain self-updating prompts in Python. With Motion, developers define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to self-updatingly update sub-parts in the background based on new information.
 
 Motion's execution engine serves cached prompt sub-parts for minimal real-time latency and handles concurrency and sub-part consistency when running flows that update sub-parts. All prompt sub-parts are backed by a key-value store. You can run Motion components anywhere and in any number of Python processes (e.g., in a notebook, in a serverless function, in a web server) at the same time for maximal availability.
 
-As LLM pipeline developers, we want a few things when building and using reactive prompts:
+As LLM pipeline developers, we want a few things when building and using self-updating prompts:
 
-- **Flexibility**: We want to be able to define our sub-parts of prompts (e.g., summaries). We also want to be able to define our own logic for how to turn sub-parts into string prompts and reactively update sub-parts.
+- **Flexibility**: We want to be able to define our sub-parts of prompts (e.g., summaries). We also want to be able to define our own logic for how to turn sub-parts into string prompts and self-updatingly update sub-parts.
 - **Availability**: We want there to always be some version of prompt sub-parts available, even if they are a little stale. This way we can minimize end-to-end latency.
 - **Freshness**: Prompts should incorporate as much of the latest information as possible. In the case where information arrives faster than we can process it, it may be desirable to ignore older information.
 

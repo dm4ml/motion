@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "motion-python"
 version = "0.1.127"
-description = "A trigger-based framework for creating and executing ML pipelines."
+description = "A framework for building and maintaining self-updating prompts for LLMs."
 authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
 readme = "README.md"
 packages = [{include = "motion"}]

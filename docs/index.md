@@ -1,16 +1,16 @@
 # Welcome to Motion
 
-Motion is a system for defining and incrementally maintaining **reactive prompts** in Python.
+Motion is a system for defining and incrementally maintaining **self-updating prompts** in Python.
 
 !!! tip "Alpha Release"
 
     Motion is currently in alpha. We are actively working on improving the documentation and adding more features. If you are interested in using Motion and would like dedicated support from one of our team members, please reach out to us at [shreyashankar@berkeley.edu](mailto:shreyashankar@berkeley.edu).
 
-## Why Reactive Prompts?
+## Why Self-Updating Prompts?
 
-LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. Ideally, any new information about the user (e.g., a new purchase or browsing event) should be incorporated into the LLM pipeline's prompts as soon as possible; thus, we call them **reactive prompts**.
+LLM accuracy often significantly improves with more context. Consider an e-commerce focused LLM pipeline that recommends products to users. The recommendations might improve if the prompt considers the user's past purchases and browsing history. Ideally, any new information about the user (e.g., a new purchase or browsing event) should be incorporated into the LLM pipeline's prompts as soon as possible; thus, we call them **self-updating prompts**.
 
-### Why is it Hard to Use Reactive Prompts?
+### Why is it Hard to Use Self-Updating Prompts?
 
 Consider the e-commerce example above. The prompt might grow to be very long---so long that there's a bunch of redundant or event useless information in the prompt. So, we might want to summarize the user's past purchases and browsing history into a single prompt. However, summarizing the user's past purchases and browsing history every time we log a new purchase or browsing event, or whenever the user requests a new recommendation, **can take too long** and thus prohibitively increase end-to-end latency for getting a recommendation.
 
@@ -18,13 +18,13 @@ In general, we may want to use LLMs or run some other expensive operation when i
 
 ## What is Motion?
 
-As LLM pipeline developers, we want a few things when building and using reactive prompts:
+As LLM pipeline developers, we want a few things when building and using self-updating prompts:
 
-- **Flexibility**: We want to be able to define our sub-parts of prompts (e.g., summaries). We also want to be able to define our own logic for how to turn sub-parts into string prompts and reactively update sub-parts.
+- **Flexibility**: We want to be able to define our sub-parts of prompts (e.g., summaries). We also want to be able to define our own logic for how to turn sub-parts into string prompts and self-updatingly update sub-parts.
 - **Availability**: We want there to always be some version of prompt sub-parts available, even if they are a little stale. This way we can minimize end-to-end latency.
 - **Freshness**: Prompts should incorporate as much of the latest information as possible. In the case where information arrives faster than we can process it, it may be desirable to ignore older information.
 
-Motion allows LLM pipeline developers to define and incrementally maintain reactive prompts in Python. With Motion, we define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to reactively update sub-parts in the background based on new information.
+Motion allows LLM pipeline developers to define and incrementally maintain self-updating prompts in Python. With Motion, we define **components** that represent prompt sub-parts, and **flows** that represent how to assemble sub-parts into a prompt for an LLM in real-time and how to self-updatingly update sub-parts in the background based on new information.
 
 Motion's execution engine serves cached prompt sub-parts for minimal real-time latency and handles concurrency and sub-part consistency when running flows that update sub-parts. All prompt sub-parts are backed by a key-value store. You can run Motion components anywhere and in any number of Python processes (e.g., in a notebook, in a serverless function, in a web server) at the same time for maximal availability.
 
