@@ -21,7 +21,7 @@ docs:
 
 build:
 	rm -rf motion/static
-	cd ui && npm run build
+	cd ui && npm install && npm run build
 	cd ..
 	cp -r ui/build motion/static
 	poetry install --all-extras
