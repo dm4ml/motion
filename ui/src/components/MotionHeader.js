@@ -4,6 +4,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import ArticleIcon from "@mui/icons-material/Article";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import FastForwardOutlined from "@mui/icons-material/FastForwardOutlined";
 import { useColorScheme } from "@mui/joy/styles";
 
 function ModeSwitcher() {
@@ -55,7 +56,8 @@ const MotionHeader = ({ title }) => {
         boxSizing: "border-box", // Ensure padding is included in the width
       }}
     >
-      <Typography level="h2" sx={{ fontWeight: "bold" }}>
+      <Typography level="h2" sx={{ fontWeight: "bold" }} color="primary">
+        <FastForwardOutlined />
         {title}
       </Typography>
       <Box>

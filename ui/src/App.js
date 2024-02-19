@@ -38,10 +38,10 @@ function App() {
             display: "flex",
             pt: "80px",
             bgcolor: "background.paper",
-            height: "100vh",
+            minHeight: "100vh",
           }}
         >
-          <MotionHeader title="Motion Dashboard" />
+          <MotionHeader title="Motion" />
           <Sidebar components={components} />
           <Box sx={{ flex: 1 }}>
             <Routes>
