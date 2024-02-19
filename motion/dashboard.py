@@ -185,10 +185,10 @@ def update_instance(
 
             original_value = state[key]
 
-            if isinstance(original_value, int):
-                update_dict[key] = int(value)
-            elif isinstance(original_value, bool):
+            if isinstance(original_value, bool):
                 update_dict[key] = bool(value)
+            elif isinstance(original_value, int):
+                update_dict[key] = int(value)
             elif isinstance(original_value, float):
                 update_dict[key] = float(value)
             elif isinstance(original_value, str):
