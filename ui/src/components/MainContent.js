@@ -19,6 +19,8 @@ import {
   Tab,
   TabPanel,
   TabList,
+  Sheet,
+  Skeleton,
 } from "@mui/joy";
 import WarningRoundedIcon from "@mui/icons-material/WarningRounded";
 import DynamicTable from "./DynamicTable";
@@ -28,8 +30,11 @@ import AccordionSummary, {
 } from "@mui/joy/AccordionSummary";
 import { Tracker, BarList, Title, Flex, Text } from "@tremor/react";
 import ComponentInfoCard from "./ComponentInfoCard";
+import DetailComponent from "./DetailComponent";
 
 const MainContent = ({ componentName }) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [accordionLoading, setAccordionLoading] = useState({}); // Holds the loading state for each accordion item
   const [searchTerm, setSearchTerm] = useState("");
   const [detailedInfo, setDetailedInfo] = useState([]); // Holds the detailed info as a list of key-value pairs
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,10 +64,12 @@ const MainContent = ({ componentName }) => {
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+
   const currentItems = instances.slice(indexOfFirstItem, indexOfLastItem);
 
   useEffect(() => {
     if (componentName) {
+      setIsLoading(true); // Start loading
       axios
         .get(`/instances/${componentName}`)
         .then((response) => {
@@ -100,6 +107,9 @@ const MainContent = ({ componentName }) => {
         })
         .catch((error) => {
           console.error("Error fetching instances for", componentName, error);
+        })
+        .finally(() => {
+          setIsLoading(false); // Stop loading
         });
     }
   }, [componentName]);
@@ -123,9 +133,17 @@ const MainContent = ({ componentName }) => {
     // Reset error message at the start
     setErrorMessage("");
 
+    // Select editable parts of the detailedInfo
+    const editableDetails = detailedInfo.filter((detail) => detail.editable);
+
+    // Get the keys and values from the detailedInfo
+    const updatedDetails = editableDetails.map((detail) => {
+      return { key: detail.key, value: detail.value };
+    });
+
     // Send the updated detailedInfo to the backend
     axios
-      .post(`/instance/${componentName}/${item}`, detailedInfo)
+      .post(`/instance/${componentName}/${item}`, updatedDetails)
       .then((response) => {
         // Handle the response
 
@@ -154,10 +172,41 @@ const MainContent = ({ componentName }) => {
   };
 
   const handleSearch = () => {
+    setIsLoading(true); // Start loading
     axios
       .get(`/instances/${componentName}/${searchTerm}`)
       .then((response) => {
-        setInstances(response.data);
+        // Get instanceIds and number of instances
+        const instanceIds = response.data.instanceIds;
+        const numInstances = response.data.numInstances;
+        const flowCounts = response.data.flowCounts;
+        const statusCounts = response.data.statusCounts;
+        const statusChanges = response.data.statusChanges;
+        const componentStatusBars = response.data.statusBarData;
+        const fractionUptime = response.data.fractionUptime;
+
+        setInstances(instanceIds);
+        setNumInstances(numInstances);
+        setflowCounts(flowCounts);
+        setStatusCounts(statusCounts);
+        setStatusChanges(statusChanges);
+        setStatusBars(componentStatusBars);
+        setFractionUptime(fractionUptime);
+
+        // Set current page to 1 when the component changes
+        setCurrentPage(1);
+
+        // Set expanded to empty array when the component changes
+        setExpanded([]);
+
+        // Set selected item to null when the component changes
+        setSelectedItem(null);
+
+        // Set detailed info to empty array when the component changes
+        setDetailedInfo([]);
+
+        // Set accordion data to empty object when the component changes
+        setAccordionData({});
       })
       .catch((error) => {
         console.error(
@@ -165,6 +214,9 @@ const MainContent = ({ componentName }) => {
           searchTerm,
           error,
         );
+      })
+      .finally(() => {
+        setIsLoading(false); // Stop loading
       });
   };
 
@@ -180,6 +232,9 @@ const MainContent = ({ componentName }) => {
   };
 
   const fetchAccordionData = (item) => {
+    // Set isLoading for the item
+    setAccordionLoading((prevLoading) => ({ ...prevLoading, [item]: true }));
+
     axios
       .get(`/results/${componentName}/${item}`)
       .then((response) => {
@@ -191,6 +246,12 @@ const MainContent = ({ componentName }) => {
       .catch((error) => {
         console.error("Error fetching data:", error);
         setAccordionData((prevData) => ({ ...prevData, [item]: "Error" }));
+      })
+      .finally(() => {
+        setAccordionLoading((prevLoading) => ({
+          ...prevLoading,
+          [item]: false,
+        }));
       });
   };
 
@@ -226,220 +287,249 @@ const MainContent = ({ componentName }) => {
             }}
             sx={{ mb: 2, mt: 2 }}
           />
-          <AccordionGroup>
-            {currentItems.map((item, index) => (
-              <Accordion
-                key={index}
-                expanded={expanded.includes(item)}
-                onChange={() => handleAccordionChange(item)}
-                sx={{
-                  [`& .${accordionSummaryClasses.indicator}`]: {
-                    transition: "0.2s",
-                  },
-                  [`& [aria-expanded="true"] .${accordionSummaryClasses.indicator}`]:
-                    {
-                      transform: "rotate(45deg)",
+          <Skeleton loading={isLoading} variant="overlay">
+            <AccordionGroup>
+              {currentItems.map((item, index) => (
+                <Accordion
+                  key={index}
+                  expanded={expanded.includes(item)}
+                  onChange={() => handleAccordionChange(item)}
+                  sx={{
+                    [`& .${accordionSummaryClasses.indicator}`]: {
+                      transition: "0.2s",
                     },
-                }}
-              >
-                <AccordionSummary>
-                  <Typography
-                    sx={{
-                      fontFamily: "monospace",
-                      fontWeight: "bold",
-                      fontSize: "1.1rem",
-                    }}
-                  >
-                    {item}
-                  </Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  {expanded.includes(item) && accordionData[item] && (
-                    <Box
+                    [`& [aria-expanded="true"] .${accordionSummaryClasses.indicator}`]:
+                      {
+                        transform: "rotate(45deg)",
+                      },
+                  }}
+                >
+                  <AccordionSummary>
+                    <Typography
                       sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
+                        fontFamily: "monospace",
+                        fontWeight: "bold",
+                        fontSize: "1.1rem",
                       }}
                     >
-                      <Box sx={{ flexGrow: 1, mt: 2 }}>
-                        {/* Status Section */}
-                        <Box sx={{ mb: 2 }}>
-                          <Title>Status</Title>
-                          <Flex justifyContent="end">
-                            <Text>
-                              Uptime {accordionData[item].fractionUptime}%
-                            </Text>
-                          </Flex>
-                          <Tracker
-                            data={accordionData[item].statusBarData}
-                            className="mt-2"
-                          />
-                          <Flex sx={{ mt: 2 }}>
-                            <Text>24 hours ago</Text>
-                            <Text>Now</Text>
-                          </Flex>
-                        </Box>
-
-                        {/* Analytics Section */}
-                        <Box sx={{ mt: 2 }}>
-                          <Title>Distribution</Title>
-                          <Flex className="mt-2">
-                            <Text>Flow</Text>
-                            <Text># Runs</Text>
-                          </Flex>
-                          <BarList
-                            data={accordionData[item].flowCounts}
-                            className="mt-2"
-                          />
-                        </Box>
-                      </Box>
-
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          mt: 2,
-                        }}
-                      >
-                        {" "}
-                        {/* Button container */}
-                        <Button
-                          variant="plain"
-                          onClick={() => handleCardClick(item)}
+                      {item}
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Skeleton
+                      loading={
+                        item in accordionLoading && accordionLoading[item]
+                      }
+                      variant="overlay"
+                    >
+                      {expanded.includes(item) && accordionData[item] && (
+                        <Box
+                          sx={{
+                            display: "flex",
+                            flexDirection: "column",
+                            height: "100%",
+                          }}
                         >
-                          Edit state
-                        </Button>
-                        <Chip variant="soft" sx={{ ml: 1 }}>
-                          {`Version ${accordionData[item].version}`}{" "}
-                        </Chip>
-                      </Box>
-                    </Box>
-                  )}
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </AccordionGroup>
+                          <Box sx={{ flexGrow: 1, mt: 2 }}>
+                            {/* Status Section */}
+                            <Box sx={{ mb: 2 }}>
+                              <Title>Status</Title>
+                              <Flex justifyContent="end">
+                                <Text>
+                                  Uptime {accordionData[item].fractionUptime}%
+                                </Text>
+                              </Flex>
+                              <Tracker
+                                data={accordionData[item].statusBarData}
+                                className="mt-2"
+                              />
+                              <Flex sx={{ mt: 2 }}>
+                                <Text>24 hours ago</Text>
+                                <Text>Now</Text>
+                              </Flex>
+                            </Box>
 
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              marginTop: 2,
-            }}
-          >
-            <ButtonGroup variant="plain" color="primary">
-              <Button onClick={handlePreviousPage} disabled={currentPage === 1}>
-                Previous
-              </Button>
-              <Button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </ButtonGroup>
-            <Typography variant="body1" sx={{ marginLeft: 2 }}>
-              Page {currentPage} of {totalPages}
-            </Typography>
-          </Box>
+                            {/* Analytics Section */}
+                            <Box sx={{ mt: 2 }}>
+                              <Title>Distribution</Title>
+                              <Flex className="mt-2">
+                                <Text>Flow</Text>
+                                <Text># Runs</Text>
+                              </Flex>
+                              <BarList
+                                data={accordionData[item].flowCounts}
+                                className="mt-2"
+                              />
+                            </Box>
+                          </Box>
 
-          {selectedItem && (
-            <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
-              <ModalDialog>
-                <DialogTitle>
-                  <WarningRoundedIcon />
-                  {"Edit state for instance "}
-                  <Typography sx={{ fontFamily: "monospace" }}>
-                    {selectedItem}
-                  </Typography>
-                </DialogTitle>
-                <DialogContent>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              mt: 2,
+                            }}
+                          >
+                            {" "}
+                            {/* Button container */}
+                            <Button
+                              variant="plain"
+                              onClick={() => handleCardClick(item)}
+                            >
+                              Edit state
+                            </Button>
+                            <Chip variant="soft" sx={{ ml: 1 }}>
+                              {`Version ${accordionData[item].version}`}{" "}
+                            </Chip>
+                          </Box>
+                        </Box>
+                      )}
+                    </Skeleton>
+                  </AccordionDetails>
+                </Accordion>
+              ))}
+            </AccordionGroup>
+
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                marginTop: 2,
+              }}
+            >
+              <ButtonGroup variant="plain" color="primary">
+                <Button
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </ButtonGroup>
+              <Typography variant="body1" sx={{ marginLeft: 2 }}>
+                Page {currentPage} of {totalPages}
+              </Typography>
+            </Box>
+
+            {selectedItem && (
+              <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
+                <ModalDialog>
+                  <DialogTitle>
+                    <WarningRoundedIcon />
+                    {"Edit state for instance "}
+                    <Typography sx={{ fontFamily: "monospace" }}>
+                      {selectedItem}
+                    </Typography>
+                  </DialogTitle>
+                  <DialogContent>
+                    {detailedInfo.map((detail, index) => (
+                      <React.Fragment key={index}>
+                        <Sheet
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 3fr minmax(80px, auto)", // Adjust the '100px' to your desired chip width
+                            alignItems: "center",
+                            gap: 2,
+                            m: 1,
+                          }}
+                        >
+                          <Input
+                            value={detail.key}
+                            onChange={(e) =>
+                              handleDetailChange(index, "key", e.target.value)
+                            }
+                            sx={{
+                              fontWeight: "bold",
+                              // width: "30%",
+                              gridColumn: "1",
+                            }} // Style for keys
+                          />
+                          {/* Conditional rendering based on type and editable */}
+                          {detail.type === "MDataFrame" ||
+                          detail.type === "MTable" ? (
+                            <DynamicTable
+                              tableData={detail.value}
+                              sx={{
+                                fontStyle: "italic",
+                                //   width: "60%",
+                                gridColumn: "2",
+                              }}
+                            />
+                          ) : detail.editable ? (
+                            <Input
+                              value={detail.value}
+                              onChange={(e) =>
+                                handleDetailChange(
+                                  index,
+                                  "value",
+                                  e.target.value,
+                                )
+                              }
+                              sx={{
+                                fontStyle: "italic",
+                                //   width: "60%",
+                                gridColumn: "2",
+                              }}
+                            />
+                          ) : (
+                            <Typography
+                              sx={{
+                                gridColumn: "2",
+                              }}
+                            >
+                              <DetailComponent detail={detail} />
+                            </Typography>
+                          )}
+                          <Chip
+                            sx={{
+                              fontFamily: "monospace",
+                              gridColumn: "3",
+                            }}
+                          >
+                            {detail.type}
+                          </Chip>
+                        </Sheet>
+                        {index < Object.entries(detailedInfo).length - 1 && (
+                          <Divider />
+                        )}
+                      </React.Fragment>
+                    ))}
+
+                    <Button onClick={addNewKeyValuePair} variant="soft">
+                      Add New Key-Value Pair
+                    </Button>
+                  </DialogContent>
                   {errorMessage && (
                     <Typography color="danger" sx={{ mt: 2 }}>
                       {errorMessage}
                     </Typography>
                   )}
-                  {detailedInfo.map((detail, index) => (
-                    <React.Fragment key={index}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          m: 1,
-                        }}
-                      >
-                        <Chip
-                          sx={{
-                            fontFamily: "monospace",
-                            width: "20%",
-                          }}
-                        >
-                          {detail.type}
-                        </Chip>
-                        <Input
-                          value={detail.key}
-                          onChange={(e) =>
-                            handleDetailChange(index, "key", e.target.value)
-                          }
-                          sx={{ fontWeight: "bold", width: "30%" }} // Style for keys
-                        />
-                        {/* Conditional rendering based on type and editable */}
-                        {detail.type === "MDataFrame" ||
-                        detail.type === "MTable" ? (
-                          <DynamicTable tableData={detail.value} />
-                        ) : detail.editable ? (
-                          <Input
-                            value={detail.value}
-                            onChange={(e) =>
-                              handleDetailChange(index, "value", e.target.value)
-                            }
-                            sx={{ fontStyle: "italic", width: "70%" }}
-                          />
-                        ) : (
-                          <Typography
-                            sx={{
-                              fontStyle: "italic",
-                              color: "text.secondary",
-                              width: "70%",
-                              // Opacity for non-editable values
-                              opacity: 0.7,
-                            }}
-                          >
-                            {detail.value}
-                          </Typography>
-                        )}
-                      </Box>
-                      {index < Object.entries(detailedInfo).length - 1 && (
-                        <Divider />
-                      )}
-                    </React.Fragment>
-                  ))}
-                  <Button onClick={addNewKeyValuePair} variant="soft">
-                    Add New Key-Value Pair
-                  </Button>
-                </DialogContent>
-                <DialogActions>
-                  <Button
-                    variant="solid"
-                    color="success"
-                    onClick={() => handleEditConfirm(selectedItem)}
-                  >
-                    Confirm
-                  </Button>
-                  <Button
-                    variant="plain"
-                    color="neutral"
-                    onClick={() => setIsModalOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                </DialogActions>
-              </ModalDialog>
-            </Modal>
-          )}
+                  <DialogActions>
+                    <Button
+                      variant="solid"
+                      color="success"
+                      onClick={() => handleEditConfirm(selectedItem)}
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="plain"
+                      color="neutral"
+                      onClick={() => setIsModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </DialogActions>
+                </ModalDialog>
+              </Modal>
+            )}
+          </Skeleton>
         </TabPanel>
       </Tabs>
     </Box>
