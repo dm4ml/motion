@@ -11,6 +11,7 @@
             - flush_update
             - version
             - shutdown
+            - close
             - instance_name
         show_root_full_path: false
         show_root_toc_entry: false

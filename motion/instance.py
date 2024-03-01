@@ -121,6 +121,40 @@ class ComponentInstance:
         or a user-defined ID."""
         return self._instance_name.split("__")[-1]
 
+    def close(self, wait_for_logging_threads: bool = False) -> None:
+        """Alias for shutdown.
+
+        Usage:
+        ```python
+        from motion import Component
+
+        C = Component("MyComponent")
+
+        @C.init_state
+        def setUp():
+            return {"value": 0}
+
+        # Define serve and update operations
+
+        if __name__ == "__main__":
+            c_instance = C()
+            c_instance.run(...)
+            c_instance.run(...)
+            c_instance.close()
+
+            # Or, use a context manager
+            with C() as c_instance:
+                c_instance.run(...)
+                c_instance.run(...)
+        ```
+
+        Args:
+            wait_for_logging_threads (bool, optional): Defaults to False.
+        """
+
+        # Call shutdown
+        self.shutdown(wait_for_logging_threads=wait_for_logging_threads)
+
     def shutdown(self, wait_for_logging_threads: bool = False) -> None:
         """Shuts down a Motion component instance, saving state.
         Automatically called when the instance is garbage collected.
