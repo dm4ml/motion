@@ -49,7 +49,6 @@ class BaseUpdateTask:
         self.daemon = True
 
         self.redis_params = redis_params
-        self.redis_con: Optional[redis.Redis] = None
 
     def _logMessage(
         self,
@@ -85,46 +84,113 @@ class BaseUpdateTask:
             except requests.RequestException as e:
                 logger.error(f"Failed to send metric to VictoriaMetrics: {e}")
 
-    def __del__(self) -> None:
-        if self.redis_con is not None:
-            self.redis_con.close()
-
     def custom_run(self) -> None:
-        self.redis_con = redis.Redis(**self.redis_params)
-        redis_con = self.redis_con
+        try:
+            redis_con = redis.Redis(**self.redis_params)
 
-        while self.running.value:
-            item: Dict[str, Any] = {}
-            queue_name = ""
-            try:
-                # for _ in range(self.batch_size):
-                full_item = redis_con.blpop(self.queue_identifiers, timeout=0.01)
-                if full_item is None:
-                    if not self.running.value:
-                        break  # no more items in the list
-                    else:
+            while self.running.value:
+                item: Dict[str, Any] = {}
+                queue_name = ""
+                try:
+                    # for _ in range(self.batch_size):
+                    full_item = redis_con.blpop(self.queue_identifiers, timeout=0.01)
+                    if full_item is None:
+                        if not self.running.value:
+                            break  # no more items in the list
+                        else:
+                            continue
+
+                    queue_name = full_item[0].decode("utf-8")
+                    item = cloudpickle.loads(full_item[1])
+                    # self.batch.append(item)
+                    # if flush_update:
+                    #     break
+                except redis.exceptions.ConnectionError:
+                    logger.error("Connection to redis lost.", exc_info=True)
+                    break
+
+                # Check if we should stop
+                if not self.running.value and not item:
+                    # self.cleanup()
+                    break
+
+                # if not self.batch:
+                #     continue
+
+                exception_str = ""
+                # Check if it was a no op
+                if item["identifier"].startswith("NOOP_"):
+                    redis_con.publish(
+                        self.channel_identifiers[queue_name],
+                        str(
+                            {
+                                "identifier": item["identifier"],
+                                "exception": exception_str,
+                            }
+                        ),
+                    )
+                    continue
+
+                # Check if item.get("expire_at") has passed
+                expire_at = item.get("expire_at")
+                if expire_at is not None:
+                    if expire_at < redis_con.time()[0]:
+                        redis_con.publish(
+                            self.channel_identifiers[queue_name],
+                            str(
+                                {
+                                    "identifier": item["identifier"],
+                                    "exception": "Expired",
+                                }
+                            ),
+                        )
                         continue
 
-                queue_name = full_item[0].decode("utf-8")
-                item = cloudpickle.loads(full_item[1])
-                # self.batch.append(item)
-                # if flush_update:
-                #     break
-            except redis.exceptions.ConnectionError:
-                logger.error("Connection to redis lost.", exc_info=True)
-                break
+                # Run update op
+                try:
+                    start_time = time.time()
+                    with redis_con.lock(self.lock_identifier, timeout=120):
+                        old_state, version = loadState(
+                            redis_con,
+                            self.instance_name,
+                            self.load_state_func,
+                        )
+                        if old_state is None:
+                            # Create new state
+                            # If state does not exist, run setUp
+                            raise ValueError(
+                                f"State for {self.instance_name} not found."
+                            )
 
-            # Check if we should stop
-            if not self.running.value and not item:
-                # self.cleanup()
-                break
+                        state_update = self.routes[queue_name].run(
+                            state=old_state,
+                            props=item["props"],
+                        )
+                        # Await if state_update is a coroutine
+                        if asyncio.iscoroutine(state_update):
+                            state_update = asyncio.run(state_update)
 
-            # if not self.batch:
-            #     continue
+                        if not isinstance(state_update, dict):
+                            logger.error(
+                                "Update methods should return a dict of state updates.",
+                                exc_info=True,
+                            )
+                        else:
+                            old_state.update(state_update)
+                            saveState(
+                                old_state,
+                                version,
+                                redis_con,
+                                self.instance_name,
+                                self.save_state_func,
+                            )
 
-            exception_str = ""
-            # Check if it was a no op
-            if item["identifier"].startswith("NOOP_"):
+                except Exception:
+                    logger.error(traceback.format_exc())
+                    exception_str = str(traceback.format_exc())
+
+                duration = time.time() - start_time
+
                 redis_con.publish(
                     self.channel_identifiers[queue_name],
                     str(
@@ -134,96 +200,30 @@ class BaseUpdateTask:
                         }
                     ),
                 )
-                continue
 
-            # Check if item.get("expire_at") has passed
-            expire_at = item.get("expire_at")
-            if expire_at is not None:
-                if expire_at < redis_con.time()[0]:
-                    redis_con.publish(
-                        self.channel_identifiers[queue_name],
-                        str(
-                            {
-                                "identifier": item["identifier"],
-                                "exception": "Expired",
-                            }
-                        ),
-                    )
-                    continue
-
-            # Run update op
-            try:
-                start_time = time.time()
-                with redis_con.lock(self.lock_identifier, timeout=120):
-                    old_state, version = loadState(
-                        redis_con,
-                        self.instance_name,
-                        self.load_state_func,
-                    )
-                    if old_state is None:
-                        # Create new state
-                        # If state does not exist, run setUp
-                        raise ValueError(f"State for {self.instance_name} not found.")
-
-                    state_update = self.routes[queue_name].run(
-                        state=old_state,
-                        props=item["props"],
-                    )
-                    # Await if state_update is a coroutine
-                    if asyncio.iscoroutine(state_update):
-                        state_update = asyncio.run(state_update)
-
-                    if not isinstance(state_update, dict):
+                # Log to VictoriaMetrics
+                if self.victoria_metrics_url:
+                    try:
+                        flow_key = queue_name.split("/")[-2]
+                        udf_name = queue_name.split("/")[-1]
+                        self._logMessage(
+                            flow_key,
+                            "update",
+                            (
+                                FlowOpStatus.SUCCESS
+                                if not exception_str
+                                else FlowOpStatus.FAILURE
+                            ),
+                            duration,
+                            udf_name,
+                        )
+                    except Exception as e:
                         logger.error(
-                            "Update methods should return a dict of state updates.",
-                            exc_info=True,
-                        )
-                    else:
-                        old_state.update(state_update)
-                        saveState(
-                            old_state,
-                            version,
-                            redis_con,
-                            self.instance_name,
-                            self.save_state_func,
+                            f"Error logging to VictoriaMetrics: {e}", exc_info=True
                         )
 
-            except Exception:
-                logger.error(traceback.format_exc())
-                exception_str = str(traceback.format_exc())
-
-            duration = time.time() - start_time
-
-            redis_con.publish(
-                self.channel_identifiers[queue_name],
-                str(
-                    {
-                        "identifier": item["identifier"],
-                        "exception": exception_str,
-                    }
-                ),
-            )
-
-            # Log to VictoriaMetrics
-            if self.victoria_metrics_url:
-                try:
-                    flow_key = queue_name.split("/")[-2]
-                    udf_name = queue_name.split("/")[-1]
-                    self._logMessage(
-                        flow_key,
-                        "update",
-                        (
-                            FlowOpStatus.SUCCESS
-                            if not exception_str
-                            else FlowOpStatus.FAILURE
-                        ),
-                        duration,
-                        udf_name,
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Error logging to VictoriaMetrics: {e}", exc_info=True
-                    )
+        finally:
+            redis_con.close()
 
 
 class UpdateProcess(Process):
