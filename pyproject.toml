@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "motion-python"
-version = "0.1.129"
+version = "0.1.130"
 description = "A framework for building and maintaining self-updating prompts for LLMs."
 authors = ["Shreya Shankar <shreyashankar@berkeley.edu>"]
 readme = "README.md"
