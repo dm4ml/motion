@@ -183,12 +183,6 @@ class ComponentInstance:
                 c_instance.run(...)
         ```
         """
-        if self.disable_update_task:
-            return
-
-        if not self.running:
-            return
-
         # Flush the update queue
         if self.flush_on_exit:
             for flow_key in self.flows_run:
