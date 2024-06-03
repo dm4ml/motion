@@ -49,6 +49,7 @@ class BaseUpdateTask:
         self.daemon = True
 
         self.redis_params = redis_params
+        self._redis_con = redis.Redis(**self.redis_params)
 
     def _logMessage(
         self,
@@ -86,7 +87,7 @@ class BaseUpdateTask:
 
     def custom_run(self) -> None:
         try:
-            redis_con = redis.Redis(**self.redis_params)
+            redis_con = self._redis_con
 
             while self.running.value:
                 item: Dict[str, Any] = {}

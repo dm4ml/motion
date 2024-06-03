@@ -166,6 +166,7 @@ def clear_instance(instance_name: str) -> bool:
     if not redis_con.exists(f"MOTION_VERSION:{instance_name}") and not redis_con.exists(
         f"MOTION_VERSION:DEV:{instance_name}"
     ):
+        redis_con.close()
         return False
 
     # Delete the instance state, version, and cached results
@@ -229,6 +230,7 @@ def inspect_state(instance_name: str) -> Optional[State]:
 
     # Check if the instance exists
     if not redis_con.exists(f"MOTION_VERSION:{instance_name}"):
+        redis_con.close()
         raise ValueError(f"Instance {instance_name} does not exist.")
 
     # Get the state
