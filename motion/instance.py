@@ -182,7 +182,7 @@ class ComponentInstance:
         ```
         """
 
-        caller_frame = inspect.currentframe().f_back
+        caller_frame = inspect.currentframe().f_back  # type: ignore
         if caller_frame is not None:
             logger.debug(
                 f"Caller: {caller_frame.f_code.co_name} in {caller_frame.f_code.co_filename}"
