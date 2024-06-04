@@ -1,4 +1,5 @@
 import atexit
+import inspect
 import logging
 from typing import (
     Any,
@@ -104,9 +105,6 @@ class ComponentInstance:
     def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
         self.shutdown()
 
-    def __del__(self) -> None:
-        self.shutdown()
-
     @property
     def instance_name(self) -> str:
         """Component name with a random phrase to represent
@@ -183,6 +181,15 @@ class ComponentInstance:
                 c_instance.run(...)
         ```
         """
+
+        caller_frame = inspect.currentframe().f_back
+        if caller_frame is not None:
+            logger.debug(
+                f"Caller: {caller_frame.f_code.co_name} in {caller_frame.f_code.co_filename}"
+            )
+        else:
+            logger.debug("No caller frame available. Unable to trace the caller.")
+
         # Flush the update queue
         if self.flush_on_exit:
             for flow_key in self.flows_run:

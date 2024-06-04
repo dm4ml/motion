@@ -49,7 +49,6 @@ class BaseUpdateTask:
         self.daemon = True
 
         self.redis_params = redis_params
-        self._redis_con = redis.Redis(**self.redis_params)
 
     def _logMessage(
         self,
@@ -87,9 +86,11 @@ class BaseUpdateTask:
 
     def custom_run(self) -> None:
         try:
-            redis_con = self._redis_con
-
+            redis_con = None
             while self.running.value:
+                if not redis_con:
+                    redis_con = redis.Redis(**self.redis_params)
+
                 item: Dict[str, Any] = {}
                 queue_name = ""
                 try:
@@ -224,7 +225,8 @@ class BaseUpdateTask:
                         )
 
         finally:
-            redis_con.close()
+            if redis_con:
+                redis_con.close()
 
 
 class UpdateProcess(Process):
