@@ -10,6 +10,7 @@ nav:
       - Concepts: getting-started/concepts.md
   - Examples:
       - Hello World: examples/hello-world.md
+      - Ecommerce Reviews: examples/ecomm-review.md
       - Common Design Patterns: examples/design-patterns.md
       - Orchestrating an Application of Components: examples/application.md
       - Querying Data with Natural Language: examples/nl-query.md
